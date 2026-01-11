@@ -22,5 +22,14 @@
     "lint-staged": "^16.2.7",
     "prettier": "^3.7.4",
     "turbo": "^2.7.3"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier -w"
+    ],
+    "*.{json,md,yaml,yml,css,scss}": [
+      "prettier -w"
+    ]
   }
 }
