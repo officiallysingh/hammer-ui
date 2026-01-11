@@ -14,7 +14,7 @@
     "typecheck": "turbo typecheck",
     "format": "prettier -w .",
     "format:check": "prettier -c .",
-    "prepare": "husky"
+    "prepare": "husky install"
   },
   "devDependencies": {
     "eslint-config-prettier": "^10.1.8",
