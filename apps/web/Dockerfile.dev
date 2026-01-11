@@ -1,0 +1,21 @@
+FROM node:20-alpine
+
+WORKDIR /repo
+
+# optional but useful in some setups
+RUN apk add --no-cache libc6-compat
+
+# Copy only manifests first (better caching)
+COPY package.json package-lock.json turbo.json ./
+COPY apps/web/package.json apps/web/package.json
+COPY packages packages
+
+RUN npm ci
+
+# Copy the rest (dev will still mount volumes, but this helps initial image build)
+COPY . .
+
+WORKDIR /repo/apps/web
+EXPOSE 3000
+
+CMD ["npm", "run", "dev", "--", "-H", "0.0.0.0", "-p", "3000"]

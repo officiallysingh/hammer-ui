@@ -1,0 +1,81 @@
+# =========================
+# OS / Editor
+# =========================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+
+# =========================
+# Logs
+# =========================
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.log
+
+# =========================
+# Node / Package managers
+# =========================
+node_modules/
+**/node_modules/
+package-lock.json.*.bak
+.npmrc.local
+
+# =========================
+# Next.js / Turborepo
+# =========================
+.next/
+**/.next/
+out/
+dist/
+**/dist/
+.turbo/
+**/.turbo/
+
+# =========================
+# Testing
+# =========================
+coverage/
+**/coverage/
+playwright-report/
+test-results/
+**/playwright-report/
+**/test-results/
+
+# =========================
+# Build / cache
+# =========================
+.cache/
+**/.cache/
+.eslintcache
+*.tsbuildinfo
+
+# =========================
+# Env files (never commit secrets)
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Docker
+# =========================
+**/.dockerignore
+
+# =========================
+# Sentry (optional local)
+# =========================
+.sentryclirc
+
+# =========================
+# Misc
+# =========================
+*.pem
+*.key
