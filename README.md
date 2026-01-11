@@ -41,18 +41,18 @@ package.json
 - From repo root
   npm install
 
-- Option A: Local dev (no docker)
-  npm run dev
+Option A: Local dev (no docker)
+npm run dev
 
-- Option B: Docker dev (recommended for parity)
-  docker compose -f docker-compose.dev.yml up --build
+Option B: Docker dev (recommended for parity)
+docker compose -f docker-compose.dev.yml up --build
 
 # Prod (Docker + Nginx)
 
-- Builds Next.js in standalone mode and runs behind Nginx (reverse proxy)
-  docker compose up --build
+Builds Next.js in standalone mode and runs behind Nginx (reverse proxy)
+docker compose up --build
 
-# Open: http://localhost:3000
+Open: http://localhost:3000
 
 ## Healthcheck
 
