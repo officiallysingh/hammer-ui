@@ -1,5 +1,5 @@
 {
-  "name": "my-next-monorepo",
+  "name": "hammer",
   "private": true,
   "packageManager": "npm@10.7.0",
   "workspaces": [
@@ -14,7 +14,7 @@
     "typecheck": "turbo typecheck",
     "format": "prettier -w .",
     "format:check": "prettier -c .",
-    "prepare": "husky install"
+    "prepare": "husky"
   },
   "devDependencies": {
     "eslint-config-prettier": "^10.1.8",
@@ -31,5 +31,20 @@
     "*.{json,md,yaml,yml,css,scss}": [
       "prettier -w"
     ]
+  },
+  "dependencies": {
+    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-separator": "^1.1.8",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "@repo/ui": "^0.1.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "input-otp": "^1.4.2",
+    "lucide-react": "^0.577.0",
+    "react": "^19.2.4",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^4.2.1",
+    "tailwindcss-animate": "^1.0.7"
   }
 }

@@ -4,7 +4,7 @@ Node.js 20+
 npm 10+
 Docker + Docker Compose (for containerized dev/prod)
 
-## Next.js Monorepo (npm workspaces + Turborepo)
+## Hammer Monorepo (npm workspaces + Turborepo)
 
 Production-grade monorepo setup:
 
