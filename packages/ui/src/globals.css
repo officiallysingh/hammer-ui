@@ -1,88 +1,66 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* Professional Admin Theme - Light Mode */
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    --background: 220 20% 7%;
+    --foreground: 40 20% 92%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card: 220 18% 10%;
+    --card-foreground: 40 20% 92%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover: 220 18% 12%;
+    --popover-foreground: 40 20% 92%;
 
-    --primary: 226 70% 55%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 42 78% 55%;
+    --primary-foreground: 220 20% 7%;
 
-    --secondary: 215 20% 95%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 220 15% 16%;
+    --secondary-foreground: 40 15% 80%;
 
-    --muted: 215 20% 95%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 220 14% 14%;
+    --muted-foreground: 220 10% 55%;
 
-    --accent: 215 20% 95%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 42 78% 55%;
+    --accent-foreground: 220 20% 7%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 215 20% 91%;
-    --input: 215 20% 91%;
-    --ring: 226 70% 55%;
+    --border: 220 14% 18%;
+    --input: 220 14% 18%;
+    --ring: 42 78% 55%;
 
-    --radius: 0.625rem;
+    --radius: 0.5rem;
 
-    /* Sidebar for admin panels */
-    --sidebar: 222 47% 11%;
-    --sidebar-foreground: 215 20% 95%;
-    --sidebar-muted: 215 16% 22%;
-    --sidebar-accent: 226 70% 55%;
+    --gold: 42 78% 55%;
+    --gold-light: 42 80% 68%;
+    --gold-dark: 42 70% 40%;
+    --navy: 220 20% 7%;
+    --navy-light: 220 18% 14%;
+    --cream: 40 20% 92%;
+    --emerald: 160 60% 45%;
+    --ruby: 0 72% 51%;
 
-    /* Status colors */
-    --success: 142 71% 45%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-    --info: 199 89% 48%;
-    --info-foreground: 0 0% 100%;
-  }
+    --gradient-gold: linear-gradient(135deg, hsl(42, 78%, 55%), hsl(42, 80%, 68%));
+    --gradient-card: linear-gradient(180deg, hsl(220, 18%, 12%), hsl(220, 18%, 8%));
+    --shadow-gold: 0 4px 30px -4px hsl(42 78% 55% / 0.2);
+    --shadow-card: 0 8px 40px -12px hsl(0 0% 0% / 0.5);
 
-  .dark {
-    --background: 222 47% 11%;
-    --foreground: 215 20% 95%;
+    --sidebar-background: 220 18% 10%;
+    --sidebar-foreground: 40 20% 92%;
+    --sidebar-primary: 42 78% 55%;
+    --sidebar-primary-foreground: 220 20% 7%;
+    --sidebar-accent: 220 15% 16%;
+    --sidebar-accent-foreground: 40 15% 80%;
+    --sidebar-border: 220 14% 18%;
+    --sidebar-ring: 42 78% 55%;
 
-    --card: 223 47% 14%;
-    --card-foreground: 215 20% 95%;
-
-    --popover: 223 47% 14%;
-    --popover-foreground: 215 20% 95%;
-
-    --primary: 226 70% 55%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 215 16% 22%;
-    --secondary-foreground: 215 20% 95%;
-
-    --muted: 215 16% 22%;
-    --muted-foreground: 215 16% 57%;
-
-    --accent: 215 16% 22%;
-    --accent-foreground: 215 20% 95%;
-
-    --destructive: 0 62% 50%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 215 16% 22%;
-    --input: 215 16% 22%;
-    --ring: 226 70% 55%;
-
-    --sidebar: 223 47% 8%;
-    --sidebar-foreground: 215 20% 95%;
-    --sidebar-muted: 215 16% 22%;
-    --sidebar-accent: 226 70% 55%;
+    --font-display: 'Playfair Display', Georgia, serif;
+    --font-body: 'DM Sans', system-ui, sans-serif;
   }
 }
 
@@ -92,46 +70,41 @@
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
-    font-feature-settings:
-      'rlig' 1,
-      'calt' 1;
+    @apply bg-background text-foreground;
+    font-family: var(--font-body);
   }
 
-  /* Custom scrollbar for admin panels */
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  ::-webkit-scrollbar-track {
-    @apply bg-muted/50;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    @apply bg-muted-foreground/30 rounded-full;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/50;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
   }
 }
 
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  .text-gradient-gold {
+    background: var(--gradient-gold);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 
-  .text-pretty {
-    text-wrap: pretty;
+  .bg-gradient-gold {
+    background: var(--gradient-gold);
   }
 
-  /* Admin gradient backgrounds */
-  .bg-admin-gradient {
-    background: linear-gradient(135deg, hsl(var(--sidebar)) 0%, hsl(222 47% 15%) 100%);
+  .shadow-gold {
+    box-shadow: var(--shadow-gold);
   }
 
-  .bg-hero-pattern {
-    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .bg-gradient-card {
+    background: var(--gradient-card);
   }
 }

@@ -16,3 +16,4 @@ export {
 export { Tabs, TabsList, TabsTrigger, TabsContent } from './components/tabs';
 export { Separator } from './components/separator';
 export { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from './components/input-otp';
+export * from './hooks';

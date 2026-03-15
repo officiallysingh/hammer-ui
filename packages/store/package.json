@@ -17,6 +17,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@repo/types": "workspace:*",
     "typescript": "^5.7.2"
   },
   "peerDependencies": {

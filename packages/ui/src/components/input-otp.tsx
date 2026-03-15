@@ -2,7 +2,8 @@
 
 import * as React from 'react';
 import { OTPInput, OTPInputContext } from 'input-otp';
-import { Minus } from 'lucide-react';
+import { Dot } from 'lucide-react';
+
 import { cn } from '../lib/utils';
 
 const InputOTP = React.forwardRef<
@@ -35,16 +36,16 @@ const InputOTPSlot = React.forwardRef<
 >(({ index, className, ...props }, ref) => {
   const inputOTPContext = React.useContext(OTPInputContext);
   const slot = inputOTPContext.slots[index];
-  if (!slot) {
-    return null;
-  }
+
+  if (!slot) return null;
+
   const { char, hasFakeCaret, isActive } = slot;
 
   return (
     <div
       ref={ref}
       className={cn(
-        'relative flex h-12 w-12 items-center justify-center border-y border-r border-input text-lg font-medium transition-all first:rounded-l-md first:border-l last:rounded-r-md',
+        'relative flex h-10 w-10 items-center justify-center border-y border-r border-input text-sm transition-all first:rounded-l-md first:border-l last:rounded-r-md',
         isActive && 'z-10 ring-2 ring-ring ring-offset-background',
         className,
       )}
@@ -53,7 +54,7 @@ const InputOTPSlot = React.forwardRef<
       {char}
       {hasFakeCaret && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="h-5 w-px animate-caret-blink bg-foreground duration-1000" />
+          <div className="animate-caret-blink h-4 w-px bg-foreground duration-1000" />
         </div>
       )}
     </div>
@@ -66,7 +67,7 @@ const InputOTPSeparator = React.forwardRef<
   React.ComponentPropsWithoutRef<'div'>
 >(({ ...props }, ref) => (
   <div ref={ref} role="separator" {...props}>
-    <Minus className="h-4 w-4 text-muted-foreground" />
+    <Dot />
   </div>
 ));
 InputOTPSeparator.displayName = 'InputOTPSeparator';

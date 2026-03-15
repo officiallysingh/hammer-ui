@@ -14,7 +14,9 @@
     "e2e:ui": "playwright test --ui"
   },
   "dependencies": {
+    "@repo/api": "*",
     "@repo/ui": "file:../../packages/ui",
+    "framer-motion": "^12.36.0",
     "lucide-react": "^0.562.0",
     "next": "16.1.1",
     "pino": "^10.1.1",
