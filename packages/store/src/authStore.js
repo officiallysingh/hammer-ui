@@ -68,6 +68,10 @@ export const useAuthStore = create()(
         },
         generateOTT: async (username) => {
           try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/ott/generate`, {
+              method: 'POST',
+              body: new FormData(),
+            });
             const formData = new FormData();
             formData.append('username', username);
             const responseWithFormData = await fetch(
@@ -103,7 +107,7 @@ export const useAuthStore = create()(
             // API call to refresh token would go here
             // For now, we'll just keep the existing token
             console.log('Token refresh logic would go here');
-          } catch {
+          } catch (error) {
             // If refresh fails, logout
             get().logout();
           }

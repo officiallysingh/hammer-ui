@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { type InternalAxiosRequestConfig } from 'axios';
 
 // Get base URL from environment or use a default
 const getBaseUrl = () => {
@@ -17,7 +17,7 @@ export const apiClient = axios.create({
 });
 
 // Example: Add request interceptor for auth tokens
-apiClient.interceptors.request.use((config: axios.AxiosRequestConfig) => {
+apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   // Try to get token from localStorage if we're in a browser environment
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('auth_token');
