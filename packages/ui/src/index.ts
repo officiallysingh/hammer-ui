@@ -16,4 +16,14 @@ export {
 export { Tabs, TabsList, TabsTrigger, TabsContent } from './components/tabs';
 export { Separator } from './components/separator';
 export { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from './components/input-otp';
+export {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
+} from './components/dialog';
 export * from './hooks';

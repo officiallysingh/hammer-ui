@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import AuctionCard, { type AuctionItem } from './AuctionCard';
-import { Button } from '@/components/ui/button';
+import { Button } from '@repo/ui';
 
 const categories = ['All', 'Art', 'Watches', 'Jewelry', 'Antiques', 'Wine'];
 

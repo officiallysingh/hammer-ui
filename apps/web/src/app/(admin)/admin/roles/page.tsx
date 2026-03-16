@@ -2,8 +2,21 @@
 
 import React, { useEffect, useState } from 'react';
 import { adminApi, AuthorityGroupVM } from '@repo/api';
-import { Loader2, Trash2, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
-import { Button } from '@repo/ui';
+import { Loader2, Trash2, RefreshCw, ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { ColumnDef } from '@tanstack/react-table';
+import {
+  Button,
+  Input,
+  Label,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@repo/ui';
+import { DataTable } from '@/components/common/data-table';
 
 export default function RolesPage() {
   const [groups, setGroups] = useState<AuthorityGroupVM[]>([]);
@@ -11,6 +24,81 @@ export default function RolesPage() {
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [isCreating, setIsCreating] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newLabel, setNewLabel] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+
+  const columns: ColumnDef<AuthorityGroupVM>[] = [
+    {
+      id: 'expand',
+      header: '',
+      cell: ({ row }) => {
+        if (!row.original.authorities || row.original.authorities.length === 0) return null;
+        return (
+          <button
+            onClick={() => toggleExpand(row.original.id)}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {expanded.has(row.original.id) ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </button>
+        );
+      },
+      size: 40,
+    },
+    {
+      accessorKey: 'name',
+      header: 'Name',
+      cell: ({ row }) => (
+        <span className="font-medium text-foreground font-mono text-xs">{row.original.name}</span>
+      ),
+    },
+    {
+      accessorKey: 'label',
+      header: 'Label',
+      cell: ({ row }) => <span className="text-foreground">{row.original.label}</span>,
+    },
+    {
+      accessorKey: 'description',
+      header: 'Description',
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">{row.original.description ?? '—'}</span>
+      ),
+    },
+    {
+      id: 'permissions',
+      header: 'Permissions',
+      cell: ({ row }) => (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">
+          {row.original.authorities?.length ?? 0}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      cell: ({ row }) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+          onClick={() => handleDelete(row.original.id)}
+          disabled={deletingId === row.original.id}
+        >
+          {deletingId === row.original.id ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Trash2 className="h-4 w-4" />
+          )}
+        </Button>
+      ),
+    },
+  ];
 
   const fetchGroups = async () => {
     setIsLoading(true);
@@ -44,6 +132,33 @@ export default function RolesPage() {
     }
   };
 
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!newName.trim() || !newLabel.trim() || !newDescription.trim()) {
+      setError('Name, label and description are required.');
+      return;
+    }
+    setIsCreating(true);
+    try {
+      await adminApi.createAuthorityGroup({
+        name: newName.trim(),
+        label: newLabel.trim(),
+        description: newDescription.trim(),
+      });
+      setNewName('');
+      setNewLabel('');
+      setNewDescription('');
+      setIsCreateOpen(false);
+      await fetchGroups();
+    } catch (err) {
+      console.error(err);
+      setError('Failed to create role.');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   const toggleExpand = (id: number) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -58,15 +173,86 @@ export default function RolesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Roles</h1>
           <p className="text-sm text-muted-foreground">Manage authority groups (roles)</p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchGroups} disabled={isLoading}>
-          <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-1" />
+                Add role
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add role</DialogTitle>
+                <DialogDescription>Create a new authority group (role).</DialogDescription>
+              </DialogHeader>
+
+              <form onSubmit={handleCreate} className="space-y-4">
+                <div className="space-y-1">
+                  <Label htmlFor="new-role-name">Name</Label>
+                  <Input
+                    id="new-role-name"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="admin"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="new-role-label">Label</Label>
+                  <Input
+                    id="new-role-label"
+                    value={newLabel}
+                    onChange={(e) => setNewLabel(e.target.value)}
+                    placeholder="Admin"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="new-role-description">Description</Label>
+                  <Input
+                    id="new-role-description"
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    placeholder="Administration"
+                    autoComplete="off"
+                  />
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsCreateOpen(false)}
+                    disabled={isCreating}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isCreating}>
+                    {isCreating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        Saving
+                      </>
+                    ) : (
+                      'Create role'
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Button variant="outline" size="sm" onClick={fetchGroups} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -75,98 +261,36 @@ export default function RolesPage() {
         </div>
       )}
 
-      <div className="rounded-lg border bg-card overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wide">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium w-8"></th>
-              <th className="px-4 py-3 text-left font-medium">Name</th>
-              <th className="px-4 py-3 text-left font-medium">Label</th>
-              <th className="px-4 py-3 text-left font-medium">Description</th>
-              <th className="px-4 py-3 text-left font-medium">Permissions</th>
-              <th className="px-4 py-3 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {isLoading ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
-                  <Loader2 className="h-5 w-5 animate-spin inline mr-2" />
-                  Loading roles...
-                </td>
-              </tr>
-            ) : groups.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
-                  No roles found.
-                </td>
-              </tr>
-            ) : (
-              groups.map((group) => (
-                <React.Fragment key={group.id}>
-                  <tr className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3">
-                      {group.authorities && group.authorities.length > 0 && (
-                        <button
-                          onClick={() => toggleExpand(group.id)}
-                          className="text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          {expanded.has(group.id) ? (
-                            <ChevronDown className="h-4 w-4" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4" />
-                          )}
-                        </button>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 font-medium text-foreground font-mono text-xs">
-                      {group.name}
-                    </td>
-                    <td className="px-4 py-3 text-foreground">{group.label}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{group.description ?? '—'}</td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">
-                        {group.authorities?.length ?? 0}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => handleDelete(group.id)}
-                        disabled={deletingId === group.id}
-                      >
-                        {deletingId === group.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </td>
-                  </tr>
-                  {expanded.has(group.id) && group.authorities && group.authorities.length > 0 && (
-                    <tr>
-                      <td colSpan={6} className="px-4 pb-3 bg-muted/20">
-                        <div className="flex flex-wrap gap-1.5 pt-1">
-                          {group.authorities.map((a) => (
-                            <span
-                              key={a.id}
-                              className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-mono"
-                            >
-                              {a.name}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={groups}
+        columns={columns}
+        isLoading={isLoading}
+        emptyMessage="No roles found."
+        searchPlaceholder="Search roles..."
+      />
+
+      {/* Expanded permissions */}
+      {Array.from(expanded).map((groupId) => {
+        const group = groups.find((g) => g.id === groupId);
+        if (!group?.authorities || group.authorities.length === 0) return null;
+        return (
+          <div key={groupId} className="mt-2 rounded-lg border bg-muted/20 p-4">
+            <h4 className="text-sm font-medium text-foreground mb-2">
+              Permissions for {group.label}
+            </h4>
+            <div className="flex flex-wrap gap-1.5">
+              {group.authorities.map((a) => (
+                <span
+                  key={a.id}
+                  className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-mono"
+                >
+                  {a.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

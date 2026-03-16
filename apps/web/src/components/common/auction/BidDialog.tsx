@@ -7,7 +7,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { Button } from '@repo/ui';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import type { AuctionItem } from './AuctionCard';

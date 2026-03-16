@@ -1,5 +1,5 @@
 import { Gavel, Search, Bell, User } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@repo/ui';
 
 const AuctionNavbar = () => {
   return (

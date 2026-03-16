@@ -1,19 +1,34 @@
 import { apiClient } from './client';
 
+// Admin user detail (GET /api/v1/users, /{id})
 export interface UserDetailVM {
-  id: string;
+  id: number;
   username: string;
-  email?: string;
-  mobileNo?: string;
+  emailId: string;
   firstName?: string;
   lastName?: string;
-  active?: boolean;
-  emailVerified?: boolean;
-  mobileVerified?: boolean;
-  authorities?: { id: string; name: string }[];
+  mobileNo?: string;
+  authorities?: { id: number; name: string; label: string }[];
+  authorityGroups?: { id: number; name: string; label: string }[];
+  enabled: boolean;
+  accountNonLocked: boolean;
+  accountNonExpired: boolean;
+  credentialsNonExpired: boolean;
+  emailIdVerified: boolean;
+  mobileNoVerified: boolean;
+  passwordSet: boolean;
 }
 
-/** Response from GET /api/v1/users/username/{loginName}/info */
+// Admin create user (POST /api/v1/users)
+export interface UserCreationReq {
+  username: string;
+  emailId: string;
+  firstName: string;
+  lastName: string;
+  mobileNo?: string;
+}
+
+// Self user info (GET /api/v1/users/username/{loginName}/info)
 export interface UserInfo {
   username: string;
   emailId: string;
@@ -57,11 +72,14 @@ export const usersApi = {
     const response = await apiClient.get('/api/v1/users', { params: { page, size } });
     return response.data;
   },
-  getUserById: async (id: string): Promise<UserDetailVM> => {
+  createUser: async (data: UserCreationReq): Promise<void> => {
+    await apiClient.post('/api/v1/users', data);
+  },
+  getUserById: async (id: number): Promise<UserDetailVM> => {
     const response = await apiClient.get(`/api/v1/users/${id}`);
     return response.data;
   },
-  deleteUser: async (id: string): Promise<void> => {
+  deleteUser: async (id: number): Promise<void> => {
     await apiClient.delete(`/api/v1/users/${id}`);
   },
 };

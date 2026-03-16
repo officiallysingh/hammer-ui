@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Heart, Clock } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@repo/ui';
 import BidDialog from './BidDialog';
 
 export interface AuctionItem {

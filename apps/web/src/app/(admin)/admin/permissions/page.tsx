@@ -2,14 +2,73 @@
 
 import React, { useEffect, useState } from 'react';
 import { adminApi, AuthorityVM } from '@repo/api';
-import { Loader2, Trash2, RefreshCw } from 'lucide-react';
-import { Button } from '@repo/ui';
+import { Loader2, Trash2, RefreshCw, Plus } from 'lucide-react';
+import { ColumnDef } from '@tanstack/react-table';
+import {
+  Button,
+  Input,
+  Label,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@repo/ui';
+import { DataTable } from '@/components/common/data-table';
 
 export default function PermissionsPage() {
   const [authorities, setAuthorities] = useState<AuthorityVM[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newLabel, setNewLabel] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+
+  const columns: ColumnDef<AuthorityVM>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Name',
+      cell: ({ row }) => (
+        <span className="font-mono text-xs text-foreground">{row.original.name}</span>
+      ),
+    },
+    {
+      accessorKey: 'label',
+      header: 'Label',
+      cell: ({ row }) => <span className="text-foreground">{row.original.label}</span>,
+    },
+    {
+      accessorKey: 'description',
+      header: 'Description',
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">{row.original.description ?? '—'}</span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      cell: ({ row }) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+          onClick={() => handleDelete(row.original.id)}
+          disabled={deletingId === row.original.id}
+        >
+          {deletingId === row.original.id ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Trash2 className="h-4 w-4" />
+          )}
+        </Button>
+      ),
+    },
+  ];
 
   const fetchAuthorities = async () => {
     setIsLoading(true);
@@ -43,17 +102,115 @@ export default function PermissionsPage() {
     }
   };
 
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!newName.trim() || !newLabel.trim() || !newDescription.trim()) {
+      setError('Name, label and description are required.');
+      return;
+    }
+    setIsCreating(true);
+    try {
+      await adminApi.createAuthority({
+        name: newName.trim(),
+        label: newLabel.trim(),
+        description: newDescription.trim(),
+      });
+      setNewName('');
+      setNewLabel('');
+      setNewDescription('');
+      setIsCreateOpen(false);
+      await fetchAuthorities();
+    } catch (err) {
+      console.error(err);
+      setError('Failed to create permission.');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Permissions</h1>
           <p className="text-sm text-muted-foreground">Manage authorities (permissions)</p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchAuthorities} disabled={isLoading}>
-          <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-1" />
+                Add permission
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add permission</DialogTitle>
+                <DialogDescription>Create a new authority (permission).</DialogDescription>
+              </DialogHeader>
+
+              <form onSubmit={handleCreate} className="space-y-4">
+                <div className="space-y-1">
+                  <Label htmlFor="new-permission-name">Name</Label>
+                  <Input
+                    id="new-permission-name"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="admin.users.create"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="new-permission-label">Label</Label>
+                  <Input
+                    id="new-permission-label"
+                    value={newLabel}
+                    onChange={(e) => setNewLabel(e.target.value)}
+                    placeholder="Create Users"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="new-permission-description">Description</Label>
+                  <Input
+                    id="new-permission-description"
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    placeholder="Allows creating users"
+                    autoComplete="off"
+                  />
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsCreateOpen(false)}
+                    disabled={isCreating}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isCreating}>
+                    {isCreating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        Saving
+                      </>
+                    ) : (
+                      'Create permission'
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Button variant="outline" size="sm" onClick={fetchAuthorities} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -62,57 +219,13 @@ export default function PermissionsPage() {
         </div>
       )}
 
-      <div className="rounded-lg border bg-card overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wide">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium">Name</th>
-              <th className="px-4 py-3 text-left font-medium">Label</th>
-              <th className="px-4 py-3 text-left font-medium">Description</th>
-              <th className="px-4 py-3 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {isLoading ? (
-              <tr>
-                <td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">
-                  <Loader2 className="h-5 w-5 animate-spin inline mr-2" />
-                  Loading permissions...
-                </td>
-              </tr>
-            ) : authorities.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">
-                  No permissions found.
-                </td>
-              </tr>
-            ) : (
-              authorities.map((auth) => (
-                <tr key={auth.id} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-3 font-mono text-xs text-foreground">{auth.name}</td>
-                  <td className="px-4 py-3 text-foreground">{auth.label}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{auth.description ?? '—'}</td>
-                  <td className="px-4 py-3 text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => handleDelete(auth.id)}
-                      disabled={deletingId === auth.id}
-                    >
-                      {deletingId === auth.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={authorities}
+        columns={columns}
+        isLoading={isLoading}
+        emptyMessage="No permissions found."
+        searchPlaceholder="Search permissions..."
+      />
     </div>
   );
 }

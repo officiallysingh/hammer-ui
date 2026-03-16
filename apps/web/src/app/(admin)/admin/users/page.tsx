@@ -2,14 +2,92 @@
 
 import React, { useEffect, useState } from 'react';
 import { usersApi, UserDetailVM } from '@repo/api';
-import { Loader2, Trash2, RefreshCw } from 'lucide-react';
-import { Button } from '@repo/ui';
+import { Loader2, Trash2, RefreshCw, UserPlus } from 'lucide-react';
+import { ColumnDef } from '@tanstack/react-table';
+import {
+  Button,
+  Input,
+  Label,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@repo/ui';
+import { DataTable } from '@/components/common/data-table';
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserDetailVM[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newFirstName, setNewFirstName] = useState('');
+  const [newLastName, setNewLastName] = useState('');
+  const [newMobile, setNewMobile] = useState('');
+
+  const columns: ColumnDef<UserDetailVM>[] = [
+    {
+      accessorKey: 'username',
+      header: 'Username',
+      cell: ({ row }) => (
+        <span className="font-medium text-foreground">{row.original.username}</span>
+      ),
+    },
+    {
+      accessorKey: 'emailId',
+      header: 'Email',
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">{row.original.emailId ?? '—'}</span>
+      ),
+    },
+    {
+      accessorKey: 'mobileNo',
+      header: 'Mobile',
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">{row.original.mobileNo ?? '—'}</span>
+      ),
+    },
+    {
+      accessorKey: 'enabled',
+      header: 'Status',
+      cell: ({ row }) => (
+        <span
+          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+            row.original.enabled
+              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+              : 'bg-muted text-muted-foreground'
+          }`}
+        >
+          {row.original.enabled ? 'Active' : 'Inactive'}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      cell: ({ row }) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+          onClick={() => handleDelete(row.original.id)}
+          disabled={deletingId === row.original.id}
+        >
+          {deletingId === row.original.id ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Trash2 className="h-4 w-4" />
+          )}
+        </Button>
+      ),
+    },
+  ];
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -31,7 +109,7 @@ export default function UsersPage() {
     fetchUsers();
   }, []);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     if (!confirm('Are you sure you want to delete this user?')) return;
     setDeletingId(id);
     try {
@@ -45,14 +123,137 @@ export default function UsersPage() {
     }
   };
 
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!newUsername.trim() || !newEmail.trim() || !newFirstName.trim() || !newLastName.trim()) {
+      setError('Username, email, first name and last name are required.');
+      return;
+    }
+    setIsCreating(true);
+    try {
+      await usersApi.createUser({
+        username: newUsername.trim(),
+        emailId: newEmail.trim(),
+        firstName: newFirstName.trim(),
+        lastName: newLastName.trim(),
+        mobileNo: newMobile.trim() || undefined,
+      });
+      setNewUsername('');
+      setNewEmail('');
+      setNewFirstName('');
+      setNewLastName('');
+      setNewMobile('');
+      setIsCreateOpen(false);
+      await fetchUsers();
+    } catch (err) {
+      console.error(err);
+      setError('Failed to create user.');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Users</h1>
           <p className="text-sm text-muted-foreground">Manage registered users</p>
         </div>
         <div className="flex gap-2">
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <UserPlus className="h-4 w-4 mr-1" />
+                Add user
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add user</DialogTitle>
+                <DialogDescription>Create a new user in the system.</DialogDescription>
+              </DialogHeader>
+
+              <form onSubmit={handleCreate} className="space-y-4">
+                <div className="space-y-1">
+                  <Label htmlFor="new-username">Username</Label>
+                  <Input
+                    id="new-username"
+                    value={newUsername}
+                    onChange={(e) => setNewUsername(e.target.value)}
+                    placeholder="rajveer.singh"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="new-email">Email</Label>
+                  <Input
+                    id="new-email"
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="abc@xyz.com"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="new-first-name">First name</Label>
+                    <Input
+                      id="new-first-name"
+                      value={newFirstName}
+                      onChange={(e) => setNewFirstName(e.target.value)}
+                      placeholder="Rajveer"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="new-last-name">Last name</Label>
+                    <Input
+                      id="new-last-name"
+                      value={newLastName}
+                      onChange={(e) => setNewLastName(e.target.value)}
+                      placeholder="Singh"
+                      autoComplete="off"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="new-mobile">Mobile (optional)</Label>
+                  <Input
+                    id="new-mobile"
+                    value={newMobile}
+                    onChange={(e) => setNewMobile(e.target.value)}
+                    placeholder="7082690057"
+                    autoComplete="off"
+                  />
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsCreateOpen(false)}
+                    disabled={isCreating}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isCreating}>
+                    {isCreating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        Saving
+                      </>
+                    ) : (
+                      'Create user'
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
           <Button variant="outline" size="sm" onClick={fetchUsers} disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
@@ -66,69 +267,13 @@ export default function UsersPage() {
         </div>
       )}
 
-      <div className="rounded-lg border bg-card overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wide">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium">Username</th>
-              <th className="px-4 py-3 text-left font-medium">Email</th>
-              <th className="px-4 py-3 text-left font-medium">Mobile</th>
-              <th className="px-4 py-3 text-left font-medium">Status</th>
-              <th className="px-4 py-3 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {isLoading ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
-                  <Loader2 className="h-5 w-5 animate-spin inline mr-2" />
-                  Loading users...
-                </td>
-              </tr>
-            ) : users.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
-                  No users found.
-                </td>
-              </tr>
-            ) : (
-              users.map((user) => (
-                <tr key={user.id} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-3 font-medium text-foreground">{user.username}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{user.email ?? '—'}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{user.mobileNo ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        user.active
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {user.active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => handleDelete(user.id)}
-                      disabled={deletingId === user.id}
-                    >
-                      {deletingId === user.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={users}
+        columns={columns}
+        isLoading={isLoading}
+        emptyMessage="No users found."
+        searchPlaceholder="Search users..."
+      />
     </div>
   );
 }
