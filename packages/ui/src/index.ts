@@ -26,4 +26,5 @@ export {
   DialogDescription,
   DialogClose,
 } from './components/dialog';
+export { Toaster, toast } from './components/sonner';
 export * from './hooks';

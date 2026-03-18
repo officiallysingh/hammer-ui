@@ -17,6 +17,8 @@ import {
   DialogTrigger,
 } from '@repo/ui';
 import { DataTable } from '@/components/common/data-table';
+import PageHeader from '@/components/common/admin/PageHeader';
+import ErrorAlert from '@/components/common/admin/ErrorAlert';
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserDetailVM[]>([]);
@@ -58,10 +60,10 @@ export default function UsersPage() {
       header: 'Status',
       cell: ({ row }) => (
         <span
-          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium font-body ${
             row.original.enabled
-              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-              : 'bg-muted text-muted-foreground'
+              ? 'bg-emerald/10 text-emerald border border-emerald/20'
+              : 'bg-muted text-muted-foreground border border-border'
           }`}
         >
           {row.original.enabled ? 'Active' : 'Inactive'}
@@ -155,117 +157,113 @@ export default function UsersPage() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Users</h1>
-          <p className="text-sm text-muted-foreground">Manage registered users</p>
-        </div>
-        <div className="flex gap-2">
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <UserPlus className="h-4 w-4 mr-1" />
-                Add user
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add user</DialogTitle>
-                <DialogDescription>Create a new user in the system.</DialogDescription>
-              </DialogHeader>
+    <div className="space-y-6">
+      <PageHeader
+        title="Users"
+        description="Manage registered users and their accounts"
+        actions={
+          <div className="flex gap-2">
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <UserPlus className="h-4 w-4 mr-1" />
+                  Add user
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add user</DialogTitle>
+                  <DialogDescription>Create a new user in the system.</DialogDescription>
+                </DialogHeader>
 
-              <form onSubmit={handleCreate} className="space-y-4">
-                <div className="space-y-1">
-                  <Label htmlFor="new-username">Username</Label>
-                  <Input
-                    id="new-username"
-                    value={newUsername}
-                    onChange={(e) => setNewUsername(e.target.value)}
-                    placeholder="rajveer.singh"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="new-email">Email</Label>
-                  <Input
-                    id="new-email"
-                    type="email"
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    placeholder="abc@xyz.com"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <form onSubmit={handleCreate} className="space-y-4">
                   <div className="space-y-1">
-                    <Label htmlFor="new-first-name">First name</Label>
+                    <Label htmlFor="new-username">Username</Label>
                     <Input
-                      id="new-first-name"
-                      value={newFirstName}
-                      onChange={(e) => setNewFirstName(e.target.value)}
-                      placeholder="Rajveer"
+                      id="new-username"
+                      value={newUsername}
+                      onChange={(e) => setNewUsername(e.target.value)}
+                      placeholder="rajveer.singh"
                       autoComplete="off"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="new-last-name">Last name</Label>
+                    <Label htmlFor="new-email">Email</Label>
                     <Input
-                      id="new-last-name"
-                      value={newLastName}
-                      onChange={(e) => setNewLastName(e.target.value)}
-                      placeholder="Singh"
+                      id="new-email"
+                      type="email"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      placeholder="abc@xyz.com"
                       autoComplete="off"
                     />
                   </div>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="new-mobile">Mobile (optional)</Label>
-                  <Input
-                    id="new-mobile"
-                    value={newMobile}
-                    onChange={(e) => setNewMobile(e.target.value)}
-                    placeholder="7082690057"
-                    autoComplete="off"
-                  />
-                </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="new-first-name">First name</Label>
+                      <Input
+                        id="new-first-name"
+                        value={newFirstName}
+                        onChange={(e) => setNewFirstName(e.target.value)}
+                        placeholder="Rajveer"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="new-last-name">Last name</Label>
+                      <Input
+                        id="new-last-name"
+                        value={newLastName}
+                        onChange={(e) => setNewLastName(e.target.value)}
+                        placeholder="Singh"
+                        autoComplete="off"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="new-mobile">Mobile (optional)</Label>
+                    <Input
+                      id="new-mobile"
+                      value={newMobile}
+                      onChange={(e) => setNewMobile(e.target.value)}
+                      placeholder="7082690057"
+                      autoComplete="off"
+                    />
+                  </div>
 
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsCreateOpen(false)}
-                    disabled={isCreating}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isCreating}>
-                    {isCreating ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                        Saving
-                      </>
-                    ) : (
-                      'Create user'
-                    )}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsCreateOpen(false)}
+                      disabled={isCreating}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isCreating}>
+                      {isCreating ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                          Saving
+                        </>
+                      ) : (
+                        'Create user'
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
 
-          <Button variant="outline" size="sm" onClick={fetchUsers} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
-      </div>
+            <Button variant="outline" size="sm" onClick={fetchUsers} disabled={isLoading}>
+              <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
+        }
+      />
 
-      {error && (
-        <div className="py-2 px-3 bg-destructive/10 text-destructive text-sm rounded-md">
-          {error}
-        </div>
-      )}
+      {error && <ErrorAlert message={error} />}
 
       <DataTable
         data={users}

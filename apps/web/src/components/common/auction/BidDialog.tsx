@@ -6,10 +6,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@/components/ui/dialog';
-import { Button } from '@repo/ui';
-import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
+  Button,
+  Input,
+  toast,
+} from '@repo/ui';
 import type { AuctionItem } from './AuctionCard';
 
 interface BidDialogProps {

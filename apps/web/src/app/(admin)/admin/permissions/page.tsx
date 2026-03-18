@@ -17,6 +17,8 @@ import {
   DialogTrigger,
 } from '@repo/ui';
 import { DataTable } from '@/components/common/data-table';
+import PageHeader from '@/components/common/admin/PageHeader';
+import ErrorAlert from '@/components/common/admin/ErrorAlert';
 
 export default function PermissionsPage() {
   const [authorities, setAuthorities] = useState<AuthorityVM[]>([]);
@@ -130,94 +132,90 @@ export default function PermissionsPage() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Permissions</h1>
-          <p className="text-sm text-muted-foreground">Manage authorities (permissions)</p>
-        </div>
-        <div className="flex gap-2">
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-1" />
-                Add permission
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add permission</DialogTitle>
-                <DialogDescription>Create a new authority (permission).</DialogDescription>
-              </DialogHeader>
+    <div className="space-y-6">
+      <PageHeader
+        title="Permissions"
+        description="Manage authorities and access rights across the system"
+        actions={
+          <div className="flex gap-2">
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add permission
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add permission</DialogTitle>
+                  <DialogDescription>Create a new authority (permission).</DialogDescription>
+                </DialogHeader>
 
-              <form onSubmit={handleCreate} className="space-y-4">
-                <div className="space-y-1">
-                  <Label htmlFor="new-permission-name">Name</Label>
-                  <Input
-                    id="new-permission-name"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    placeholder="admin.users.create"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="new-permission-label">Label</Label>
-                  <Input
-                    id="new-permission-label"
-                    value={newLabel}
-                    onChange={(e) => setNewLabel(e.target.value)}
-                    placeholder="Create Users"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="new-permission-description">Description</Label>
-                  <Input
-                    id="new-permission-description"
-                    value={newDescription}
-                    onChange={(e) => setNewDescription(e.target.value)}
-                    placeholder="Allows creating users"
-                    autoComplete="off"
-                  />
-                </div>
+                <form onSubmit={handleCreate} className="space-y-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="new-permission-name">Name</Label>
+                    <Input
+                      id="new-permission-name"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      placeholder="admin.users.create"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="new-permission-label">Label</Label>
+                    <Input
+                      id="new-permission-label"
+                      value={newLabel}
+                      onChange={(e) => setNewLabel(e.target.value)}
+                      placeholder="Create Users"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="new-permission-description">Description</Label>
+                    <Input
+                      id="new-permission-description"
+                      value={newDescription}
+                      onChange={(e) => setNewDescription(e.target.value)}
+                      placeholder="Allows creating users"
+                      autoComplete="off"
+                    />
+                  </div>
 
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsCreateOpen(false)}
-                    disabled={isCreating}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isCreating}>
-                    {isCreating ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                        Saving
-                      </>
-                    ) : (
-                      'Create permission'
-                    )}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsCreateOpen(false)}
+                      disabled={isCreating}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isCreating}>
+                      {isCreating ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                          Saving
+                        </>
+                      ) : (
+                        'Create permission'
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
 
-          <Button variant="outline" size="sm" onClick={fetchAuthorities} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
-      </div>
+            <Button variant="outline" size="sm" onClick={fetchAuthorities} disabled={isLoading}>
+              <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
+        }
+      />
 
-      {error && (
-        <div className="py-2 px-3 bg-destructive/10 text-destructive text-sm rounded-md">
-          {error}
-        </div>
-      )}
+      {error && <ErrorAlert message={error} />}
 
       <DataTable
         data={authorities}

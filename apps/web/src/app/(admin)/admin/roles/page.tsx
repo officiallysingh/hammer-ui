@@ -17,6 +17,8 @@ import {
   DialogTrigger,
 } from '@repo/ui';
 import { DataTable } from '@/components/common/data-table';
+import PageHeader from '@/components/common/admin/PageHeader';
+import ErrorAlert from '@/components/common/admin/ErrorAlert';
 
 export default function RolesPage() {
   const [groups, setGroups] = useState<AuthorityGroupVM[]>([]);
@@ -74,7 +76,7 @@ export default function RolesPage() {
       id: 'permissions',
       header: 'Permissions',
       cell: ({ row }) => (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium font-body bg-primary/10 text-primary border border-primary/20">
           {row.original.authorities?.length ?? 0}
         </span>
       ),
@@ -172,94 +174,90 @@ export default function RolesPage() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Roles</h1>
-          <p className="text-sm text-muted-foreground">Manage authority groups (roles)</p>
-        </div>
-        <div className="flex gap-2">
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-1" />
-                Add role
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add role</DialogTitle>
-                <DialogDescription>Create a new authority group (role).</DialogDescription>
-              </DialogHeader>
+    <div className="space-y-6">
+      <PageHeader
+        title="Roles"
+        description="Manage authority groups and their assigned permissions"
+        actions={
+          <div className="flex gap-2">
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add role
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add role</DialogTitle>
+                  <DialogDescription>Create a new authority group (role).</DialogDescription>
+                </DialogHeader>
 
-              <form onSubmit={handleCreate} className="space-y-4">
-                <div className="space-y-1">
-                  <Label htmlFor="new-role-name">Name</Label>
-                  <Input
-                    id="new-role-name"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    placeholder="admin"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="new-role-label">Label</Label>
-                  <Input
-                    id="new-role-label"
-                    value={newLabel}
-                    onChange={(e) => setNewLabel(e.target.value)}
-                    placeholder="Admin"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="new-role-description">Description</Label>
-                  <Input
-                    id="new-role-description"
-                    value={newDescription}
-                    onChange={(e) => setNewDescription(e.target.value)}
-                    placeholder="Administration"
-                    autoComplete="off"
-                  />
-                </div>
+                <form onSubmit={handleCreate} className="space-y-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="new-role-name">Name</Label>
+                    <Input
+                      id="new-role-name"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      placeholder="admin"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="new-role-label">Label</Label>
+                    <Input
+                      id="new-role-label"
+                      value={newLabel}
+                      onChange={(e) => setNewLabel(e.target.value)}
+                      placeholder="Admin"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="new-role-description">Description</Label>
+                    <Input
+                      id="new-role-description"
+                      value={newDescription}
+                      onChange={(e) => setNewDescription(e.target.value)}
+                      placeholder="Administration"
+                      autoComplete="off"
+                    />
+                  </div>
 
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsCreateOpen(false)}
-                    disabled={isCreating}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isCreating}>
-                    {isCreating ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                        Saving
-                      </>
-                    ) : (
-                      'Create role'
-                    )}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsCreateOpen(false)}
+                      disabled={isCreating}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isCreating}>
+                      {isCreating ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                          Saving
+                        </>
+                      ) : (
+                        'Create role'
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
 
-          <Button variant="outline" size="sm" onClick={fetchGroups} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
-      </div>
+            <Button variant="outline" size="sm" onClick={fetchGroups} disabled={isLoading}>
+              <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
+        }
+      />
 
-      {error && (
-        <div className="py-2 px-3 bg-destructive/10 text-destructive text-sm rounded-md">
-          {error}
-        </div>
-      )}
+      {error && <ErrorAlert message={error} />}
 
       <DataTable
         data={groups}
