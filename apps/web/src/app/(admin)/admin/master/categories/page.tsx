@@ -17,6 +17,7 @@ import { Button } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
+import Tip from '@/components/common/admin/Tip';
 import { SubCategoryFormDialog } from './_components/SubCategoryFormDialog';
 
 export default function CategoriesPage() {
@@ -166,24 +167,26 @@ export default function CategoriesPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-0.5 flex-shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
-                      onClick={() => router.push(`/admin/master/categories/${cat.id}/edit`)}
-                      title="Edit category"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => handleDeleteCategory(cat.id)}
-                      title="Delete category"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <Tip label="Edit category">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+                        onClick={() => router.push(`/admin/master/categories/${cat.id}/edit`)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    </Tip>
+                    <Tip label="Delete category">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDeleteCategory(cat.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </Tip>
                   </div>
                 </div>
 

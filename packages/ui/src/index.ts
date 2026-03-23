@@ -38,4 +38,14 @@ export {
   AlertDialogCancel,
 } from './components/alert-dialog';
 export { Toaster, toast } from './components/sonner';
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './components/tooltip';
+export {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuGroup,
+} from './components/dropdown-menu';
 export * from './hooks';

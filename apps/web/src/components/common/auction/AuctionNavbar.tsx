@@ -3,8 +3,28 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Gavel, Search, Bell, User, LogOut, LayoutDashboard, Menu, X } from 'lucide-react';
-import { Button } from '@repo/ui';
+import {
+  Gavel,
+  Search,
+  Bell,
+  User,
+  LogOut,
+  LayoutDashboard,
+  Menu,
+  X,
+  ChevronDown,
+  Settings,
+} from 'lucide-react';
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@repo/ui';
 import { useAuthStore } from '@/store/authStore';
 
 const navLinks = [
@@ -67,28 +87,74 @@ const AuctionNavbar = () => {
               >
                 <Bell className="h-5 w-5" />
               </Button>
-              {isAdmin() && (
-                <Button variant="outline" size="sm" asChild>
-                  <Link href="/admin/users">
-                    <LayoutDashboard className="mr-1.5 h-4 w-4" />
-                    Admin
-                  </Link>
-                </Button>
-              )}
-              <div className="flex items-center gap-2 pl-1 border-l border-border ml-1">
-                <span className="text-sm text-muted-foreground hidden lg:inline truncate max-w-[120px]">
-                  {displayName}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleSignOut}
-                  className="gap-1.5 text-muted-foreground hover:text-destructive"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span className="hidden lg:inline">Sign out</span>
-                </Button>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-secondary transition-colors outline-none">
+                    <div className="w-8 h-8 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
+                      <span className="font-body text-xs font-bold text-primary uppercase">
+                        {displayName.charAt(0)}
+                      </span>
+                    </div>
+                    <span className="hidden lg:block text-sm font-medium text-foreground max-w-[100px] truncate">
+                      {displayName}
+                    </span>
+                    <ChevronDown className="hidden lg:block h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex items-center gap-3 py-1">
+                      <div className="w-9 h-9 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
+                        <span className="font-body text-sm font-bold text-primary uppercase">
+                          {displayName.charAt(0)}
+                        </span>
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-body text-sm font-semibold text-foreground truncate">
+                          {displayName}
+                        </span>
+                        <span className="font-body text-xs text-muted-foreground">
+                          {isAdmin() ? 'Administrator' : 'Member'}
+                        </span>
+                      </div>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem asChild className="gap-2 cursor-pointer">
+                      <Link href="/profile">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <span>Profile</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild className="gap-2 cursor-pointer">
+                      <Link href="/profile">
+                        <Settings className="h-4 w-4 text-muted-foreground" />
+                        <span>Settings</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    {isAdmin() && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/users" className="gap-2 cursor-pointer">
+                            <LayoutDashboard className="h-4 w-4 text-muted-foreground" />
+                            <span>Admin panel</span>
+                          </Link>
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="gap-2 cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
+                    onClick={handleSignOut}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>Sign out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           ) : (
             <>
@@ -131,22 +197,38 @@ const AuctionNavbar = () => {
           <div className="pt-3 border-t border-border flex flex-col gap-2">
             {isLoggedIn ? (
               <>
-                <p className="text-sm text-muted-foreground">
-                  Signed in as <span className="text-foreground font-medium">{displayName}</span>
-                </p>
+                <div className="flex items-center gap-3 py-1">
+                  <div className="w-9 h-9 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
+                    <span className="font-body text-sm font-bold text-primary uppercase">
+                      {displayName.charAt(0)}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{displayName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {isAdmin() ? 'Administrator' : 'Member'}
+                    </p>
+                  </div>
+                </div>
                 {isAdmin() && (
                   <Button variant="outline" size="sm" asChild className="w-full justify-start">
                     <Link href="/admin/users" onClick={() => setMobileOpen(false)}>
                       <LayoutDashboard className="mr-2 h-4 w-4" />
-                      Admin Dashboard
+                      Admin panel
                     </Link>
                   </Button>
                 )}
+                <Button variant="ghost" size="sm" asChild className="w-full justify-start gap-2">
+                  <Link href="/profile" onClick={() => setMobileOpen(false)}>
+                    <User className="h-4 w-4" />
+                    Profile
+                  </Link>
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={handleSignOut}
-                  className="w-full justify-start gap-2 text-muted-foreground hover:text-destructive"
+                  className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
                 >
                   <LogOut className="h-4 w-4" />
                   Sign out

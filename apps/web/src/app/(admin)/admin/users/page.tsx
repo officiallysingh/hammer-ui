@@ -19,6 +19,7 @@ import { DataTable } from '@/components/common/data-table';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
+import Tip from '@/components/common/admin/Tip';
 import { CreateUserDialog, EditUserDialog } from './_components/UserFormDialog';
 
 export default function UsersPage() {
@@ -78,34 +79,24 @@ export default function UsersPage() {
 
   const columns: ColumnDef<UserDetailVM>[] = [
     {
-      accessorKey: 'username',
-      header: 'Username',
-      cell: ({ row }) => (
-        <span className="font-medium text-foreground font-mono text-xs">
-          {row.original.username ?? '—'}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'emailId',
-      header: 'Email',
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">{row.original.emailId}</span>
-      ),
-    },
-    {
-      id: 'name',
-      header: 'Name',
+      id: 'user',
+      header: 'User',
       cell: ({ row }) => {
-        const name = [row.original.firstName, row.original.lastName].filter(Boolean).join(' ');
-        return <span className="text-foreground">{name || '—'}</span>;
+        const { firstName, lastName, emailId } = row.original;
+        const name = [firstName, lastName].filter(Boolean).join(' ');
+        return (
+          <div className="flex flex-col gap-0.5">
+            {name && <span className="font-medium text-foreground text-sm">{name}</span>}
+            <span className="text-muted-foreground text-xs">{emailId}</span>
+          </div>
+        );
       },
     },
     {
       accessorKey: 'mobileNo',
       header: 'Mobile',
       cell: ({ row }) => (
-        <span className="text-muted-foreground">{row.original.mobileNo ?? '—'}</span>
+        <span className="text-muted-foreground text-sm">{row.original.mobileNo ?? '—'}</span>
       ),
     },
     {
@@ -141,73 +132,77 @@ export default function UsersPage() {
         const busy = actionId === user.id;
         return (
           <div className="flex items-center gap-0.5">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
-              onClick={() => setEditUser(user)}
-              title="Edit user"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`h-8 w-8 p-0 ${user.enabled ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-500/10' : 'text-emerald hover:text-emerald hover:bg-emerald/10'}`}
-              onClick={() =>
-                patchUser(
-                  user,
-                  { enabled: !user.enabled },
-                  `Failed to ${user.enabled ? 'disable' : 'enable'} user.`,
-                )
-              }
-              disabled={busy}
-              title={user.enabled ? 'Disable user' : 'Enable user'}
-            >
-              {busy ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : user.enabled ? (
-                <PowerOff className="h-3.5 w-3.5" />
-              ) : (
-                <Power className="h-3.5 w-3.5" />
-              )}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`h-8 w-8 p-0 ${!user.accountNonLocked ? 'text-emerald hover:text-emerald hover:bg-emerald/10' : 'text-orange-500 hover:text-orange-600 hover:bg-orange-500/10'}`}
-              onClick={() =>
-                patchUser(
-                  user,
-                  { accountNonLocked: !user.accountNonLocked },
-                  `Failed to ${user.accountNonLocked ? 'lock' : 'unlock'} user.`,
-                )
-              }
-              disabled={busy}
-              title={user.accountNonLocked ? 'Lock account' : 'Unlock account'}
-            >
-              {busy ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : user.accountNonLocked ? (
-                <Lock className="h-3.5 w-3.5" />
-              ) : (
-                <LockOpen className="h-3.5 w-3.5" />
-              )}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={() => setConfirmId(user.id)}
-              disabled={deletingId === user.id}
-              title="Delete user"
-            >
-              {deletingId === user.id ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="h-3.5 w-3.5" />
-              )}
-            </Button>
+            <Tip label="Edit user">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+                onClick={() => setEditUser(user)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </Tip>
+            <Tip label={user.enabled ? 'Disable user' : 'Enable user'}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`h-8 w-8 p-0 ${user.enabled ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-500/10' : 'text-emerald hover:text-emerald hover:bg-emerald/10'}`}
+                onClick={() =>
+                  patchUser(
+                    user,
+                    { enabled: !user.enabled },
+                    `Failed to ${user.enabled ? 'disable' : 'enable'} user.`,
+                  )
+                }
+                disabled={busy}
+              >
+                {busy ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : user.enabled ? (
+                  <PowerOff className="h-3.5 w-3.5" />
+                ) : (
+                  <Power className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            </Tip>
+            <Tip label={user.accountNonLocked ? 'Lock account' : 'Unlock account'}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`h-8 w-8 p-0 ${!user.accountNonLocked ? 'text-emerald hover:text-emerald hover:bg-emerald/10' : 'text-orange-500 hover:text-orange-600 hover:bg-orange-500/10'}`}
+                onClick={() =>
+                  patchUser(
+                    user,
+                    { accountNonLocked: !user.accountNonLocked },
+                    `Failed to ${user.accountNonLocked ? 'lock' : 'unlock'} user.`,
+                  )
+                }
+                disabled={busy}
+              >
+                {busy ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : user.accountNonLocked ? (
+                  <Lock className="h-3.5 w-3.5" />
+                ) : (
+                  <LockOpen className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            </Tip>
+            <Tip label="Delete user">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => setConfirmId(user.id)}
+                disabled={deletingId === user.id}
+              >
+                {deletingId === user.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            </Tip>
           </div>
         );
       },

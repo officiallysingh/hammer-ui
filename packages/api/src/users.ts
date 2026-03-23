@@ -79,6 +79,13 @@ export interface UserInfo {
   promptChangePassword: boolean;
 }
 
+// Self update (PATCH /api/v1/users/update-profile)
+export interface SelfUpdateReq {
+  firstName?: string;
+  lastName?: string;
+  mobileNo?: string;
+}
+
 export interface PaginatedUsers {
   content?: UserDetailVM[];
   page?: {
@@ -131,5 +138,8 @@ export const usersApi = {
   },
   deleteUser: async (id: string): Promise<void> => {
     await apiClient.delete(`/api/v1/users/${id}`);
+  },
+  updateSelf: async (data: SelfUpdateReq): Promise<void> => {
+    await apiClient.patch('/api/v1/users/update-profile', data);
   },
 };

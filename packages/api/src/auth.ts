@@ -73,7 +73,7 @@ export const authApi = {
 
   /** Change password (session required). Adjust endpoint to match your backend. */
   changePassword: async (data: { currentPassword: string; newPassword: string }) => {
-    const response = await apiClient.post('/api/v1/users/me/change-password', data);
+    const response = await apiClient.post('/api/v1/users/change-password', data);
     return response.data;
   },
 };

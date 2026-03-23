@@ -1,15 +1,16 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { adminApi, AuthorityGroupVM, AuthorityVM } from '@repo/api';
-import { Loader2, Trash2, RefreshCw, ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { Loader2, Trash2, RefreshCw, ChevronDown, ChevronRight, Plus, Pencil } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@repo/ui';
 import { DataTable } from '@/components/common/data-table';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
-import { RoleFormDialog } from './_components/RoleFormDialog';
+import Tip from '@/components/common/admin/Tip';
+import { RoleFormDialog, EditRoleDialog } from './_components/RoleFormDialog';
 
 export default function RolesPage() {
   const [groups, setGroups] = useState<AuthorityGroupVM[]>([]);
@@ -19,6 +20,7 @@ export default function RolesPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editRole, setEditRole] = useState<AuthorityGroupVM | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
 
   const fetchGroups = async () => {
@@ -117,19 +119,33 @@ export default function RolesPage() {
       id: 'actions',
       header: 'Actions',
       cell: ({ row }) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-          onClick={() => setConfirmId(row.original.id)}
-          disabled={deletingId === row.original.id}
-        >
-          {deletingId === row.original.id ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Trash2 className="h-4 w-4" />
-          )}
-        </Button>
+        <div className="flex items-center gap-0.5">
+          <Tip label="Edit role">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+              onClick={() => setEditRole(row.original)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          </Tip>
+          <Tip label="Delete role">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => setConfirmId(row.original.id)}
+              disabled={deletingId === row.original.id}
+            >
+              {deletingId === row.original.id ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          </Tip>
+        </div>
       ),
     },
   ];
@@ -163,7 +179,6 @@ export default function RolesPage() {
         searchPlaceholder="Search roles..."
       />
 
-      {/* Expanded permissions */}
       {Array.from(expanded).map((groupId) => {
         const group = groups.find((g) => g.id === groupId);
         if (!group?.authorities?.length) return null;
@@ -191,6 +206,13 @@ export default function RolesPage() {
         onOpenChange={setIsCreateOpen}
         allPermissions={allPermissions}
         onCreated={fetchGroups}
+      />
+
+      <EditRoleDialog
+        role={editRole}
+        allPermissions={allPermissions}
+        onClose={() => setEditRole(null)}
+        onUpdated={fetchGroups}
       />
 
       <ConfirmDialog
