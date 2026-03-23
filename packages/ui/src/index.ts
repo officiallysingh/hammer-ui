@@ -26,5 +26,16 @@ export {
   DialogDescription,
   DialogClose,
 } from './components/dialog';
+export {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from './components/alert-dialog';
 export { Toaster, toast } from './components/sonner';
 export * from './hooks';

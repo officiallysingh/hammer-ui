@@ -20,6 +20,7 @@ import {
 import { authApi, usersApi } from '@repo/api';
 import { useAuthStore } from '@/store/authStore';
 import { motion, AnimatePresence } from 'framer-motion';
+import { parseApiError } from '@/lib/api-errors';
 
 const OTP_RESEND_COOLDOWN_SEC = 30;
 
@@ -333,7 +334,18 @@ export function AuthForm({ mode }: AuthFormProps) {
       router.push('/login?registered=1');
     } catch (err) {
       console.error('Signup failed:', err);
-      setError('Failed to create account. Please try again.');
+      const parsed = parseApiError(err);
+      if (Object.keys(parsed.fieldErrors).length > 0) {
+        if (parsed.fieldErrors.username) setUsernameError(parsed.fieldErrors.username);
+        if (parsed.fieldErrors.emailId) setEmailError(parsed.fieldErrors.emailId);
+        if (parsed.fieldErrors.mobileNo) setMobileError(parsed.fieldErrors.mobileNo);
+        if (parsed.fieldErrors.password) setPasswordError(parsed.fieldErrors.password);
+        if (parsed.fieldErrors.firstName || parsed.fieldErrors.lastName) {
+          setError(parsed.fieldErrors.firstName ?? parsed.fieldErrors.lastName ?? null);
+        }
+      } else {
+        setError(parsed.general ?? 'Failed to create account. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }

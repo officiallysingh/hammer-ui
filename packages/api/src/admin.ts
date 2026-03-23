@@ -1,29 +1,47 @@
 import { apiClient } from './client';
 
 export interface AuthorityVM {
-  id: number;
+  id: string;
   name: string;
   label: string;
   description?: string;
 }
 
 export interface AuthorityGroupVM {
-  id: number;
+  id: string;
   name: string;
   label: string;
   description?: string;
   authorities?: AuthorityVM[];
 }
 
+// POST /api/v1/authority-groups
 export interface AuthorityGroupCreationReq {
   name: string;
   label: string;
+  description: string;
+  authorities?: string[]; // authority IDs (strings)
+}
+
+// PATCH /api/v1/authority-groups/{id}
+export interface AuthorityGroupUpdateReq {
+  name?: string;
+  label?: string;
   description?: string;
+  newAuthorities?: string[]; // replace all authorities
+  authoritiesToAdd?: string[]; // add to existing
+  authoritiesToRemove?: string[]; // remove from existing
 }
 
 export interface AuthorityCreationReq {
   name: string;
   label: string;
+  description: string;
+}
+
+export interface AuthorityUpdateReq {
+  name?: string;
+  label?: string;
   description?: string;
 }
 
@@ -37,13 +55,15 @@ export const adminApi = {
   },
 
   createAuthorityGroup: async (data: AuthorityGroupCreationReq): Promise<void> => {
-    const response = await apiClient.post('/api/v1/authority-groups', data);
-    return response.data;
+    await apiClient.post('/api/v1/authority-groups', data);
   },
 
-  deleteAuthorityGroup: async (id: number): Promise<void> => {
-    const response = await apiClient.delete(`/api/v1/authority-groups/${id}`);
-    return response.data;
+  updateAuthorityGroup: async (id: string, data: AuthorityGroupUpdateReq): Promise<void> => {
+    await apiClient.patch(`/api/v1/authority-groups/${id}`, data);
+  },
+
+  deleteAuthorityGroup: async (id: string): Promise<void> => {
+    await apiClient.delete(`/api/v1/authority-groups/${id}`);
   },
 
   // ── Authorities (Permissions) ─────────────────────────────────────────────
@@ -53,12 +73,14 @@ export const adminApi = {
   },
 
   createAuthority: async (data: AuthorityCreationReq): Promise<void> => {
-    const response = await apiClient.post('/api/v1/authorities', data);
-    return response.data;
+    await apiClient.post('/api/v1/authorities', data);
   },
 
-  deleteAuthority: async (id: number): Promise<void> => {
-    const response = await apiClient.delete(`/api/v1/authorities/${id}`);
-    return response.data;
+  updateAuthority: async (id: string, data: AuthorityUpdateReq): Promise<void> => {
+    await apiClient.patch(`/api/v1/authorities/${id}`, data);
+  },
+
+  deleteAuthority: async (id: string): Promise<void> => {
+    await apiClient.delete(`/api/v1/authorities/${id}`);
   },
 };

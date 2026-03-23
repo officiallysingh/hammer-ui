@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Mail, Phone, ArrowRight, Loader2, CheckCircle } from 'lucide-react';
+import { Mail, Phone, ArrowRight, Loader2, CheckCircle2, Gavel } from 'lucide-react';
 import {
   Button,
   Card,
@@ -11,31 +10,40 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
   InputOTP,
   InputOTPGroup,
   InputOTPSlot,
 } from '@repo/ui';
 import { authApi } from '@repo/api';
 import { useAuthStore } from '@/store/authStore';
-import { AuthIllustration } from '@/components/auth/AuthIllustration';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const OTP_RESEND_COOLDOWN = 30;
+
+type VerifyStep = 'email_send' | 'email_otp' | 'mobile_send' | 'mobile_otp' | 'done';
 
 export default function VerifyPage() {
   const router = useRouter();
   const { user, userInfo, setUserInfo, needsVerification } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'email' | 'mobile'>('email');
+
+  const needsEmail = !!(userInfo && !userInfo.emailIdVerified);
+  const needsMobile = !!(userInfo && !userInfo.mobileNoVerified);
+
+  // Determine initial step
+  const getInitialStep = (): VerifyStep => {
+    if (needsEmail) return 'email_send';
+    if (needsMobile) return 'mobile_send';
+    return 'done';
+  };
+
+  const [step, setStep] = useState<VerifyStep>(getInitialStep);
   const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
-  const needsEmail = userInfo && !userInfo.emailIdVerified;
-  const needsMobile = userInfo && !userInfo.mobileNoVerified;
-
+  // Redirect if not logged in or already verified
   useEffect(() => {
     if (!user?.authenticated) {
       router.replace('/login');
@@ -46,271 +54,402 @@ export default function VerifyPage() {
     }
   }, [user, userInfo, needsVerification, router]);
 
+  // Cooldown timer
   useEffect(() => {
-    if (needsEmail && !needsMobile) setActiveTab('email');
-    else if (needsMobile && !needsEmail) setActiveTab('mobile');
-    else if (needsEmail) setActiveTab('email');
-  }, [needsEmail, needsMobile]);
+    if (resendCooldown <= 0) return;
+    const t = setInterval(() => setResendCooldown((s) => (s <= 1 ? 0 : s - 1)), 1000);
+    return () => clearInterval(t);
+  }, [resendCooldown]);
 
-  const handleSendOtp = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+  if (!user?.authenticated) return null;
+
+  const emailAddress = userInfo?.emailId ?? '';
+  const mobileNumber = userInfo?.mobileNo ?? user.username ?? '';
+
+  // Progress indicator
+  const steps = [
+    ...(needsEmail ? [{ label: 'Email', icon: Mail }] : []),
+    ...(needsMobile ? [{ label: 'Mobile', icon: Phone }] : []),
+  ];
+  const currentStepIndex =
+    step === 'email_send' || step === 'email_otp'
+      ? 0
+      : step === 'mobile_send' || step === 'mobile_otp'
+        ? needsEmail
+          ? 1
+          : 0
+        : steps.length;
+
+  const handleSendEmail = async () => {
     setError(null);
-    setSentTo(null);
-    if (!user?.username) return;
     setIsLoading(true);
     try {
-      const purpose = activeTab === 'email' ? 'EMAIL_VERIFICATION' : 'LOGIN';
-      await authApi.sendOtp({
-        username: activeTab === 'email' ? (userInfo?.emailId ?? user.username) : user.username,
-        purpose,
-      });
-      setSentTo(
-        activeTab === 'email'
-          ? userInfo?.emailId || null
-          : userInfo?.mobileNo || user.username || null,
-      );
+      await authApi.sendOtp({ username: emailAddress, purpose: 'EMAIL_VERIFICATION' });
       setOtp('');
-    } catch (err) {
-      console.error('Send OTP failed:', err);
-      setError('Failed to send verification code. Please try again.');
+      setStep('email_otp');
+      setResendCooldown(OTP_RESEND_COOLDOWN);
+    } catch {
+      setError('Failed to send code. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
+  const handleVerifyEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otp.length !== 6 || !user?.username) return;
+    if (otp.length !== 6) return;
     setError(null);
     setIsVerifying(true);
     try {
-      const username = activeTab === 'email' ? (userInfo?.emailId ?? user.username) : user.username;
-      await authApi.verifyOtp({
-        username,
-        code: otp,
-        purpose: 'EMAIL_VERIFICATION',
-      });
-      if (userInfo) {
-        setUserInfo({
-          ...userInfo,
-          ...(activeTab === 'email' ? { emailIdVerified: true } : { mobileNoVerified: true }),
-        });
-      }
-      if (
-        userInfo &&
-        (activeTab === 'email' ? userInfo.mobileNoVerified : userInfo.emailIdVerified)
-      ) {
-        router.push('/');
+      await authApi.verifyOtp({ username: emailAddress, code: otp, purpose: 'EMAIL_VERIFICATION' });
+      if (userInfo) setUserInfo({ ...userInfo, emailIdVerified: true });
+      setOtp('');
+      setError(null);
+      // Move to mobile step if needed, else done
+      if (needsMobile) {
+        setStep('mobile_send');
       } else {
-        setOtp('');
-        setSentTo(null);
-        setActiveTab(activeTab === 'email' ? 'mobile' : 'email');
+        setStep('done');
+        router.push('/');
       }
-    } catch (err) {
-      console.error('Verify OTP failed:', err);
+    } catch {
       setError('Invalid or expired code. Please try again.');
     } finally {
       setIsVerifying(false);
     }
   };
 
-  const handleSkip = () => {
-    router.push('/');
+  const handleSendMobile = async () => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      await authApi.sendOtp({ username: mobileNumber, purpose: 'MOBILE_VERIFICATION' });
+      setOtp('');
+      setStep('mobile_otp');
+      setResendCooldown(OTP_RESEND_COOLDOWN);
+    } catch {
+      setError('Failed to send code. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  if (!user?.authenticated) return null;
+  const handleVerifyMobile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (otp.length !== 6) return;
+    setError(null);
+    setIsVerifying(true);
+    try {
+      await authApi.verifyOtp({
+        username: mobileNumber,
+        code: otp,
+        purpose: 'MOBILE_VERIFICATION',
+      });
+      if (userInfo) setUserInfo({ ...userInfo, mobileNoVerified: true });
+      setStep('done');
+      router.push('/');
+    } catch {
+      setError('Invalid or expired code. Please try again.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen flex">
-      <div className="hidden lg:flex lg:w-1/2 bg-primary relative overflow-hidden">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
-        <div className="relative z-10 flex flex-col items-center justify-center w-full px-12">
-          <AuthIllustration />
-          <div className="text-center mt-8 max-w-md">
-            <h2 className="text-3xl font-bold text-primary-foreground mb-4">Verify your contact</h2>
-            <p className="text-primary-foreground/80 text-lg leading-relaxed">
-              Verify your email or mobile to secure your account and get important updates.
-            </p>
+    <div className="min-h-screen flex bg-background">
+      {/* Left panel */}
+      <div className="hidden lg:flex lg:w-1/2 bg-card border-r border-border relative overflow-hidden flex-col items-center justify-center px-12">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -right-20 -top-20 h-80 w-80 rounded-full bg-primary/5 blur-3xl" />
+          <div className="absolute -bottom-20 -left-20 h-80 w-80 rounded-full bg-primary/5 blur-3xl" />
+        </div>
+        <div className="relative z-10 text-center max-w-sm">
+          <div className="flex items-center justify-center gap-2 mb-10">
+            <Gavel className="h-7 w-7 text-primary" />
+            <span className="font-display text-2xl font-bold text-foreground">
+              HAM<span className="text-gradient-gold">MER</span>
+            </span>
           </div>
+          <h2 className="font-display text-3xl font-bold text-foreground mb-4">
+            Secure your account
+          </h2>
+          <p className="font-body text-muted-foreground leading-relaxed">
+            Verifying your contact details keeps your account safe and ensures you receive important
+            auction updates.
+          </p>
+
+          {/* Step indicators */}
+          {steps.length > 1 && (
+            <div className="mt-10 flex items-center justify-center gap-4">
+              {steps.map((s, i) => {
+                const Icon = s.icon;
+                const done = i < currentStepIndex;
+                const active = i === currentStepIndex;
+                return (
+                  <div key={s.label} className="flex items-center gap-4">
+                    <div className={`flex flex-col items-center gap-1.5`}>
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${
+                          done
+                            ? 'bg-primary border-primary'
+                            : active
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border bg-muted'
+                        }`}
+                      >
+                        {done ? (
+                          <CheckCircle2 className="h-5 w-5 text-primary-foreground" />
+                        ) : (
+                          <Icon
+                            className={`h-5 w-5 ${active ? 'text-primary' : 'text-muted-foreground'}`}
+                          />
+                        )}
+                      </div>
+                      <span
+                        className={`font-body text-xs font-medium ${active ? 'text-primary' : done ? 'text-foreground' : 'text-muted-foreground'}`}
+                      >
+                        {s.label}
+                      </span>
+                    </div>
+                    {i < steps.length - 1 && (
+                      <div
+                        className={`h-px w-8 mb-5 ${i < currentStepIndex ? 'bg-primary' : 'bg-border'}`}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 bg-background">
+      {/* Right panel */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12">
         <div className="w-full max-w-md">
-          <div className="text-center mb-8 lg:hidden">
-            <Link href="/" className="inline-flex items-center gap-2 mb-6">
-              <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-xl">H</span>
-              </div>
-              <span className="text-xl font-bold text-foreground">Hammer</span>
-            </Link>
+          {/* Mobile logo */}
+          <div className="flex items-center justify-center gap-2 mb-8 lg:hidden">
+            <Gavel className="h-6 w-6 text-primary" />
+            <span className="font-display text-xl font-bold text-foreground">
+              HAM<span className="text-gradient-gold">MER</span>
+            </span>
           </div>
 
-          <Card className="border-0 shadow-xl">
-            <CardHeader className="space-y-1 text-center pb-4">
-              <CardTitle className="text-2xl font-bold">Verify your account</CardTitle>
-              <CardDescription>
-                {needsEmail && needsMobile
-                  ? 'Verify your email and mobile number to continue.'
-                  : needsEmail
-                    ? 'Verify your email address.'
-                    : 'Verify your mobile number.'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {error && (
-                <div className="mb-4 py-2 px-3 bg-destructive/10 text-destructive text-sm rounded-md">
-                  {error}
-                </div>
-              )}
-
-              {(needsEmail || needsMobile) && (
-                <Tabs
-                  value={activeTab}
-                  onValueChange={(v) => {
-                    setActiveTab(v as 'email' | 'mobile');
-                    setError(null);
-                    setOtp('');
-                    setSentTo(null);
-                  }}
-                >
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="email" disabled={!needsEmail} className="gap-2">
-                      <Mail className="h-4 w-4" />
-                      Email
-                      {userInfo?.emailIdVerified && (
-                        <CheckCircle className="h-4 w-4 text-green-600" />
+          <AnimatePresence mode="wait">
+            {/* ── Email: send step ── */}
+            {step === 'email_send' && (
+              <motion.div
+                key="email_send"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Card className="border-border shadow-card">
+                  <CardHeader className="text-center pb-2">
+                    <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Mail className="h-6 w-6 text-primary" />
+                    </div>
+                    <CardTitle className="font-display text-2xl">Verify your email</CardTitle>
+                    <CardDescription className="font-body">
+                      We&apos;ll send a 6-digit code to{' '}
+                      <span className="font-medium text-foreground">{emailAddress}</span>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4 pt-4">
+                    {error && <p className="text-sm text-destructive text-center">{error}</p>}
+                    <Button className="w-full" onClick={handleSendEmail} disabled={isLoading}>
+                      {isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          Send code <ArrowRight className="ml-2 h-4 w-4" />
+                        </>
                       )}
-                    </TabsTrigger>
-                    <TabsTrigger value="mobile" disabled={!needsMobile} className="gap-2">
-                      <Phone className="h-4 w-4" />
-                      Mobile
-                      {userInfo?.mobileNoVerified && (
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                      )}
-                    </TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="email" className="mt-6 space-y-4">
-                    {userInfo?.emailId && (
-                      <p className="text-sm text-muted-foreground text-center">
-                        We&apos;ll send a code to{' '}
-                        <span className="font-medium text-foreground">{userInfo.emailId}</span>
+                    </Button>
+                    {needsMobile && (
+                      <p className="font-body text-xs text-center text-muted-foreground">
+                        Step 1 of 2 — email verification
                       </p>
                     )}
-                    {!sentTo ? (
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* ── Email: OTP step ── */}
+            {step === 'email_otp' && (
+              <motion.div
+                key="email_otp"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Card className="border-border shadow-card">
+                  <CardHeader className="text-center pb-2">
+                    <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Mail className="h-6 w-6 text-primary" />
+                    </div>
+                    <CardTitle className="font-display text-2xl">Enter email code</CardTitle>
+                    <CardDescription className="font-body">
+                      Code sent to{' '}
+                      <span className="font-medium text-foreground">{emailAddress}</span>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    {error && <p className="mb-4 text-sm text-destructive text-center">{error}</p>}
+                    <form onSubmit={handleVerifyEmail} className="space-y-5">
+                      <div className="flex justify-center">
+                        <InputOTP maxLength={6} value={otp} onChange={setOtp}>
+                          <InputOTPGroup>
+                            {[0, 1, 2, 3, 4, 5].map((i) => (
+                              <InputOTPSlot key={i} index={i} />
+                            ))}
+                          </InputOTPGroup>
+                        </InputOTP>
+                      </div>
                       <Button
-                        type="button"
+                        type="submit"
                         className="w-full"
-                        onClick={handleSendOtp}
-                        disabled={isLoading}
+                        disabled={isVerifying || otp.length !== 6}
                       >
-                        {isLoading ? (
+                        {isVerifying ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          'Send code to email'
+                          <>
+                            Verify email <ArrowRight className="ml-2 h-4 w-4" />
+                          </>
                         )}
                       </Button>
-                    ) : (
-                      <form onSubmit={handleVerifyOtp} className="space-y-4">
-                        <div className="flex justify-center">
-                          <InputOTP maxLength={6} value={otp} onChange={setOtp}>
-                            <InputOTPGroup>
-                              {[0, 1, 2, 3, 4, 5].map((i) => (
-                                <InputOTPSlot key={i} index={i} />
-                              ))}
-                            </InputOTPGroup>
-                          </InputOTP>
-                        </div>
-                        <Button
-                          type="submit"
-                          className="w-full"
-                          disabled={isVerifying || otp.length !== 6}
-                        >
-                          {isVerifying ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            'Verify email'
-                          )}
-                        </Button>
+                      <div className="text-center">
                         <button
                           type="button"
-                          className="w-full text-sm text-muted-foreground hover:text-foreground"
-                          onClick={handleSendOtp}
-                          disabled={isLoading}
+                          className="font-body text-sm text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+                          onClick={handleSendEmail}
+                          disabled={isLoading || resendCooldown > 0}
                         >
-                          Resend code
+                          {resendCooldown > 0
+                            ? `Resend in ${resendCooldown}s`
+                            : "Didn't receive it? Resend"}
                         </button>
-                      </form>
-                    )}
-                  </TabsContent>
+                      </div>
+                    </form>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
 
-                  <TabsContent value="mobile" className="mt-6 space-y-4">
-                    {(userInfo?.mobileNo || user.username) && (
-                      <p className="text-sm text-muted-foreground text-center">
-                        We&apos;ll send a code to{' '}
-                        <span className="font-medium text-foreground">
-                          {userInfo?.mobileNo || user.username}
-                        </span>
+            {/* ── Mobile: send step ── */}
+            {step === 'mobile_send' && (
+              <motion.div
+                key="mobile_send"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Card className="border-border shadow-card">
+                  <CardHeader className="text-center pb-2">
+                    {needsEmail && (
+                      <div className="mx-auto mb-3 flex items-center gap-1.5 text-xs font-body text-emerald font-medium">
+                        <CheckCircle2 className="h-4 w-4" />
+                        Email verified
+                      </div>
+                    )}
+                    <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Phone className="h-6 w-6 text-primary" />
+                    </div>
+                    <CardTitle className="font-display text-2xl">Verify your mobile</CardTitle>
+                    <CardDescription className="font-body">
+                      We&apos;ll send a 6-digit code to{' '}
+                      <span className="font-medium text-foreground">{mobileNumber}</span>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4 pt-4">
+                    {error && <p className="text-sm text-destructive text-center">{error}</p>}
+                    <Button className="w-full" onClick={handleSendMobile} disabled={isLoading}>
+                      {isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          Send code <ArrowRight className="ml-2 h-4 w-4" />
+                        </>
+                      )}
+                    </Button>
+                    {needsEmail && (
+                      <p className="font-body text-xs text-center text-muted-foreground">
+                        Step 2 of 2 — mobile verification
                       </p>
                     )}
-                    {!sentTo ? (
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* ── Mobile: OTP step ── */}
+            {step === 'mobile_otp' && (
+              <motion.div
+                key="mobile_otp"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Card className="border-border shadow-card">
+                  <CardHeader className="text-center pb-2">
+                    <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Phone className="h-6 w-6 text-primary" />
+                    </div>
+                    <CardTitle className="font-display text-2xl">Enter mobile code</CardTitle>
+                    <CardDescription className="font-body">
+                      Code sent to{' '}
+                      <span className="font-medium text-foreground">{mobileNumber}</span>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    {error && <p className="mb-4 text-sm text-destructive text-center">{error}</p>}
+                    <form onSubmit={handleVerifyMobile} className="space-y-5">
+                      <div className="flex justify-center">
+                        <InputOTP maxLength={6} value={otp} onChange={setOtp}>
+                          <InputOTPGroup>
+                            {[0, 1, 2, 3, 4, 5].map((i) => (
+                              <InputOTPSlot key={i} index={i} />
+                            ))}
+                          </InputOTPGroup>
+                        </InputOTP>
+                      </div>
                       <Button
-                        type="button"
+                        type="submit"
                         className="w-full"
-                        onClick={handleSendOtp}
-                        disabled={isLoading}
+                        disabled={isVerifying || otp.length !== 6}
                       >
-                        {isLoading ? (
+                        {isVerifying ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          'Send code to mobile'
+                          <>
+                            Verify mobile <ArrowRight className="ml-2 h-4 w-4" />
+                          </>
                         )}
                       </Button>
-                    ) : (
-                      <form onSubmit={handleVerifyOtp} className="space-y-4">
-                        <div className="flex justify-center">
-                          <InputOTP maxLength={6} value={otp} onChange={setOtp}>
-                            <InputOTPGroup>
-                              {[0, 1, 2, 3, 4, 5].map((i) => (
-                                <InputOTPSlot key={i} index={i} />
-                              ))}
-                            </InputOTPGroup>
-                          </InputOTP>
-                        </div>
-                        <Button
-                          type="submit"
-                          className="w-full"
-                          disabled={isVerifying || otp.length !== 6}
-                        >
-                          {isVerifying ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            'Verify mobile'
-                          )}
-                        </Button>
+                      <div className="text-center">
                         <button
                           type="button"
-                          className="w-full text-sm text-muted-foreground hover:text-foreground"
-                          onClick={handleSendOtp}
-                          disabled={isLoading}
+                          className="font-body text-sm text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+                          onClick={handleSendMobile}
+                          disabled={isLoading || resendCooldown > 0}
                         >
-                          Resend code
+                          {resendCooldown > 0
+                            ? `Resend in ${resendCooldown}s`
+                            : "Didn't receive it? Resend"}
                         </button>
-                      </form>
-                    )}
-                  </TabsContent>
-                </Tabs>
-              )}
-
-              <div className="mt-6 flex flex-col gap-2">
-                <Button variant="outline" className="w-full" onClick={handleSkip}>
-                  Skip for now
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                      </div>
+                    </form>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </div>
