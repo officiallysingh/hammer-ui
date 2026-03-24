@@ -72,6 +72,11 @@ export const adminApi = {
     return response.data;
   },
 
+  getAuthoritiesByGroup: async (groupId: string): Promise<AuthorityVM[]> => {
+    const response = await apiClient.get(`/api/v1/authority-groups/${groupId}/authorities`);
+    return response.data;
+  },
+
   createAuthority: async (data: AuthorityCreationReq): Promise<void> => {
     await apiClient.post('/api/v1/authorities', data);
   },

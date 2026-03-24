@@ -281,7 +281,7 @@ export function AuthForm({ mode }: AuthFormProps) {
     setConfirmPasswordError(null);
 
     // Password validation: 6-12 chars, 1 uppercase, 1 lowercase, 1 digit, optional special char
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&^]{6,12}$/;
+    const passwordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)[A-Za-z\d@$!%*?&^]{6,12}$/;
     if (!passwordRegex.test(password)) {
       setPasswordError(
         'Password must be 6–12 characters with at least 1 uppercase, 1 lowercase, and 1 digit.',

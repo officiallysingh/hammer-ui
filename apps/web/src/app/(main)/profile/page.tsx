@@ -5,22 +5,55 @@ import { useRouter } from 'next/navigation';
 import { usersApi, authApi } from '@repo/api';
 import type { UserInfo } from '@repo/api';
 import { useAuthStore } from '@/store/authStore';
-import { Loader2, User, Lock, CheckCircle2, Eye, EyeOff } from 'lucide-react';
-import { Button, Input, Label, Tabs, TabsList, TabsTrigger, TabsContent } from '@repo/ui';
+import { Loader2, User, Lock, CheckCircle2, Eye, EyeOff, HelpCircle } from 'lucide-react';
+import {
+  Button,
+  Input,
+  Label,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@repo/ui';
 import { parseApiError } from '@/lib/api-errors';
+
+const PWD_RULES =
+  '6–12 characters · at least 1 uppercase · 1 lowercase · 1 digit · allowed special: @$!%*?&^';
 
 function Field({
   label,
   error,
+  tip,
   children,
 }: {
   label: string;
   error?: string;
+  tip?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className={error ? 'text-destructive' : ''}>{label}</Label>
+      <div className="flex items-center gap-1.5">
+        <Label className={error ? 'text-destructive' : ''}>{label}</Label>
+        {tip && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <HelpCircle className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs text-xs">
+              {tip}
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
       {children}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
@@ -66,7 +99,6 @@ function PasswordInput({
   );
 }
 
-// ── Update Profile Tab ────────────────────────────────────────────────────────
 function UpdateProfileTab({
   userInfo,
   setUserInfo,
@@ -74,6 +106,7 @@ function UpdateProfileTab({
   userInfo: UserInfo | null;
   setUserInfo: (info: UserInfo | null) => void;
 }) {
+  const [email, setEmail] = useState(userInfo?.emailId ?? '');
   const [firstName, setFirstName] = useState(userInfo?.firstName ?? '');
   const [lastName, setLastName] = useState(userInfo?.lastName ?? '');
   const [mobileNo, setMobileNo] = useState(userInfo?.mobileNo ?? '');
@@ -97,6 +130,7 @@ function UpdateProfileTab({
     setSaving(true);
     try {
       await usersApi.updateSelf({
+        emailId: email.trim() || undefined,
         firstName: firstName.trim() || undefined,
         lastName: lastName.trim() || undefined,
         mobileNo: mobileNo.trim() || undefined,
@@ -104,6 +138,7 @@ function UpdateProfileTab({
       if (userInfo) {
         setUserInfo({
           ...userInfo,
+          emailId: email.trim() || userInfo.emailId,
           firstName: firstName.trim() || undefined,
           lastName: lastName.trim() || undefined,
           mobileNo: mobileNo.trim() || undefined,
@@ -122,6 +157,19 @@ function UpdateProfileTab({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      <Field label="Email" error={fieldErrors.emailId}>
+        <Input
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            clearErr('emailId');
+          }}
+          placeholder="abc@xyz.com"
+          type="email"
+          autoComplete="email"
+          className={fieldErrors.emailId ? 'border-destructive focus-visible:ring-destructive' : ''}
+        />
+      </Field>
       <div className="grid grid-cols-2 gap-4">
         <Field label="First name" error={fieldErrors.firstName}>
           <Input
@@ -250,7 +298,7 @@ function ChangePasswordTab() {
           error={fieldErrors.currentPassword}
         />
       </Field>
-      <Field label="New password" error={fieldErrors.newPassword}>
+      <Field label="New password" error={fieldErrors.newPassword} tip={PWD_RULES}>
         <PasswordInput
           id="new"
           value={next}

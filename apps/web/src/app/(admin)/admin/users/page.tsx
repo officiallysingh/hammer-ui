@@ -15,22 +15,21 @@ import {
 } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@repo/ui';
+import { useRouter } from 'next/navigation';
 import { DataTable } from '@/components/common/data-table';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
-import { CreateUserDialog, EditUserDialog } from './_components/UserFormDialog';
 
 export default function UsersPage() {
+  const router = useRouter();
   const [users, setUsers] = useState<UserDetailVM[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editUser, setEditUser] = useState<UserDetailVM | null>(null);
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -68,7 +67,7 @@ export default function UsersPage() {
   ) => {
     setActionId(user.id);
     try {
-      await usersApi.updateUser(user.id, { emailId: user.emailId, ...patch });
+      await usersApi.updateUser(user.id, patch as Parameters<typeof usersApi.updateUser>[1]);
       setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, ...patch } : u)));
     } catch {
       setError(errorMsg);
@@ -137,7 +136,7 @@ export default function UsersPage() {
                 variant="ghost"
                 size="sm"
                 className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
-                onClick={() => setEditUser(user)}
+                onClick={() => router.push(`/admin/users/${user.id}/edit`)}
               >
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
@@ -216,7 +215,7 @@ export default function UsersPage() {
         description="Manage registered users and their accounts"
         actions={
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => setIsCreateOpen(true)}>
+            <Button size="sm" onClick={() => router.push('/admin/users/new')}>
               <UserPlus className="h-4 w-4 mr-1" />
               Add user
             </Button>
@@ -236,17 +235,6 @@ export default function UsersPage() {
         isLoading={isLoading}
         emptyMessage="No users found."
         searchPlaceholder="Search users..."
-      />
-
-      <CreateUserDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} onCreated={fetchUsers} />
-
-      <EditUserDialog
-        user={editUser}
-        onClose={() => setEditUser(null)}
-        onUpdated={(updated) => {
-          setUsers((prev) => prev.map((u) => (u.id === editUser?.id ? { ...u, ...updated } : u)));
-          setEditUser(null);
-        }}
       />
 
       <ConfirmDialog

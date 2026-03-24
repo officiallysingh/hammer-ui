@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { usersApi, UserCreationReq, UserDetailVM } from '@repo/api';
-import { Loader2 } from 'lucide-react';
+import { Loader2, HelpCircle } from 'lucide-react';
 import {
   Button,
   Input,
@@ -13,11 +13,17 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from '@repo/ui';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { parseApiError } from '@/lib/api-errors';
 
-// ── Shared field error helpers ────────────────────────────────────────────────
+const PWD_RULES =
+  '6–12 characters · at least 1 uppercase · 1 lowercase · 1 digit · allowed special: @$!%*?&^';
+
+// ── Shared helpers ────────────────────────────────────────────────────────────
 
 function FieldInput({
   id,
@@ -58,6 +64,41 @@ function FieldInput({
   );
 }
 
+/** Toggle pill — yes/no boolean field */
+function ToggleField({
+  label,
+  value,
+  onChange,
+  description,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  description?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-1">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-foreground leading-none">{label}</p>
+        {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
+      </div>
+      <button
+        type="button"
+        onClick={() => onChange(!value)}
+        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+          value ? 'bg-primary' : 'bg-muted'
+        }`}
+      >
+        <span
+          className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-lg transition-transform ${
+            value ? 'translate-x-4' : 'translate-x-0'
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
 // ── Create Dialog ─────────────────────────────────────────────────────────────
 
 interface CreateUserDialogProps {
@@ -72,6 +113,11 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [mobile, setMobile] = useState('');
+  // flags — defaults per spec
+  const [enabled, setEnabled] = useState(true);
+  const [emailVerified, setEmailVerified] = useState(true);
+  const [mobileVerified, setMobileVerified] = useState(true);
+  const [promptChangePwd, setPromptChangePwd] = useState(true); // credentialsNonExpired=false
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -89,6 +135,10 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
     setFirstName('');
     setLastName('');
     setMobile('');
+    setEnabled(true);
+    setEmailVerified(true);
+    setMobileVerified(true);
+    setPromptChangePwd(true);
     setFieldErrors({});
     setError(null);
   };
@@ -114,6 +164,14 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         mobileNo: mobile.trim() || undefined,
+        enabled,
+        emailIdVerified: emailVerified,
+        mobileNoVerified: mobileVerified,
+        // promptChangePassword=true means credentialsNonExpired=false
+        credentialsNonExpired: !promptChangePwd,
+        promptChangePassword: promptChangePwd,
+        accountNonLocked: true,
+        accountNonExpired: true,
       };
       await usersApi.createUser(payload);
       reset();
@@ -130,7 +188,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Add user</DialogTitle>
           <DialogDescription>Create a new user in the system.</DialogDescription>
@@ -195,6 +253,29 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
             error={fieldErrors.mobileNo}
             optional
           />
+
+          {/* Flags */}
+          <div className="rounded-lg border border-border bg-muted/30 px-4 py-2 space-y-1 divide-y divide-border">
+            <ToggleField
+              label="Enabled"
+              value={enabled}
+              onChange={setEnabled}
+              description="User can log in"
+            />
+            <ToggleField label="Email verified" value={emailVerified} onChange={setEmailVerified} />
+            <ToggleField
+              label="Mobile verified"
+              value={mobileVerified}
+              onChange={setMobileVerified}
+            />
+            <ToggleField
+              label="Prompt change password"
+              value={promptChangePwd}
+              onChange={setPromptChangePwd}
+              description="User must change password on next login"
+            />
+          </div>
+
           {error && <ErrorAlert message={error} />}
           <DialogFooter>
             <Button
@@ -231,6 +312,7 @@ interface EditUserDialogProps {
 }
 
 export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps) {
+  const [email, setEmail] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [mobile, setMobile] = useState('');
@@ -240,6 +322,7 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
 
   useEffect(() => {
     if (user) {
+      setEmail(user.emailId ?? '');
       setFirstName(user.firstName ?? '');
       setLastName(user.lastName ?? '');
       setMobile(user.mobileNo ?? '');
@@ -263,12 +346,13 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
     setSaving(true);
     try {
       await usersApi.updateUser(user.id, {
-        emailId: user.emailId,
+        emailId: email.trim() || undefined,
         firstName: firstName.trim() || undefined,
         lastName: lastName.trim() || undefined,
         mobileNo: mobile.trim() || undefined,
       });
       onUpdated({
+        emailId: email.trim(),
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         mobileNo: mobile.trim(),
@@ -299,6 +383,18 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <FieldInput
+            id="eu-email"
+            label="Email"
+            type="email"
+            value={email}
+            onChange={(v) => {
+              setEmail(v);
+              clearErr('emailId');
+            }}
+            placeholder="abc@xyz.com"
+            error={fieldErrors.emailId}
+          />
           <div className="grid grid-cols-2 gap-3">
             <FieldInput
               id="eu-first"
@@ -355,3 +451,5 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
     </Dialog>
   );
 }
+
+export { PWD_RULES };

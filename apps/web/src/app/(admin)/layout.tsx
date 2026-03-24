@@ -82,6 +82,21 @@ const subRouteTitles: { match: RegExp; label: string; description: string }[] = 
     label: 'Edit category',
     description: 'Update category details',
   },
+  {
+    match: /\/admin\/master\/categories\/.+\/subcategories\/new$/,
+    label: 'Add sub-category',
+    description: 'Create a new sub-category',
+  },
+  {
+    match: /\/admin\/users\/new$/,
+    label: 'Add user',
+    description: 'Create a new user account',
+  },
+  {
+    match: /\/admin\/users\/.+\/edit$/,
+    label: 'Edit user',
+    description: 'Update user details',
+  },
 ];
 
 interface SidebarContentProps {
@@ -226,9 +241,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       )}
 
       {/* Main content */}
-      <main className="flex-1 flex flex-col min-w-0">
-        {/* Topbar */}
-        <header className="h-16 border-b border-border bg-card px-6 flex items-center justify-between shrink-0">
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Topbar — fixed within the main column */}
+        <header className="h-16 border-b border-border bg-card px-6 flex items-center justify-between shrink-0 sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <button
               className="md:hidden text-muted-foreground hover:text-foreground transition-colors"
@@ -311,7 +326,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </DropdownMenu>
         </header>
 
-        <div className="flex-1 p-6 overflow-auto">{children}</div>
+        <div className="flex-1 p-6 overflow-y-auto">{children}</div>
       </main>
     </div>
   );

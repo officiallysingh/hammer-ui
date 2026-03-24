@@ -1,0 +1,342 @@
+'use client';
+
+import React, { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { usersApi, UserCreationReq, adminApi, AuthorityGroupVM, AuthorityVM } from '@repo/api';
+import { Loader2, ArrowLeft } from 'lucide-react';
+import { Button, Input, Label } from '@repo/ui';
+import PageHeader from '@/components/common/admin/PageHeader';
+import ErrorAlert from '@/components/common/admin/ErrorAlert';
+import { MultiSelect } from '@/components/common/admin/MultiSelect';
+import { parseApiError } from '@/lib/api-errors';
+
+function Field({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+  error,
+  optional,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+  error?: string;
+  optional?: boolean;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id} className={error ? 'text-destructive' : ''}>
+        {label}
+        {optional && <span className="text-muted-foreground font-normal ml-1">(optional)</span>}
+      </Label>
+      <Input
+        id={id}
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete="off"
+        className={error ? 'border-destructive focus-visible:ring-destructive' : ''}
+      />
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+function Toggle({
+  label,
+  description,
+  value,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-2.5">
+      <div>
+        <p className="text-sm font-medium text-foreground">{label}</p>
+        {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
+      </div>
+      <button
+        type="button"
+        onClick={() => onChange(!value)}
+        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${value ? 'bg-primary' : 'bg-muted'}`}
+      >
+        <span
+          className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${value ? 'translate-x-4' : 'translate-x-0'}`}
+        />
+      </button>
+    </div>
+  );
+}
+
+export default function NewUserPage() {
+  const router = useRouter();
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [mobile, setMobile] = useState('');
+  const [enabled, setEnabled] = useState(true);
+  const [emailVerified, setEmailVerified] = useState(true);
+  const [mobileVerified, setMobileVerified] = useState(true);
+  const [promptChangePwd, setPromptChangePwd] = useState(true);
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
+  const [allRoles, setAllRoles] = useState<AuthorityGroupVM[]>([]);
+  const [availablePerms, setAvailablePerms] = useState<AuthorityVM[]>([]);
+  const [loadingPerms, setLoadingPerms] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    adminApi
+      .getAuthorityGroups()
+      .then(setAllRoles)
+      .catch(() => {});
+  }, []);
+
+  const fetchPermsForRoles = useCallback(async (roleIds: string[]) => {
+    if (roleIds.length === 0) {
+      setAvailablePerms([]);
+      setSelectedPerms([]);
+      return;
+    }
+    setLoadingPerms(true);
+    try {
+      const results = await Promise.all(roleIds.map((id) => adminApi.getAuthoritiesByGroup(id)));
+      const map = new Map<string, AuthorityVM>();
+      results.flat().forEach((p) => map.set(p.id, p));
+      const perms = Array.from(map.values());
+      setAvailablePerms(perms);
+      const availableIds = new Set(perms.map((p) => p.id));
+      setSelectedPerms((prev) => prev.filter((id) => availableIds.has(id)));
+    } catch {
+      setAvailablePerms([]);
+    } finally {
+      setLoadingPerms(false);
+    }
+  }, []);
+
+  const handleRolesChange = (roles: string[]) => {
+    setSelectedRoles(roles);
+    fetchPermsForRoles(roles);
+  };
+
+  const clearErr = (f: string) =>
+    setFieldErrors((p) => {
+      const n = { ...p };
+      delete n[f];
+      return n;
+    });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setFieldErrors({});
+    setSaving(true);
+    try {
+      const payload: UserCreationReq = {
+        username: username.trim(),
+        emailId: email.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        mobileNo: mobile.trim() || undefined,
+        enabled,
+        emailIdVerified: emailVerified,
+        mobileNoVerified: mobileVerified,
+        credentialsNonExpired: !promptChangePwd,
+        promptChangePassword: promptChangePwd,
+        accountNonLocked: true,
+        accountNonExpired: true,
+        authorityGroups: selectedRoles.length ? selectedRoles : undefined,
+        authorities: selectedPerms.length ? selectedPerms : undefined,
+      };
+      await usersApi.createUser(payload);
+      router.push('/admin/users');
+    } catch (err) {
+      const parsed = parseApiError(err);
+      if (Object.keys(parsed.fieldErrors).length > 0) setFieldErrors(parsed.fieldErrors);
+      else setError(parsed.general ?? 'Failed to create user.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Add user"
+        description="Create a new user account"
+        actions={
+          <Button variant="outline" size="sm" onClick={() => router.push('/admin/users')}>
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+        }
+      />
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+          <h3 className="text-sm font-semibold text-foreground">Account details</h3>
+          <Field
+            id="username"
+            label="Username"
+            value={username}
+            onChange={(v) => {
+              setUsername(v);
+              clearErr('username');
+            }}
+            placeholder="rajveer.singh"
+            error={fieldErrors.username}
+          />
+          <Field
+            id="email"
+            label="Email"
+            type="email"
+            value={email}
+            onChange={(v) => {
+              setEmail(v);
+              clearErr('emailId');
+            }}
+            placeholder="abc@xyz.com"
+            error={fieldErrors.emailId}
+          />
+          <div className="grid grid-cols-2 gap-4">
+            <Field
+              id="firstName"
+              label="First name"
+              value={firstName}
+              onChange={(v) => {
+                setFirstName(v);
+                clearErr('firstName');
+              }}
+              placeholder="Rajveer"
+              error={fieldErrors.firstName}
+            />
+            <Field
+              id="lastName"
+              label="Last name"
+              value={lastName}
+              onChange={(v) => {
+                setLastName(v);
+                clearErr('lastName');
+              }}
+              placeholder="Singh"
+              error={fieldErrors.lastName}
+            />
+          </div>
+          <Field
+            id="mobile"
+            label="Mobile"
+            value={mobile}
+            onChange={(v) => {
+              setMobile(v);
+              clearErr('mobileNo');
+            }}
+            placeholder="7082690057"
+            error={fieldErrors.mobileNo}
+            optional
+          />
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+          <h3 className="text-sm font-semibold text-foreground">Roles &amp; Permissions</h3>
+          <div className="space-y-1.5">
+            <Label>
+              Roles <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
+            <MultiSelect
+              options={allRoles.map((r) => ({ value: r.id, label: r.label, sublabel: r.name }))}
+              value={selectedRoles}
+              onChange={handleRolesChange}
+              placeholder="Select roles..."
+              searchPlaceholder="Search roles..."
+              emptyMessage="No roles found"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <Label>
+                Additional permissions
+                <span className="text-muted-foreground font-normal ml-1">(optional)</span>
+              </Label>
+              {loadingPerms && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+              )}
+            </div>
+            {selectedRoles.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-2">
+                Select roles first to see their permissions.
+              </p>
+            ) : (
+              <MultiSelect
+                options={availablePerms.map((p) => ({
+                  value: p.id,
+                  label: p.label,
+                  sublabel: p.name,
+                }))}
+                value={selectedPerms}
+                onChange={setSelectedPerms}
+                placeholder="Select permissions..."
+                searchPlaceholder="Search permissions..."
+                emptyMessage={loadingPerms ? 'Loading...' : 'No permissions in selected roles'}
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card px-6 divide-y divide-border">
+          <h3 className="text-sm font-semibold text-foreground py-4">Account settings</h3>
+          <Toggle
+            label="Enabled"
+            description="User can log in"
+            value={enabled}
+            onChange={setEnabled}
+          />
+          <Toggle label="Email verified" value={emailVerified} onChange={setEmailVerified} />
+          <Toggle label="Mobile verified" value={mobileVerified} onChange={setMobileVerified} />
+          <Toggle
+            label="Prompt change password"
+            description="User must set a new password on next login"
+            value={promptChangePwd}
+            onChange={setPromptChangePwd}
+          />
+        </div>
+
+        {error && <ErrorAlert message={error} />}
+
+        <div className="flex gap-3">
+          <Button type="submit" disabled={saving} className="gap-2">
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Create user'
+            )}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.push('/admin/users')}
+            disabled={saving}
+          >
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}

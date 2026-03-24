@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Lock, Eye, EyeOff, ArrowRight, Loader2 } from 'lucide-react';
+import { Lock, Eye, EyeOff, ArrowRight, Loader2, HelpCircle } from 'lucide-react';
 import {
   Button,
   Input,
@@ -13,6 +13,9 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from '@repo/ui';
 import { authApi } from '@repo/api';
 import { useAuthStore } from '@/store/authStore';
@@ -44,8 +47,8 @@ export default function ChangePasswordPage() {
     e.preventDefault();
     setError(null);
     setPasswordError(null);
-
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&^]{6,12}$/;
+    // TO BE UPDATED
+    const passwordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)[A-Za-z\d@$!%*?&^]{6,12}$/;
     if (!passwordRegex.test(newPassword)) {
       setPasswordError(
         'Password must be 6–12 characters with at least 1 uppercase, 1 lowercase, and 1 digit.',
@@ -156,7 +159,23 @@ export default function ChangePasswordPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="new">New password</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="new">New password</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <HelpCircle className="h-3.5 w-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs">
+                        6–12 characters · at least 1 uppercase · 1 lowercase · 1 digit · allowed
+                        special: @$!%*?&^
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <div className="relative">
                     <Input
                       id="new"

@@ -79,7 +79,7 @@ export function SubCategoryFormDialog({
         if (!o) handleClose();
       }}
     >
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-lg w-full">
         <DialogHeader>
           <DialogTitle>Add sub-category</DialogTitle>
           <DialogDescription>

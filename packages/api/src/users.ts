@@ -44,21 +44,28 @@ export interface UserCreationReq {
   authorities?: string[];
   authorityGroups?: string[];
   enabled?: boolean;
+  emailIdVerified?: boolean;
+  mobileNoVerified?: boolean;
+  promptChangePassword?: boolean;
+  credentialsNonExpired?: boolean;
+  accountNonLocked?: boolean;
+  accountNonExpired?: boolean;
 }
 
 // Admin update user (PATCH /api/v1/users/{id})
 export interface UserUpdateReq {
-  emailId: string;
+  emailId?: string;
   firstName?: string;
   lastName?: string;
   mobileNo?: string;
   enabled?: boolean;
+  credentialsNonExpired?: boolean;
+  emailIdVerified?: boolean;
+  mobileNoVerified?: boolean;
   accountNonLocked?: boolean;
   accountNonExpired?: boolean;
-  credentialsNonExpired?: boolean;
-  newAuthorityGroups?: string[];
-  authorityGroupsToReplace?: string[];
-  authorityGroupsToRemove?: string[];
+  authorities?: string[]; // replaces all authorities
+  authorityGroups?: string[]; // replaces all authority groups
 }
 
 // Self user info (GET /api/v1/users/username/{loginName}/info)
@@ -81,6 +88,7 @@ export interface UserInfo {
 
 // Self update (PATCH /api/v1/users/update-profile)
 export interface SelfUpdateReq {
+  emailId?: string;
   firstName?: string;
   lastName?: string;
   mobileNo?: string;

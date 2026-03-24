@@ -18,7 +18,6 @@ import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
-import { SubCategoryFormDialog } from './_components/SubCategoryFormDialog';
 
 export default function CategoriesPage() {
   const router = useRouter();
@@ -28,7 +27,6 @@ export default function CategoriesPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [subCatMap, setSubCatMap] = useState<Record<string, SubCategoryVM[]>>({});
   const [subCatLoading, setSubCatLoading] = useState<Record<string, boolean>>({});
-  const [subCatCategoryId, setSubCatCategoryId] = useState<string | null>(null);
 
   const [confirm, setConfirm] = useState<{
     open: boolean;
@@ -209,10 +207,9 @@ export default function CategoriesPage() {
                     variant="ghost"
                     size="sm"
                     className="h-6 px-2 text-xs text-primary hover:text-primary hover:bg-primary/10 gap-1"
-                    onClick={() => {
-                      setSubCatCategoryId(cat.id);
-                      if (!isExpanded) toggleExpand(cat.id);
-                    }}
+                    onClick={() =>
+                      router.push(`/admin/master/categories/${cat.id}/subcategories/new`)
+                    }
                   >
                     <Plus className="h-3 w-3" />
                     Add sub
@@ -255,16 +252,6 @@ export default function CategoriesPage() {
           })}
         </div>
       )}
-
-      <SubCategoryFormDialog
-        categoryId={subCatCategoryId}
-        categoryName={categories.find((c) => c.id === subCatCategoryId)?.name}
-        onClose={() => setSubCatCategoryId(null)}
-        onCreated={(catId, subs) => {
-          setSubCatMap((prev) => ({ ...prev, [catId]: subs }));
-          setSubCatCategoryId(null);
-        }}
-      />
 
       <ConfirmDialog
         open={confirm.open}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { adminApi, AuthorityGroupVM, AuthorityVM } from '@repo/api';
-import { Loader2, Check } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import {
   Button,
   Input,
@@ -15,71 +15,8 @@ import {
   DialogTitle,
 } from '@repo/ui';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
+import { MultiSelect } from '@/components/common/admin/MultiSelect';
 import { parseApiError } from '@/lib/api-errors';
-
-// ── Shared permissions picker ─────────────────────────────────────────────────
-
-function PermissionsPicker({
-  allPermissions,
-  selectedIds,
-  onToggle,
-}: {
-  allPermissions: AuthorityVM[];
-  selectedIds: Set<string>;
-  onToggle: (id: string) => void;
-}) {
-  const [search, setSearch] = useState('');
-  const filtered = allPermissions.filter(
-    (p) =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.label.toLowerCase().includes(search.toLowerCase()),
-  );
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label>Permissions</Label>
-        {selectedIds.size > 0 && (
-          <span className="text-xs text-primary font-medium">{selectedIds.size} selected</span>
-        )}
-      </div>
-      <Input
-        placeholder="Search permissions..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="h-8 text-sm"
-      />
-      <div className="max-h-44 overflow-y-auto rounded-md border border-border bg-muted/20 divide-y divide-border">
-        {filtered.length === 0 ? (
-          <p className="text-xs text-muted-foreground p-3 text-center">No permissions found</p>
-        ) : (
-          filtered.map((perm) => {
-            const checked = selectedIds.has(perm.id);
-            return (
-              <button
-                key={perm.id}
-                type="button"
-                onClick={() => onToggle(perm.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50 ${checked ? 'bg-primary/5' : ''}`}
-              >
-                <span
-                  className={`flex-shrink-0 h-4 w-4 rounded border flex items-center justify-center transition-colors ${checked ? 'bg-primary border-primary' : 'border-border'}`}
-                >
-                  {checked && <Check className="h-3 w-3 text-primary-foreground" />}
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block font-medium text-foreground truncate">{perm.label}</span>
-                  <span className="block font-mono text-xs text-muted-foreground truncate">
-                    {perm.name}
-                  </span>
-                </span>
-              </button>
-            );
-          })
-        )}
-      </div>
-    </div>
-  );
-}
 
 // ── Create ────────────────────────────────────────────────────────────────────
 
@@ -99,7 +36,7 @@ export function RoleFormDialog({
   const [name, setName] = useState('');
   const [label, setLabel] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -110,18 +47,12 @@ export function RoleFormDialog({
       delete n[f];
       return n;
     });
-  const togglePerm = (id: string) =>
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
 
   const reset = () => {
     setName('');
     setLabel('');
     setDescription('');
-    setSelectedIds(new Set());
+    setSelectedIds([]);
     setFieldErrors({});
     setError(null);
   };
@@ -140,7 +71,7 @@ export function RoleFormDialog({
         name: name.trim(),
         label: label.trim(),
         description: description.trim() || '',
-        authorities: Array.from(selectedIds),
+        authorities: selectedIds,
       });
       reset();
       onOpenChange(false);
@@ -212,11 +143,23 @@ export function RoleFormDialog({
               autoComplete="off"
             />
           </div>
-          <PermissionsPicker
-            allPermissions={allPermissions}
-            selectedIds={selectedIds}
-            onToggle={togglePerm}
-          />
+          <div className="space-y-1.5">
+            <Label>
+              Permissions <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
+            <MultiSelect
+              options={allPermissions.map((p) => ({
+                value: p.id,
+                label: p.label,
+                sublabel: p.name,
+              }))}
+              value={selectedIds}
+              onChange={setSelectedIds}
+              placeholder="Select permissions..."
+              searchPlaceholder="Search permissions..."
+              emptyMessage="No permissions found"
+            />
+          </div>
           {error && <ErrorAlert message={error} />}
           <DialogFooter>
             <Button
@@ -257,7 +200,7 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
   const [name, setName] = useState('');
   const [label, setLabel] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -267,7 +210,7 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
       setName(role.name);
       setLabel(role.label);
       setDescription(role.description ?? '');
-      setSelectedIds(new Set((role.authorities ?? []).map((a) => a.id)));
+      setSelectedIds((role.authorities ?? []).map((a) => a.id));
       setFieldErrors({});
       setError(null);
     }
@@ -278,12 +221,6 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
       const n = { ...p };
       delete n[f];
       return n;
-    });
-  const togglePerm = (id: string) =>
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
     });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -297,7 +234,7 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
         name: name.trim() || undefined,
         label: label.trim() || undefined,
         description: description.trim() || undefined,
-        newAuthorities: Array.from(selectedIds),
+        newAuthorities: selectedIds,
       });
       onUpdated();
       onClose();
@@ -375,11 +312,23 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
               autoComplete="off"
             />
           </div>
-          <PermissionsPicker
-            allPermissions={allPermissions}
-            selectedIds={selectedIds}
-            onToggle={togglePerm}
-          />
+          <div className="space-y-1.5">
+            <Label>
+              Permissions <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
+            <MultiSelect
+              options={allPermissions.map((p) => ({
+                value: p.id,
+                label: p.label,
+                sublabel: p.name,
+              }))}
+              value={selectedIds}
+              onChange={setSelectedIds}
+              placeholder="Select permissions..."
+              searchPlaceholder="Search permissions..."
+              emptyMessage="No permissions found"
+            />
+          </div>
           {error && <ErrorAlert message={error} />}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={saving}>

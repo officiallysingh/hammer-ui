@@ -329,7 +329,7 @@ export default function EmojiPicker({
     displayGroups[0] ?? { label: '', emojis: [] as string[] };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 overflow-hidden">
       {/* Selected preview + clear */}
       <div className="flex items-center gap-2">
         <div className="h-10 w-10 rounded-lg border border-border bg-muted/30 flex items-center justify-center text-xl flex-shrink-0">
@@ -389,13 +389,13 @@ export default function EmojiPicker({
 
       {/* Emoji grid */}
       <div className="h-36 overflow-y-auto rounded-lg border border-border bg-muted/10 p-2">
-        <div className="grid grid-cols-8 gap-0.5 min-w-0">
+        <div className="grid grid-cols-8 gap-0.5 w-full">
           {currentGroup.emojis.map((emoji) => (
             <button
               key={emoji}
               type="button"
               onClick={() => onChange(emoji)}
-              className={`h-9 w-full rounded-md text-xl flex items-center justify-center transition-colors hover:bg-muted ${
+              className={`h-9 w-full min-w-0 rounded-md text-xl flex items-center justify-center transition-colors hover:bg-muted ${
                 value === emoji ? 'bg-primary/20 ring-1 ring-primary' : ''
               }`}
               title={emoji}
