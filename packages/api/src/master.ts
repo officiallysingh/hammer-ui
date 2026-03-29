@@ -45,9 +45,10 @@ export interface SubCategoryUpdationRQ {
 
 export const masterApi = {
   // Categories
-  getCategories: async (includeSubCategories = false): Promise<CategoryVM[]> => {
+  getCategories: async (includeSubCategories = false, phrases?: string): Promise<CategoryVM[]> => {
     const response = await apiClient.get('/api/v1/master/categories', {
       headers: { 'x-expand': includeSubCategories },
+      params: phrases ? { phrases } : undefined,
     });
     return response.data;
   },

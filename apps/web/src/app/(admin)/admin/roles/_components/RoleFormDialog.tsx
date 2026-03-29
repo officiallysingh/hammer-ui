@@ -201,6 +201,7 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
   const [label, setLabel] = useState('');
   const [description, setDescription] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [loadingPerms, setLoadingPerms] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -210,9 +211,15 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
       setName(role.name);
       setLabel(role.label);
       setDescription(role.description ?? '');
-      setSelectedIds((role.authorities ?? []).map((a) => a.id));
       setFieldErrors({});
       setError(null);
+      // fetch this role's current permissions
+      setLoadingPerms(true);
+      adminApi
+        .getAuthoritiesByGroup(role.id)
+        .then((perms) => setSelectedIds(perms.map((p) => p.id)))
+        .catch(() => setSelectedIds([]))
+        .finally(() => setLoadingPerms(false));
     }
   }, [role]);
 
@@ -234,7 +241,7 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
         name: name.trim() || undefined,
         label: label.trim() || undefined,
         description: description.trim() || undefined,
-        newAuthorities: selectedIds,
+        authorities: selectedIds,
       });
       onUpdated();
       onClose();
@@ -313,9 +320,14 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
             />
           </div>
           <div className="space-y-1.5">
-            <Label>
-              Permissions <span className="text-muted-foreground font-normal">(optional)</span>
-            </Label>
+            <div className="flex items-center gap-2">
+              <Label>
+                Permissions <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
+              {loadingPerms && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+              )}
+            </div>
             <MultiSelect
               options={allPermissions.map((p) => ({
                 value: p.id,
@@ -324,7 +336,7 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
               }))}
               value={selectedIds}
               onChange={setSelectedIds}
-              placeholder="Select permissions..."
+              placeholder={loadingPerms ? 'Loading...' : 'Select permissions...'}
               searchPlaceholder="Search permissions..."
               emptyMessage="No permissions found"
             />
@@ -334,7 +346,7 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
             <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || loadingPerms}>
               {saving ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-1" />

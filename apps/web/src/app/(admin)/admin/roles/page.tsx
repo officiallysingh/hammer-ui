@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import React from 'react';
 import { adminApi, AuthorityGroupVM, AuthorityVM } from '@repo/api';
 import { Loader2, Trash2, RefreshCw, ChevronDown, ChevronRight, Plus, Pencil } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
@@ -18,17 +19,20 @@ export default function RolesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // expanded: map of groupId -> AuthorityVM[] | 'loading'
+  const [expandedPerms, setExpandedPerms] = useState<Record<string, AuthorityVM[] | 'loading'>>({});
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editRole, setEditRole] = useState<AuthorityGroupVM | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchGroups = async () => {
+  const fetchGroups = async (phrases?: string) => {
     setIsLoading(true);
     setError(null);
     try {
       const [data, perms] = await Promise.all([
-        adminApi.getAuthorityGroups(true),
+        adminApi.getAuthorityGroups(false, phrases),
         adminApi.getAuthorities(),
       ]);
       setGroups(data);
@@ -44,6 +48,12 @@ export default function RolesPage() {
     fetchGroups();
   }, []);
 
+  const handleSearch = (value: string) => {
+    setSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchGroups(value.trim() || undefined), 400);
+  };
+
   const handleDelete = async (id: string) => {
     setDeletingId(id);
     setConfirmId(null);
@@ -57,13 +67,27 @@ export default function RolesPage() {
     }
   };
 
-  const toggleExpand = (id: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const toggleExpand = async (id: string) => {
+    if (expandedPerms[id]) {
+      // collapse
+      setExpandedPerms((prev) => {
+        const n = { ...prev };
+        delete n[id];
+        return n;
+      });
+      return;
+    }
+    setExpandedPerms((prev) => ({ ...prev, [id]: 'loading' }));
+    try {
+      const perms = await adminApi.getAuthoritiesByGroup(id);
+      setExpandedPerms((prev) => ({ ...prev, [id]: perms }));
+    } catch {
+      setExpandedPerms((prev) => {
+        const n = { ...prev };
+        delete n[id];
+        return n;
+      });
+    }
   };
 
   const columns: ColumnDef<AuthorityGroupVM>[] = [
@@ -71,13 +95,16 @@ export default function RolesPage() {
       id: 'expand',
       header: '',
       cell: ({ row }) => {
-        if (!row.original.authorities?.length) return null;
+        const id = row.original.id;
+        const state = expandedPerms[id];
         return (
           <button
-            onClick={() => toggleExpand(row.original.id)}
+            onClick={() => toggleExpand(id)}
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
-            {expanded.has(row.original.id) ? (
+            {state === 'loading' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : state ? (
               <ChevronDown className="h-4 w-4" />
             ) : (
               <ChevronRight className="h-4 w-4" />
@@ -104,15 +131,6 @@ export default function RolesPage() {
       header: 'Description',
       cell: ({ row }) => (
         <span className="text-muted-foreground">{row.original.description ?? '—'}</span>
-      ),
-    },
-    {
-      id: 'permissions',
-      header: 'Permissions',
-      cell: ({ row }) => (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
-          {row.original.authorities?.length ?? 0}
-        </span>
       ),
     },
     {
@@ -161,7 +179,12 @@ export default function RolesPage() {
               <Plus className="h-4 w-4 mr-1" />
               Add role
             </Button>
-            <Button variant="outline" size="sm" onClick={fetchGroups} disabled={isLoading}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchGroups(search.trim() || undefined)}
+              disabled={isLoading}
+            >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
@@ -177,26 +200,34 @@ export default function RolesPage() {
         isLoading={isLoading}
         emptyMessage="No roles found."
         searchPlaceholder="Search roles..."
+        onSearch={handleSearch}
+        searchValue={search}
       />
 
-      {Array.from(expanded).map((groupId) => {
+      {/* Expanded permissions panels */}
+      {Object.entries(expandedPerms).map(([groupId, state]) => {
+        if (state === 'loading') return null;
         const group = groups.find((g) => g.id === groupId);
-        if (!group?.authorities?.length) return null;
+        if (!group) return null;
         return (
           <div key={groupId} className="rounded-lg border bg-muted/20 p-4">
             <h4 className="text-sm font-medium text-foreground mb-2">
               Permissions for {group.label}
             </h4>
-            <div className="flex flex-wrap gap-1.5">
-              {group.authorities.map((a) => (
-                <span
-                  key={a.id}
-                  className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-mono"
-                >
-                  {a.name}
-                </span>
-              ))}
-            </div>
+            {state.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No permissions assigned.</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {state.map((a) => (
+                  <span
+                    key={a.id}
+                    className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-mono"
+                  >
+                    {a.name}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         );
       })}
@@ -205,14 +236,14 @@ export default function RolesPage() {
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
         allPermissions={allPermissions}
-        onCreated={fetchGroups}
+        onCreated={() => fetchGroups(search.trim() || undefined)}
       />
 
       <EditRoleDialog
         role={editRole}
         allPermissions={allPermissions}
         onClose={() => setEditRole(null)}
-        onUpdated={fetchGroups}
+        onUpdated={() => fetchGroups(search.trim() || undefined)}
       />
 
       <ConfirmDialog

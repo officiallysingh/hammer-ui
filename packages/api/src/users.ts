@@ -125,9 +125,9 @@ export const usersApi = {
     const response = await apiClient.get(`/api/v1/users/mobile/${mobile}/exists`);
     return response.data;
   },
-  getUsers: async (page = 0, size = 20): Promise<UserDetailVM[]> => {
+  getUsers: async (page = 0, size = 20, phrases?: string): Promise<UserDetailVM[]> => {
     const response = await apiClient.get<PaginatedUsers>('/api/v1/users', {
-      params: { page, size },
+      params: { page, size, ...(phrases ? { phrases } : {}) },
     });
     const data = response.data;
     // Handle both paginated and plain array responses

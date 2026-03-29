@@ -55,6 +55,36 @@ function Field({
   );
 }
 
+function Toggle({
+  label,
+  description,
+  value,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-2.5">
+      <div>
+        <p className="text-sm font-medium text-foreground">{label}</p>
+        {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
+      </div>
+      <button
+        type="button"
+        onClick={() => onChange(!value)}
+        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${value ? 'bg-primary' : 'bg-muted'}`}
+      >
+        <span
+          className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${value ? 'translate-x-4' : 'translate-x-0'}`}
+        />
+      </button>
+    </div>
+  );
+}
+
 export default function EditUserPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -65,6 +95,10 @@ export default function EditUserPage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [mobile, setMobile] = useState('');
+  const [enabled, setEnabled] = useState(true);
+  const [emailVerified, setEmailVerified] = useState(true);
+  const [mobileVerified, setMobileVerified] = useState(true);
+  const [promptChangePwd, setPromptChangePwd] = useState(false);
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
   const [allRoles, setAllRoles] = useState<AuthorityGroupVM[]>([]);
@@ -89,7 +123,6 @@ export default function EditUserPage() {
       setAvailablePerms(perms);
       const availableIds = new Set(perms.map((p) => p.id));
       if (keepPerms !== undefined) {
-        // initial load — keep only perms that exist in available set
         setSelectedPerms(keepPerms.filter((pid) => availableIds.has(pid)));
       } else {
         setSelectedPerms((prev) => prev.filter((pid) => availableIds.has(pid)));
@@ -109,11 +142,14 @@ export default function EditUserPage() {
         setFirstName(u.firstName ?? '');
         setLastName(u.lastName ?? '');
         setMobile(u.mobileNo ?? '');
+        setEnabled(u.enabled);
+        setEmailVerified(u.emailIdVerified);
+        setMobileVerified(u.mobileNoVerified);
+        setPromptChangePwd(u.promptChangePassword);
         setAllRoles(roles);
         const roleIds = (u.authorityGroups ?? []).map((g) => g.id);
         const permIds = (u.authorities ?? []).map((a) => a.id);
         setSelectedRoles(roleIds);
-        // fetch perms for the user's existing roles, pre-selecting their existing perms
         fetchPermsForRoles(roleIds, permIds);
       })
       .catch(() => setError('Failed to load user.'))
@@ -143,6 +179,10 @@ export default function EditUserPage() {
         firstName: firstName.trim() || undefined,
         lastName: lastName.trim() || undefined,
         mobileNo: mobile.trim() || undefined,
+        enabled,
+        emailIdVerified: emailVerified,
+        mobileNoVerified: mobileVerified,
+        credentialsNonExpired: !promptChangePwd,
         authorityGroups: selectedRoles,
         authorities: selectedPerms,
       });
@@ -276,6 +316,24 @@ export default function EditUserPage() {
               />
             )}
           </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card px-6 divide-y divide-border">
+          <h3 className="text-sm font-semibold text-foreground py-4">Account settings</h3>
+          <Toggle
+            label="Enabled"
+            description="User can log in"
+            value={enabled}
+            onChange={setEnabled}
+          />
+          <Toggle label="Email verified" value={emailVerified} onChange={setEmailVerified} />
+          <Toggle label="Mobile verified" value={mobileVerified} onChange={setMobileVerified} />
+          <Toggle
+            label="Prompt change password"
+            description="User must set a new password on next login"
+            value={promptChangePwd}
+            onChange={setPromptChangePwd}
+          />
         </div>
 
         {error && <ErrorAlert message={error} />}

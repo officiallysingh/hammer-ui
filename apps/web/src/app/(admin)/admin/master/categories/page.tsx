@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import React from 'react';
 import { useRouter } from 'next/navigation';
 import { masterApi, CategoryVM, SubCategoryVM } from '@repo/api';
 import {
@@ -12,8 +13,9 @@ import {
   ChevronDown,
   ChevronUp,
   Tag,
+  Search,
 } from 'lucide-react';
-import { Button } from '@repo/ui';
+import { Button, Input } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
@@ -27,23 +29,31 @@ export default function CategoriesPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [subCatMap, setSubCatMap] = useState<Record<string, SubCategoryVM[]>>({});
   const [subCatLoading, setSubCatLoading] = useState<Record<string, boolean>>({});
+  const [search, setSearch] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const confirm_state = {
+    open: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+  };
   const [confirm, setConfirm] = useState<{
     open: boolean;
     title: string;
     description: string;
     onConfirm: () => void;
-  }>({ open: false, title: '', description: '', onConfirm: () => {} });
+  }>(confirm_state);
 
   const openConfirm = (title: string, description: string, onConfirm: () => void) =>
     setConfirm({ open: true, title, description, onConfirm });
   const closeConfirm = () => setConfirm((prev) => ({ ...prev, open: false }));
 
-  const fetchCategories = async () => {
+  const fetchCategories = async (phrases?: string) => {
     setIsLoading(true);
     setError(null);
     try {
-      setCategories(await masterApi.getCategories(false));
+      setCategories(await masterApi.getCategories(false, phrases));
     } catch {
       setError('Failed to load categories.');
     } finally {
@@ -54,6 +64,12 @@ export default function CategoriesPage() {
   useEffect(() => {
     fetchCategories();
   }, []);
+
+  const handleSearch = (value: string) => {
+    setSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchCategories(value.trim() || undefined), 400);
+  };
 
   const toggleExpand = async (id: string) => {
     setExpanded((prev) => {
@@ -122,7 +138,12 @@ export default function CategoriesPage() {
               <Plus className="h-4 w-4 mr-1" />
               Add category
             </Button>
-            <Button variant="outline" size="sm" onClick={fetchCategories} disabled={isLoading}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchCategories(search.trim() || undefined)}
+              disabled={isLoading}
+            >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
@@ -131,6 +152,17 @@ export default function CategoriesPage() {
       />
 
       {error && <ErrorAlert message={error} />}
+
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder="Search categories..."
+          value={search}
+          onChange={(e) => handleSearch(e.target.value)}
+          className="pl-9"
+        />
+      </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">

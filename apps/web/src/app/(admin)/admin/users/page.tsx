@@ -30,12 +30,14 @@ export default function UsersPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (phrases?: string) => {
     setIsLoading(true);
     setError(null);
     try {
-      setUsers(await usersApi.getUsers());
+      setUsers(await usersApi.getUsers(0, 20, phrases || undefined));
     } catch {
       setError('Failed to load users.');
     } finally {
@@ -46,6 +48,12 @@ export default function UsersPage() {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  const handleSearch = (value: string) => {
+    setSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchUsers(value.trim() || undefined), 400);
+  };
 
   const handleDelete = async (id: string) => {
     setDeletingId(id);
@@ -219,7 +227,12 @@ export default function UsersPage() {
               <UserPlus className="h-4 w-4 mr-1" />
               Add user
             </Button>
-            <Button variant="outline" size="sm" onClick={fetchUsers} disabled={isLoading}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchUsers(search.trim() || undefined)}
+              disabled={isLoading}
+            >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
@@ -235,6 +248,8 @@ export default function UsersPage() {
         isLoading={isLoading}
         emptyMessage="No users found."
         searchPlaceholder="Search users..."
+        onSearch={handleSearch}
+        searchValue={search}
       />
 
       <ConfirmDialog

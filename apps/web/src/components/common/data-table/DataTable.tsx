@@ -25,6 +25,8 @@ interface DataTableProps<TData> {
   searchPlaceholder?: string;
   pageSize?: number;
   enableUrlState?: boolean;
+  onSearch?: (value: string) => void; // when provided, disables client-side filtering
+  searchValue?: string; // controlled search value for server-side mode
 }
 
 export function DataTable<TData>({
@@ -35,6 +37,8 @@ export function DataTable<TData>({
   searchPlaceholder = 'Search...',
   pageSize = 10,
   enableUrlState = true,
+  onSearch,
+  searchValue = '',
 }: DataTableProps<TData>) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -55,9 +59,12 @@ export function DataTable<TData>({
 
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState(() => {
-    if (!enableUrlState) return '';
+    if (!enableUrlState || onSearch) return '';
     return searchParams.get('search') || '';
   });
+
+  // local input state for server-side search
+  const [localSearch, setLocalSearch] = useState(searchValue);
 
   const [pagination, setPagination] = useState(() => {
     if (!enableUrlState) return { pageIndex: 0, pageSize };
@@ -104,21 +111,22 @@ export function DataTable<TData>({
     }
   }, [globalFilter, enableUrlState]);
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
+    getFilteredRowModel: onSearch ? undefined : getFilteredRowModel(),
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
-    onGlobalFilterChange: setGlobalFilter,
+    onGlobalFilterChange: onSearch ? undefined : setGlobalFilter,
     onPaginationChange: setPagination,
     state: {
       sorting,
       columnFilters,
-      globalFilter,
+      globalFilter: onSearch ? undefined : globalFilter,
       pagination,
     },
   });
@@ -129,12 +137,24 @@ export function DataTable<TData>({
       <div className="flex items-center space-x-2">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder={searchPlaceholder}
-            value={globalFilter ?? ''}
-            onChange={(event) => setGlobalFilter(String(event.target.value))}
-            className="pl-9"
-          />
+          {onSearch ? (
+            <Input
+              placeholder={searchPlaceholder}
+              value={localSearch}
+              onChange={(e) => {
+                setLocalSearch(e.target.value);
+                onSearch(e.target.value);
+              }}
+              className="pl-9"
+            />
+          ) : (
+            <Input
+              placeholder={searchPlaceholder}
+              value={globalFilter ?? ''}
+              onChange={(event) => setGlobalFilter(String(event.target.value))}
+              className="pl-9"
+            />
+          )}
         </div>
       </div>
 

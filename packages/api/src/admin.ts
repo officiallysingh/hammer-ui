@@ -28,9 +28,7 @@ export interface AuthorityGroupUpdateReq {
   name?: string;
   label?: string;
   description?: string;
-  newAuthorities?: string[]; // replace all authorities
-  authoritiesToAdd?: string[]; // add to existing
-  authoritiesToRemove?: string[]; // remove from existing
+  authorities?: string[]; // replaces all authorities
 }
 
 export interface AuthorityCreationReq {
@@ -47,9 +45,10 @@ export interface AuthorityUpdateReq {
 
 export const adminApi = {
   // ── Authority Groups (Roles) ─────────────────────────────────────────────
-  getAuthorityGroups: async (expand = false): Promise<AuthorityGroupVM[]> => {
+  getAuthorityGroups: async (expand = false, phrases?: string): Promise<AuthorityGroupVM[]> => {
     const response = await apiClient.get('/api/v1/authority-groups', {
       headers: { 'x-expand': String(expand) },
+      params: phrases ? { phrases } : undefined,
     });
     return response.data;
   },
@@ -67,8 +66,10 @@ export const adminApi = {
   },
 
   // ── Authorities (Permissions) ─────────────────────────────────────────────
-  getAuthorities: async (): Promise<AuthorityVM[]> => {
-    const response = await apiClient.get('/api/v1/authorities');
+  getAuthorities: async (phrases?: string): Promise<AuthorityVM[]> => {
+    const response = await apiClient.get('/api/v1/authorities', {
+      params: phrases ? { phrases } : undefined,
+    });
     return response.data;
   },
 

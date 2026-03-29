@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import React from 'react';
 import { adminApi, AuthorityVM } from '@repo/api';
 import { Loader2, Trash2, RefreshCw, Plus, Pencil } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
@@ -20,12 +21,14 @@ export default function PermissionsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editPerm, setEditPerm] = useState<AuthorityVM | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchAuthorities = async () => {
+  const fetchAuthorities = async (phrases?: string) => {
     setIsLoading(true);
     setError(null);
     try {
-      setAuthorities(await adminApi.getAuthorities());
+      setAuthorities(await adminApi.getAuthorities(phrases));
     } catch {
       setError('Failed to load permissions.');
     } finally {
@@ -36,6 +39,12 @@ export default function PermissionsPage() {
   useEffect(() => {
     fetchAuthorities();
   }, []);
+
+  const handleSearch = (value: string) => {
+    setSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchAuthorities(value.trim() || undefined), 400);
+  };
 
   const handleDelete = async (id: string) => {
     setDeletingId(id);
@@ -116,7 +125,12 @@ export default function PermissionsPage() {
               <Plus className="h-4 w-4 mr-1" />
               Add permission
             </Button>
-            <Button variant="outline" size="sm" onClick={fetchAuthorities} disabled={isLoading}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchAuthorities(search.trim() || undefined)}
+              disabled={isLoading}
+            >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
@@ -132,6 +146,8 @@ export default function PermissionsPage() {
         isLoading={isLoading}
         emptyMessage="No permissions found."
         searchPlaceholder="Search permissions..."
+        onSearch={handleSearch}
+        searchValue={search}
       />
 
       <CreatePermissionDialog
