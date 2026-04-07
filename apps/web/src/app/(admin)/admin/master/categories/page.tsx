@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { masterApi, CategoryVM, SubCategoryVM } from '@repo/api';
@@ -13,9 +13,9 @@ import {
   ChevronDown,
   ChevronUp,
   Tag,
-  Search,
 } from 'lucide-react';
 import { Button, Input } from '@repo/ui';
+import { SearchInput } from '@/components/common/admin/SearchInput';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
@@ -30,7 +30,6 @@ export default function CategoriesPage() {
   const [subCatMap, setSubCatMap] = useState<Record<string, SubCategoryVM[]>>({});
   const [subCatLoading, setSubCatLoading] = useState<Record<string, boolean>>({});
   const [search, setSearch] = useState('');
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const confirm_state = {
     open: false,
@@ -67,8 +66,7 @@ export default function CategoriesPage() {
 
   const handleSearch = (value: string) => {
     setSearch(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchCategories(value.trim() || undefined), 400);
+    fetchCategories(value.trim() || undefined);
   };
 
   const toggleExpand = async (id: string) => {
@@ -154,15 +152,12 @@ export default function CategoriesPage() {
       {error && <ErrorAlert message={error} />}
 
       {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search categories..."
-          value={search}
-          onChange={(e) => handleSearch(e.target.value)}
-          className="pl-9"
-        />
-      </div>
+      <SearchInput
+        value={search}
+        onChange={handleSearch}
+        placeholder="Search categories..."
+        className="max-w-sm"
+      />
 
       {isLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">

@@ -87,7 +87,7 @@ export function RoleFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Add role</DialogTitle>
           <DialogDescription>Create a new authority group (role).</DialogDescription>
@@ -261,7 +261,7 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
         if (!o) onClose();
       }}
     >
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Edit role</DialogTitle>
           <DialogDescription>

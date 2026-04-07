@@ -31,7 +31,6 @@ export default function UsersPage() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchUsers = async (phrases?: string) => {
     setIsLoading(true);
@@ -51,8 +50,7 @@ export default function UsersPage() {
 
   const handleSearch = (value: string) => {
     setSearch(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchUsers(value.trim() || undefined), 400);
+    fetchUsers(value.trim() || undefined);
   };
 
   const handleDelete = async (id: string) => {

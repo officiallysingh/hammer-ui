@@ -76,4 +76,9 @@ export const authApi = {
     const response = await apiClient.post('/api/v1/users/change-password', data);
     return response.data;
   },
+
+  /** Invalidate the server session. Spring Security default logout endpoint. */
+  logout: async () => {
+    await apiClient.post('/logout');
+  },
 };

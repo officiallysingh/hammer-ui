@@ -27,6 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@repo/ui';
+import { authApi } from '@repo/api';
 
 interface NavItem {
   href: string;
@@ -205,7 +206,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const subRoute = subRouteTitles.find((r) => r.match.test(pathname));
   const activeLink = allNavItems.find((l) => pathname.startsWith(l.href));
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      /* ignore */
+    }
     clearUser();
     router.push('/login');
   };

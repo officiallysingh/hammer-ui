@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from '@repo/ui';
 import { useAuthStore } from '@/store/authStore';
+import { authApi } from '@repo/api';
 
 const navLinks = [
   { label: 'Live Auctions', href: '#auctions' },
@@ -43,7 +44,12 @@ const AuctionNavbar = () => {
     ? `${userInfo.firstName}${userInfo.lastName ? ` ${userInfo.lastName}` : ''}`
     : (user?.username ?? 'User');
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      /* ignore */
+    }
     clearUser();
     router.push('/');
     router.refresh();

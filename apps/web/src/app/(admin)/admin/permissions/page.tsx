@@ -22,7 +22,6 @@ export default function PermissionsPage() {
   const [editPerm, setEditPerm] = useState<AuthorityVM | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchAuthorities = async (phrases?: string) => {
     setIsLoading(true);
@@ -42,8 +41,7 @@ export default function PermissionsPage() {
 
   const handleSearch = (value: string) => {
     setSearch(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchAuthorities(value.trim() || undefined), 400);
+    fetchAuthorities(value.trim() || undefined);
   };
 
   const handleDelete = async (id: string) => {

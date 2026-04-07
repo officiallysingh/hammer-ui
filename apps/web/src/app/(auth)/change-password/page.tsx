@@ -224,7 +224,12 @@ export default function ChangePasswordPage() {
               <p className="mt-4 text-center text-sm text-muted-foreground">
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
+                    try {
+                      await authApi.logout();
+                    } catch {
+                      /* ignore */
+                    }
                     clearUser();
                     router.push('/login');
                   }}

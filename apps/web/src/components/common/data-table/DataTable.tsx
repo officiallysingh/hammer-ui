@@ -16,6 +16,7 @@ import {
 import { ChevronDown, ChevronUp, ChevronsUpDown, Loader2, Search } from 'lucide-react';
 import { Button } from '@repo/ui';
 import { Input } from '@repo/ui';
+import { SearchInput } from '@/components/common/admin/SearchInput';
 
 interface DataTableProps<TData> {
   data: TData[];
@@ -65,7 +66,7 @@ export function DataTable<TData>({
 
   // local input state for server-side search
   const [localSearch, setLocalSearch] = useState(searchValue);
-
+  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pagination, setPagination] = useState(() => {
     if (!enableUrlState) return { pageIndex: 0, pageSize };
     const page = parseInt(searchParams.get('page') || '1') - 1; // URL is 1-based
@@ -135,27 +136,24 @@ export function DataTable<TData>({
     <div className="space-y-4">
       {/* Search */}
       <div className="flex items-center space-x-2">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          {onSearch ? (
-            <Input
-              placeholder={searchPlaceholder}
-              value={localSearch}
-              onChange={(e) => {
-                setLocalSearch(e.target.value);
-                onSearch(e.target.value);
-              }}
-              className="pl-9"
-            />
-          ) : (
+        {onSearch ? (
+          <SearchInput
+            value={searchValue}
+            onChange={onSearch}
+            placeholder={searchPlaceholder}
+            className="flex-1 max-w-sm"
+          />
+        ) : (
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={searchPlaceholder}
               value={globalFilter ?? ''}
               onChange={(event) => setGlobalFilter(String(event.target.value))}
               className="pl-9"
             />
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Table */}

@@ -14,6 +14,9 @@ export const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
   withCredentials: true,
+  // Spring Security uses XSRF-TOKEN cookie and X-XSRF-TOKEN header by default
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
 });
 
 // Example: Add request interceptor for auth tokens

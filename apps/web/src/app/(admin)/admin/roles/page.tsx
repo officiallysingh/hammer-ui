@@ -25,7 +25,6 @@ export default function RolesPage() {
   const [editRole, setEditRole] = useState<AuthorityGroupVM | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchGroups = async (phrases?: string) => {
     setIsLoading(true);
@@ -50,8 +49,7 @@ export default function RolesPage() {
 
   const handleSearch = (value: string) => {
     setSearch(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchGroups(value.trim() || undefined), 400);
+    fetchGroups(value.trim() || undefined);
   };
 
   const handleDelete = async (id: string) => {
