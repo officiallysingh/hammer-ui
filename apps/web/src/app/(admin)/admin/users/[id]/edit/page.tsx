@@ -1,8 +1,15 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { usersApi, adminApi, AuthorityGroupVM, AuthorityVM } from '@repo/api';
+import {
+  usersApi,
+  adminApi,
+  AuthorityGroupVM,
+  AuthorityVM,
+  UserDetailVM,
+  UserUpdateReq,
+} from '@repo/api';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button, Input, Label } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
@@ -90,7 +97,10 @@ export default function EditUserPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
-  const [username, setUsername] = useState('');
+  const originalRef = useRef<UserDetailVM | null>(null);
+  const originalRolesRef = useRef<string[]>([]);
+  const originalPermsRef = useRef<string[]>([]);
+
   const [email, setEmail] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -107,6 +117,9 @@ export default function EditUserPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // username is display-only
+  const [username, setUsername] = useState('');
 
   const fetchPermsForRoles = useCallback(async (roleIds: string[], keepPerms?: string[]) => {
     if (roleIds.length === 0) {
@@ -137,6 +150,7 @@ export default function EditUserPage() {
   useEffect(() => {
     Promise.all([usersApi.getUserById(id), adminApi.getAuthorityGroups()])
       .then(([u, roles]) => {
+        originalRef.current = u;
         setUsername(u.username ?? '');
         setEmail(u.emailId ?? '');
         setFirstName(u.firstName ?? '');
@@ -149,6 +163,8 @@ export default function EditUserPage() {
         setAllRoles(roles);
         const roleIds = (u.authorityGroups ?? []).map((g) => g.id);
         const permIds = (u.authorities ?? []).map((a) => a.id);
+        originalRolesRef.current = roleIds;
+        originalPermsRef.current = permIds;
         setSelectedRoles(roleIds);
         fetchPermsForRoles(roleIds, permIds);
       })
@@ -172,20 +188,42 @@ export default function EditUserPage() {
     e.preventDefault();
     setError(null);
     setFieldErrors({});
+    const orig = originalRef.current;
+    if (!orig) return;
+
+    // Build patch with only changed fields
+    const patch: UserUpdateReq = {};
+    if (email.trim() !== (orig.emailId ?? '')) patch.emailId = email.trim() || undefined;
+    if (firstName.trim() !== (orig.firstName ?? ''))
+      patch.firstName = firstName.trim() || undefined;
+    if (lastName.trim() !== (orig.lastName ?? '')) patch.lastName = lastName.trim() || undefined;
+    if (mobile.trim() !== (orig.mobileNo ?? '')) patch.mobileNo = mobile.trim() || undefined;
+    if (enabled !== orig.enabled) patch.enabled = enabled;
+    if (emailVerified !== orig.emailIdVerified) patch.emailIdVerified = emailVerified;
+    if (mobileVerified !== orig.mobileNoVerified) patch.mobileNoVerified = mobileVerified;
+    if (promptChangePwd !== orig.promptChangePassword)
+      patch.credentialsNonExpired = !promptChangePwd;
+
+    // Roles changed?
+    const rolesChanged =
+      selectedRoles.length !== originalRolesRef.current.length ||
+      selectedRoles.some((r) => !originalRolesRef.current.includes(r));
+    if (rolesChanged) patch.authorityGroups = selectedRoles;
+
+    // Perms changed?
+    const permsChanged =
+      selectedPerms.length !== originalPermsRef.current.length ||
+      selectedPerms.some((p) => !originalPermsRef.current.includes(p));
+    if (permsChanged) patch.authorities = selectedPerms;
+
+    if (Object.keys(patch).length === 0) {
+      router.push('/admin/users');
+      return;
+    }
+
     setSaving(true);
     try {
-      await usersApi.updateUser(id, {
-        emailId: email.trim() || undefined,
-        firstName: firstName.trim() || undefined,
-        lastName: lastName.trim() || undefined,
-        mobileNo: mobile.trim() || undefined,
-        enabled,
-        emailIdVerified: emailVerified,
-        mobileNoVerified: mobileVerified,
-        credentialsNonExpired: !promptChangePwd,
-        authorityGroups: selectedRoles,
-        authorities: selectedPerms,
-      });
+      await usersApi.updateUser(id, patch);
       router.push('/admin/users');
     } catch (err) {
       const parsed = parseApiError(err);
@@ -290,7 +328,7 @@ export default function EditUserPage() {
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <Label>
-                Additional permissions
+                Additional permissions{' '}
                 <span className="text-muted-foreground font-normal ml-1">(optional)</span>
               </Label>
               {loadingPerms && (

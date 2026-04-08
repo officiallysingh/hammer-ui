@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import React from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { masterApi } from '@repo/api';
 import { Loader2, ArrowLeft } from 'lucide-react';
@@ -17,6 +18,7 @@ export default function EditCategoryPage() {
 
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('');
+  const originalRef = React.useRef<{ name: string; icon: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -27,6 +29,7 @@ export default function EditCategoryPage() {
     masterApi
       .getCategoryById(id)
       .then((cat) => {
+        originalRef.current = { name: cat.name, icon: cat.icon ?? '' };
         setName(cat.name);
         setIcon(cat.icon ?? '');
       })
@@ -38,12 +41,17 @@ export default function EditCategoryPage() {
     e.preventDefault();
     setError(null);
     setFieldErrors({});
+    const orig = originalRef.current;
+    const patch: { name?: string; icon?: string } = {};
+    if (!orig || name.trim() !== orig.name) patch.name = name.trim() || undefined;
+    if (!orig || icon !== orig.icon) patch.icon = icon || undefined;
+    if (orig && Object.keys(patch).length === 0) {
+      router.push('/admin/master/categories');
+      return;
+    }
     setSaving(true);
     try {
-      await masterApi.updateCategory(id, {
-        name: name.trim() || undefined,
-        icon: icon || undefined,
-      });
+      await masterApi.updateCategory(id, patch);
       router.push('/admin/master/categories');
     } catch (err) {
       const parsed = parseApiError(err);

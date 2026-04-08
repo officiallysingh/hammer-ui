@@ -103,6 +103,9 @@ export interface PaginatedUsers {
     totalRecords: number;
     hasNext: boolean;
     hasPrevious: boolean;
+    isFirst?: boolean;
+    isLast?: boolean;
+    header?: string;
   };
 }
 
@@ -125,14 +128,17 @@ export const usersApi = {
     const response = await apiClient.get(`/api/v1/users/mobile/${mobile}/exists`);
     return response.data;
   },
-  getUsers: async (page = 0, size = 20, phrases?: string): Promise<UserDetailVM[]> => {
+  getUsers: async (
+    page = 0,
+    size = 20,
+    phrases?: string,
+    expand?: ('authorities' | 'authority-groups')[],
+  ): Promise<PaginatedUsers> => {
     const response = await apiClient.get<PaginatedUsers>('/api/v1/users', {
       params: { page, size, ...(phrases ? { phrases } : {}) },
+      headers: expand?.length ? { 'x-expand': expand.join(',') } : undefined,
     });
-    const data = response.data;
-    // Handle both paginated and plain array responses
-    if (Array.isArray(data)) return data as unknown as UserDetailVM[];
-    return data?.content ?? [];
+    return response.data;
   },
   createUser: async (data: UserCreationReq): Promise<void> => {
     await apiClient.post('/api/v1/users', data);

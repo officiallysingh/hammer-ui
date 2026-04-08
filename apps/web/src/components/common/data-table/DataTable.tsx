@@ -26,8 +26,9 @@ interface DataTableProps<TData> {
   searchPlaceholder?: string;
   pageSize?: number;
   enableUrlState?: boolean;
-  onSearch?: (value: string) => void; // when provided, disables client-side filtering
-  searchValue?: string; // controlled search value for server-side mode
+  onSearch?: (value: string) => void;
+  searchValue?: string;
+  toolbar?: React.ReactNode;
 }
 
 export function DataTable<TData>({
@@ -40,6 +41,7 @@ export function DataTable<TData>({
   enableUrlState = true,
   onSearch,
   searchValue = '',
+  toolbar,
 }: DataTableProps<TData>) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -134,8 +136,8 @@ export function DataTable<TData>({
 
   return (
     <div className="space-y-4">
-      {/* Search */}
-      <div className="flex items-center space-x-2">
+      {/* Search + toolbar */}
+      <div className="flex items-center gap-3">
         {onSearch ? (
           <SearchInput
             value={searchValue}
@@ -154,6 +156,7 @@ export function DataTable<TData>({
             />
           </div>
         )}
+        {toolbar && <div className="flex items-center gap-3 ml-auto">{toolbar}</div>}
       </div>
 
       {/* Table */}

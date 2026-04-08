@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import React from 'react';
 import { adminApi, AuthorityGroupVM, AuthorityVM } from '@repo/api';
-import { Loader2, Trash2, RefreshCw, ChevronDown, ChevronRight, Plus, Pencil } from 'lucide-react';
+import { Loader2, Trash2, RefreshCw, Plus, Pencil } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@repo/ui';
 import { DataTable } from '@/components/common/data-table';
@@ -11,16 +11,18 @@ import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
+import { TagList } from '@/components/common/admin/TagList';
 import { RoleFormDialog, EditRoleDialog } from './_components/RoleFormDialog';
 
+// Extend AuthorityGroupVM locally to cache fetched permissions
+type RoleRow = AuthorityGroupVM & { _perms?: AuthorityVM[] };
+
 export default function RolesPage() {
-  const [groups, setGroups] = useState<AuthorityGroupVM[]>([]);
+  const [groups, setGroups] = useState<RoleRow[]>([]);
   const [allPermissions, setAllPermissions] = useState<AuthorityVM[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  // expanded: map of groupId -> AuthorityVM[] | 'loading'
-  const [expandedPerms, setExpandedPerms] = useState<Record<string, AuthorityVM[] | 'loading'>>({});
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editRole, setEditRole] = useState<AuthorityGroupVM | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -31,10 +33,11 @@ export default function RolesPage() {
     setError(null);
     try {
       const [data, perms] = await Promise.all([
-        adminApi.getAuthorityGroups(false, phrases),
+        adminApi.getAuthorityGroups(true, phrases), // x-expand: true → authorities included
         adminApi.getAuthorities(),
       ]);
-      setGroups(data);
+      // Map authorities from the expanded response directly
+      setGroups(data.map((g) => ({ ...g, _perms: g.authorities ?? [] })));
       setAllPermissions(perms);
     } catch {
       setError('Failed to load roles.');
@@ -65,53 +68,7 @@ export default function RolesPage() {
     }
   };
 
-  const toggleExpand = async (id: string) => {
-    if (expandedPerms[id]) {
-      // collapse
-      setExpandedPerms((prev) => {
-        const n = { ...prev };
-        delete n[id];
-        return n;
-      });
-      return;
-    }
-    setExpandedPerms((prev) => ({ ...prev, [id]: 'loading' }));
-    try {
-      const perms = await adminApi.getAuthoritiesByGroup(id);
-      setExpandedPerms((prev) => ({ ...prev, [id]: perms }));
-    } catch {
-      setExpandedPerms((prev) => {
-        const n = { ...prev };
-        delete n[id];
-        return n;
-      });
-    }
-  };
-
-  const columns: ColumnDef<AuthorityGroupVM>[] = [
-    {
-      id: 'expand',
-      header: '',
-      cell: ({ row }) => {
-        const id = row.original.id;
-        const state = expandedPerms[id];
-        return (
-          <button
-            onClick={() => toggleExpand(id)}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {state === 'loading' ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : state ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
-          </button>
-        );
-      },
-      size: 40,
-    },
+  const columns: ColumnDef<RoleRow>[] = [
     {
       accessorKey: 'name',
       header: 'Name',
@@ -129,6 +86,17 @@ export default function RolesPage() {
       header: 'Description',
       cell: ({ row }) => (
         <span className="text-muted-foreground">{row.original.description ?? '—'}</span>
+      ),
+    },
+    {
+      id: 'permissions',
+      header: 'Permissions',
+      cell: ({ row }) => (
+        <TagList
+          tags={(row.original._perms ?? []).map((p) => ({ id: p.id, label: p.name, mono: true }))}
+          variant="muted"
+          max={2}
+        />
       ),
     },
     {
@@ -201,34 +169,6 @@ export default function RolesPage() {
         onSearch={handleSearch}
         searchValue={search}
       />
-
-      {/* Expanded permissions panels */}
-      {Object.entries(expandedPerms).map(([groupId, state]) => {
-        if (state === 'loading') return null;
-        const group = groups.find((g) => g.id === groupId);
-        if (!group) return null;
-        return (
-          <div key={groupId} className="rounded-lg border bg-muted/20 p-4">
-            <h4 className="text-sm font-medium text-foreground mb-2">
-              Permissions for {group.label}
-            </h4>
-            {state.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No permissions assigned.</p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {state.map((a) => (
-                  <span
-                    key={a.id}
-                    className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-mono"
-                  >
-                    {a.name}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
 
       <RoleFormDialog
         open={isCreateOpen}

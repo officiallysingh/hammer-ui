@@ -217,9 +217,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="h-screen flex overflow-hidden bg-background">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-64 shrink-0 border-r border-border bg-card flex-col">
+      <aside className="hidden md:flex w-64 shrink-0 border-r border-border bg-card flex-col h-full">
         <SidebarContent
           pathname={pathname}
           username={user.username}
@@ -247,9 +247,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       )}
 
       {/* Main content */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Topbar — fixed within the main column */}
-        <header className="h-16 border-b border-border bg-card px-6 flex items-center justify-between shrink-0 sticky top-0 z-30">
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden h-full">
+        {/* Topbar — sticky within the main column */}
+        <header className="h-16 border-b border-border bg-card px-6 flex items-center justify-between shrink-0 z-30">
           <div className="flex items-center gap-3">
             <button
               className="md:hidden text-muted-foreground hover:text-foreground transition-colors"
