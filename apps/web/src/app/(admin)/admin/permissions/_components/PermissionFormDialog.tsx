@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { adminApi, AuthorityVM } from '@repo/api';
 import { Loader2 } from 'lucide-react';
 import {
@@ -233,12 +233,19 @@ export function EditPermissionDialog({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const origRef = useRef<{ name: string; label: string; description: string } | null>(null);
 
   useEffect(() => {
     if (permission) {
-      setName(permission.name);
-      setLabel(permission.label);
-      setDescription(permission.description ?? '');
+      const orig = {
+        name: permission.name,
+        label: permission.label,
+        description: permission.description ?? '',
+      };
+      origRef.current = orig;
+      setName(orig.name);
+      setLabel(orig.label);
+      setDescription(orig.description);
       setFieldErrors({});
       setError(null);
     }
@@ -253,16 +260,25 @@ export function EditPermissionDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!permission) return;
+    if (!permission || !origRef.current) return;
     setError(null);
     setFieldErrors({});
+
+    const orig = origRef.current;
+    const patch: Parameters<typeof adminApi.updateAuthority>[1] = {};
+    if (name.trim() !== orig.name) patch.name = name.trim() || undefined;
+    if (label.trim() !== orig.label) patch.label = label.trim() || undefined;
+    if ((description.trim() || '') !== orig.description)
+      patch.description = description.trim() || undefined;
+
+    if (Object.keys(patch).length === 0) {
+      onClose();
+      return;
+    }
+
     setSaving(true);
     try {
-      await adminApi.updateAuthority(permission.id, {
-        name: name.trim() || undefined,
-        label: label.trim() || undefined,
-        description: description.trim() || undefined,
-      });
+      await adminApi.updateAuthority(permission.id, patch);
       onUpdated({
         name: name.trim(),
         label: label.trim(),

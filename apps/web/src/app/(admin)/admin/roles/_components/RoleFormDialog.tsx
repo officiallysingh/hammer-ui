@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import React from 'react';
 import { adminApi, AuthorityGroupVM, AuthorityVM } from '@repo/api';
 import { Loader2 } from 'lucide-react';
 import {
@@ -201,25 +202,33 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
   const [label, setLabel] = useState('');
   const [description, setDescription] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [loadingPerms, setLoadingPerms] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Track originals for diff
+  const origRef = React.useRef<{
+    name: string;
+    label: string;
+    description: string;
+    perms: string[];
+  } | null>(null);
+
   useEffect(() => {
     if (role) {
+      const perms = (role.authorities ?? []).map((a) => a.id);
+      origRef.current = {
+        name: role.name,
+        label: role.label,
+        description: role.description ?? '',
+        perms,
+      };
       setName(role.name);
       setLabel(role.label);
       setDescription(role.description ?? '');
+      setSelectedIds(perms);
       setFieldErrors({});
       setError(null);
-      // fetch this role's current permissions
-      setLoadingPerms(true);
-      adminApi
-        .getAuthoritiesByGroup(role.id)
-        .then((perms) => setSelectedIds(perms.map((p) => p.id)))
-        .catch(() => setSelectedIds([]))
-        .finally(() => setLoadingPerms(false));
     }
   }, [role]);
 
@@ -232,17 +241,30 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!role) return;
+    if (!role || !origRef.current) return;
     setError(null);
     setFieldErrors({});
+
+    const orig = origRef.current;
+    const patch: Parameters<typeof adminApi.updateAuthorityGroup>[1] = {};
+    if (name.trim() !== orig.name) patch.name = name.trim() || undefined;
+    if (label.trim() !== orig.label) patch.label = label.trim() || undefined;
+    if ((description.trim() || '') !== orig.description)
+      patch.description = description.trim() || undefined;
+
+    const permsChanged =
+      selectedIds.length !== orig.perms.length ||
+      selectedIds.some((id) => !orig.perms.includes(id));
+    if (permsChanged) patch.authorities = selectedIds;
+
+    if (Object.keys(patch).length === 0) {
+      onClose();
+      return;
+    }
+
     setSaving(true);
     try {
-      await adminApi.updateAuthorityGroup(role.id, {
-        name: name.trim() || undefined,
-        label: label.trim() || undefined,
-        description: description.trim() || undefined,
-        authorities: selectedIds,
-      });
+      await adminApi.updateAuthorityGroup(role.id, patch);
       onUpdated();
       onClose();
     } catch (err) {
@@ -320,14 +342,9 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
             />
           </div>
           <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <Label>
-                Permissions <span className="text-muted-foreground font-normal">(optional)</span>
-              </Label>
-              {loadingPerms && (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-              )}
-            </div>
+            <Label>
+              Permissions <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
             <MultiSelect
               options={allPermissions.map((p) => ({
                 value: p.id,
@@ -336,7 +353,7 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
               }))}
               value={selectedIds}
               onChange={setSelectedIds}
-              placeholder={loadingPerms ? 'Loading...' : 'Select permissions...'}
+              placeholder="Select permissions..."
               searchPlaceholder="Search permissions..."
               emptyMessage="No permissions found"
             />
@@ -346,7 +363,7 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
             <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving || loadingPerms}>
+            <Button type="submit" disabled={saving}>
               {saving ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-1" />
