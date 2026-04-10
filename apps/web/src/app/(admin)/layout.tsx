@@ -16,6 +16,8 @@ import {
   ExternalLink,
   User,
   ChevronDown,
+  List,
+  Database,
 } from 'lucide-react';
 import {
   Button,
@@ -66,6 +68,18 @@ const navGroups: NavGroup[] = [
       },
     ],
   },
+  {
+    label: 'Listings',
+    items: [
+      {
+        href: '/admin/metadata',
+        label: 'Metadata',
+        icon: Database,
+        description: 'Type definitions',
+      },
+      { href: '/admin/listings', label: 'Listings', icon: List, description: 'Auction listings' },
+    ],
+  },
 ];
 
 // Flat list for topbar label lookup
@@ -97,6 +111,26 @@ const subRouteTitles: { match: RegExp; label: string; description: string }[] = 
     match: /\/admin\/users\/.+\/edit$/,
     label: 'Edit user',
     description: 'Update user details',
+  },
+  {
+    match: /\/admin\/listings\/new$/,
+    label: 'New listing',
+    description: 'Create a new listing',
+  },
+  {
+    match: /\/admin\/listings\/.+\/edit$/,
+    label: 'Edit listing',
+    description: 'Update listing details',
+  },
+  {
+    match: /\/admin\/metadata\/new$/,
+    label: 'New type',
+    description: 'Create a type definition',
+  },
+  {
+    match: /\/admin\/metadata\/.+\/edit$/,
+    label: 'Edit type',
+    description: 'Update type definition',
   },
 ];
 
