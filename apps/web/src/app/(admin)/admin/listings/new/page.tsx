@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { listingsApi, masterApi, metadataApi, CategoryVM, ManagedTypeVM } from '@repo/api';
+import {
+  listingsApi,
+  masterApi,
+  metadataApi,
+  CategoryVM,
+  ManagedTypeVM,
+  ManagedTypeListItem,
+} from '@repo/api';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button, Input, Label } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
@@ -20,35 +27,46 @@ export default function NewListingPage() {
   const [managedTypeId, setManagedTypeId] = useState('');
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [categories, setCategories] = useState<CategoryVM[]>([]);
-  const [managedTypes, setManagedTypes] = useState<ManagedTypeVM[]>([]);
+  const [typeListItems, setTypeListItems] = useState<ManagedTypeListItem[]>([]);
+  const [selectedManagedType, setSelectedManagedType] = useState<ManagedTypeVM | null>(null);
+  const [loadingType, setLoadingType] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      masterApi.getCategories(true),
-      metadataApi.getManagedTypes({ type: 'EMBEDDABLE', size: 100 }),
-    ])
-      .then(([cats, mts]) => {
+    Promise.all([masterApi.getCategories(true), metadataApi.getManagedTypeListItems()])
+      .then(([cats, items]) => {
         setCategories(cats);
-        setManagedTypes(mts.content ?? []);
+        setTypeListItems(items);
       })
       .catch(() => {});
   }, []);
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
   const subCategories = selectedCategory?.subCategories ?? [];
-  const selectedManagedType = managedTypes.find((m) => m.id === managedTypeId);
 
   const handleCategoryChange = (id: string) => {
     setCategoryId(id);
     setSubCategory('');
   };
 
-  const handleManagedTypeChange = (id: string) => {
+  const handleManagedTypeChange = async (id: string) => {
     setManagedTypeId(id);
     setFieldValues({});
+    if (!id) {
+      setSelectedManagedType(null);
+      return;
+    }
+    setLoadingType(true);
+    try {
+      const mt = await metadataApi.getManagedTypeById(id);
+      setSelectedManagedType(mt);
+    } catch {
+      setSelectedManagedType(null);
+    } finally {
+      setLoadingType(false);
+    }
   };
 
   const clearErr = (f: string) =>
@@ -218,13 +236,20 @@ export default function NewListingPage() {
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value="">Select type...</option>
-              {managedTypes.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
+              {typeListItems.map((m) => (
+                <option key={m.key} value={m.key}>
+                  {m.value}
                 </option>
               ))}
             </select>
           </div>
+
+          {loadingType && (
+            <div className="flex items-center gap-2 text-muted-foreground text-xs py-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Loading type fields...
+            </div>
+          )}
 
           {selectedManagedType && (selectedManagedType.properties ?? []).length > 0 && (
             <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-4">

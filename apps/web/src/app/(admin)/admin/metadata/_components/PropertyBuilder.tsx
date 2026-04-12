@@ -1,31 +1,22 @@
 'use client';
 
-import { Button } from '@repo/ui';
 import { Plus } from 'lucide-react';
-import type { PropertyDef, MetaType, PropertyType } from '@repo/api';
-import { PropertyItem } from './PropertyItem';
+import { Button } from '@repo/ui';
+import type { PropertyDef } from '@repo/api';
+import { PropertyRow } from './PropertyRow';
+import { emptyProperty } from './types';
+import type { KV } from './types';
 
-export interface KV {
-  key: string;
-  value: string;
-}
+export type { KV };
 
 interface PropertyBuilderProps {
   properties: PropertyDef[];
   onChange: (props: PropertyDef[]) => void;
-  propertyTypes: KV[];
+  propertyTypes?: KV[]; // kept for API compat, not used (PROPERTY_TYPES is internal)
   metaTypes: KV[];
 }
 
-export function PropertyBuilder({
-  properties,
-  onChange,
-  propertyTypes,
-  metaTypes,
-}: PropertyBuilderProps) {
-  const defaultMetaType = metaTypes[0]?.key ?? 'STRING';
-  const defaultPropType = propertyTypes[0]?.key ?? 'SIMPLE_PROPERTY';
-
+export function PropertyBuilder({ properties, onChange, metaTypes }: PropertyBuilderProps) {
   const update = (i: number, patch: Partial<PropertyDef>) =>
     onChange(properties.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
 
@@ -41,34 +32,27 @@ export function PropertyBuilder({
     onChange(arr);
   };
 
-  const addProperty = () =>
-    onChange([
-      ...properties,
-      {
-        type: defaultPropType as PropertyType,
-        name: '',
-        label: '',
-        metaType: defaultMetaType as MetaType,
-        validators: [],
-      },
-    ]);
-
   return (
     <div className="space-y-2">
       {properties.map((prop, i) => (
-        <PropertyItem
+        <PropertyRow
           key={i}
           prop={prop}
           index={i}
           total={properties.length}
-          propertyTypes={propertyTypes}
+          depth={0}
           metaTypes={metaTypes}
           onUpdate={(patch) => update(i, patch)}
           onRemove={() => remove(i)}
           onMove={(dir) => move(i, dir)}
         />
       ))}
-      <Button type="button" variant="outline" size="sm" onClick={addProperty}>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => onChange([...properties, emptyProperty(metaTypes)])}
+      >
         <Plus className="h-4 w-4 mr-1" />
         Add property
       </Button>

@@ -10,6 +10,7 @@ import {
   ListingUpdationRQ,
   CategoryVM,
   ManagedTypeVM,
+  ManagedTypeListItem,
 } from '@repo/api';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button, Input, Label } from '@repo/ui';
@@ -33,7 +34,9 @@ export default function EditListingPage() {
   const [managedTypeId, setManagedTypeId] = useState('');
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [categories, setCategories] = useState<CategoryVM[]>([]);
-  const [managedTypes, setManagedTypes] = useState<ManagedTypeVM[]>([]);
+  const [typeListItems, setTypeListItems] = useState<ManagedTypeListItem[]>([]);
+  const [selectedManagedType, setSelectedManagedType] = useState<ManagedTypeVM | null>(null);
+  const [loadingType, setLoadingType] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -42,35 +45,37 @@ export default function EditListingPage() {
     Promise.all([
       listingsApi.getListingById(id),
       masterApi.getCategories(true),
-      metadataApi.getManagedTypes({ type: 'EMBEDDABLE', size: 100 }),
+      metadataApi.getManagedTypeListItems(),
     ])
-      .then(([listing, cats, mts]) => {
+      .then(([listing, cats, items]) => {
         origRef.current = listing;
         setName(listing.name);
         setDescription(listing.description ?? '');
         setTags(listing.tags ?? []);
         setSubCategory(listing.subCategory ?? '');
         setCategories(cats);
-        setManagedTypes(mts.content ?? []);
+        setTypeListItems(items);
 
-        // Resolve category from subCategory
         const ownerCat = cats.find((c) =>
           c.subCategories?.some((s) => s.id === listing.subCategory),
         );
         if (ownerCat) setCategoryId(ownerCat.id);
 
-        // Pre-populate embedded fields
         const embedded = listing.embedded as
           | { typeId?: string; pathWiseState?: Record<string, unknown> }
           | undefined;
         if (embedded?.typeId) {
           setManagedTypeId(embedded.typeId);
-          // Convert pathWiseState values to strings for the inputs
           const state: Record<string, string> = {};
           Object.entries(embedded.pathWiseState ?? {}).forEach(([k, v]) => {
             state[k] = String(v ?? '');
           });
           setFieldValues(state);
+          // Fetch full type to render fields
+          metadataApi
+            .getManagedTypeById(embedded.typeId)
+            .then(setSelectedManagedType)
+            .catch(() => {});
         }
       })
       .catch(() => setError('Failed to load listing.'))
@@ -79,15 +84,28 @@ export default function EditListingPage() {
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
   const subCategories = selectedCategory?.subCategories ?? [];
-  const selectedManagedType = managedTypes.find((m) => m.id === managedTypeId);
 
   const handleCategoryChange = (cid: string) => {
     setCategoryId(cid);
     setSubCategory('');
   };
-  const handleManagedTypeChange = (mid: string) => {
+
+  const handleManagedTypeChange = async (mid: string) => {
     setManagedTypeId(mid);
     setFieldValues({});
+    if (!mid) {
+      setSelectedManagedType(null);
+      return;
+    }
+    setLoadingType(true);
+    try {
+      const mt = await metadataApi.getManagedTypeById(mid);
+      setSelectedManagedType(mt);
+    } catch {
+      setSelectedManagedType(null);
+    } finally {
+      setLoadingType(false);
+    }
   };
 
   const clearErr = (f: string) =>
@@ -272,13 +290,20 @@ export default function EditListingPage() {
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value="">Select type...</option>
-              {managedTypes.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
+              {typeListItems.map((m) => (
+                <option key={m.key} value={m.key}>
+                  {m.value}
                 </option>
               ))}
             </select>
           </div>
+
+          {loadingType && (
+            <div className="flex items-center gap-2 text-muted-foreground text-xs py-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Loading type fields...
+            </div>
+          )}
 
           {selectedManagedType && (selectedManagedType.properties ?? []).length > 0 && (
             <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-4">

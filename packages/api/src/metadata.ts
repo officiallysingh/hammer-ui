@@ -49,11 +49,9 @@ export interface PropertyDef {
   label: string;
   metaType: MetaType;
   path?: string;
-  value?: unknown;
+  value?: PropertyDef[]; // child properties for COMPOSITE/LIST/SET
   validators?: ValidatorDef[];
-  // for COMPOSITE_PROPERTY
-  subProperties?: PropertyDef[];
-  // for COMPLEX_PROPERTY
+  subProperties?: PropertyDef; // single nested definition for COMPOSITE
   attributes?: Record<string, string>;
 }
 
@@ -79,6 +77,7 @@ export interface PaginatedManagedTypes {
   };
 }
 
+// Matches ManagedTypeCreationRQ in spec
 export interface ManagedTypeCreationReq {
   name: string;
   description: string;
@@ -88,16 +87,23 @@ export interface ManagedTypeCreationReq {
   tags?: string[];
 }
 
+// Matches ManagedTypeUpdationRQ in spec — type is required
 export interface ManagedTypeUpdationReq {
   name?: string;
   description?: string;
-  type: ManagedTypeType; // required per spec
+  type: ManagedTypeType;
   classifier?: ManagedTypeClassifier;
   properties?: PropertyDef[];
   tags?: string[];
 }
 
-// Normalize the API's single-key-object format [{"BOOLEAN": "Boolean"}, ...] → [{key, value}]
+// list-items endpoint returns PairStringString[] — normalize to {key, value}
+export interface ManagedTypeListItem {
+  key: string; // id
+  value: string; // name
+}
+
+// Normalize [{"BOOLEAN": "Boolean"}, ...] → [{key, value}]
 function normalizePairs(data: Record<string, string>[]): { key: string; value: string }[] {
   return data.map((item) => {
     const key = Object.keys(item)[0] ?? '';
@@ -106,13 +112,14 @@ function normalizePairs(data: Record<string, string>[]): { key: string; value: s
 }
 
 export const metadataApi = {
+  // GET /api/v1/meta-data/managed-types (updated path)
   getManagedTypes: async (params?: {
     phrases?: string[];
     type?: ManagedTypeType;
     page?: number;
     size?: number;
   }): Promise<PaginatedManagedTypes> => {
-    const response = await apiClient.get<PaginatedManagedTypes>('/api/v1/meta-data', {
+    const response = await apiClient.get<PaginatedManagedTypes>('/api/v1/meta-data/managed-types', {
       params: {
         ...(params?.phrases?.length ? { phrases: params.phrases } : {}),
         ...(params?.type ? { type: params.type } : {}),
@@ -123,23 +130,35 @@ export const metadataApi = {
     return response.data;
   },
 
+  // GET /api/v1/meta-data/managed-types/{id}
   getManagedTypeById: async (id: string): Promise<ManagedTypeVM> => {
     const response = await apiClient.get<ManagedTypeVM>(`/api/v1/meta-data/managed-types/${id}`);
     return response.data;
   },
 
+  // GET /api/v1/meta-data/managed-types/list-items → PairStringString[] (key=id, value=name)
+  getManagedTypeListItems: async (): Promise<ManagedTypeListItem[]> => {
+    const response = await apiClient.get<Record<string, string>[]>(
+      '/api/v1/meta-data/managed-types/list-items',
+    );
+    return normalizePairs(response.data);
+  },
+
+  // POST /api/v1/meta-data/managed-types
   createManagedType: async (data: ManagedTypeCreationReq): Promise<void> => {
     await apiClient.post('/api/v1/meta-data/managed-types', data);
   },
 
+  // PATCH /api/v1/meta-data/managed-types/{id} (id also as query param per spec)
   updateManagedType: async (id: string, data: ManagedTypeUpdationReq): Promise<void> => {
     await apiClient.patch(`/api/v1/meta-data/managed-types/${id}`, data, {
       params: { id },
     });
   },
 
+  // DELETE /api/v1/meta-data/managed-types/{id} (updated path)
   deleteManagedType: async (id: string): Promise<void> => {
-    await apiClient.delete(`/api/v1/meta-data/${id}`);
+    await apiClient.delete(`/api/v1/meta-data/managed-types/${id}`);
   },
 
   getManagedTypeTypes: async (): Promise<{ key: string; value: string }[]> => {
