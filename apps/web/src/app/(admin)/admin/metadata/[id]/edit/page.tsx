@@ -14,7 +14,7 @@ import { Button, Input, Label } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { parseApiError } from '@/lib/api-errors';
-import { PropertyBuilder } from '../_components/PropertyBuilder';
+import { PropertyBuilder } from '../../_components/PropertyBuilder';
 
 const TYPES: ManagedTypeType[] = ['EMBEDDABLE', 'ENTITY', 'FORM', 'WORKFLOW'];
 const CLASSIFIERS: ManagedTypeClassifier[] = ['CATALOG', 'AUCTION_PROPERTIES'];

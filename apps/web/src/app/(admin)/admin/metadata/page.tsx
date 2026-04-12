@@ -11,6 +11,7 @@ import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
+import { TagList } from '@/components/common/admin/TagList';
 
 const TYPE_COLORS: Record<ManagedTypeType, string> = {
   EMBEDDABLE: 'bg-primary/10 text-primary border-primary/20',
@@ -104,9 +105,14 @@ export default function MetadataPage() {
       id: 'properties',
       header: 'Properties',
       cell: ({ row }) => (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
-          {row.original.properties?.length ?? 0}
-        </span>
+        <TagList
+          tags={(row.original.properties ?? []).map((p) => ({
+            id: p.name,
+            label: `${p.label} (${p.metaType})`,
+          }))}
+          variant="muted"
+          max={2}
+        />
       ),
     },
     {
