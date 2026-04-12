@@ -2,12 +2,21 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { listingsApi, masterApi, ListingVM, ListingUpdationRQ, CategoryVM } from '@repo/api';
-import { Loader2, ArrowLeft, X } from 'lucide-react';
+import {
+  listingsApi,
+  masterApi,
+  metadataApi,
+  ListingVM,
+  ListingUpdationRQ,
+  CategoryVM,
+  ManagedTypeVM,
+} from '@repo/api';
+import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button, Input, Label } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { parseApiError } from '@/lib/api-errors';
+import { TagInput } from '@/components/common/admin/TagInput';
 
 export default function EditListingPage() {
   const { id } = useParams<{ id: string }>();
@@ -18,35 +27,51 @@ export default function EditListingPage() {
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [categoryId, setCategoryId] = useState('');
   const [subCategory, setSubCategory] = useState('');
-  const [embeddedJson, setEmbeddedJson] = useState('');
+  const [managedTypeId, setManagedTypeId] = useState('');
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [categories, setCategories] = useState<CategoryVM[]>([]);
+  const [managedTypes, setManagedTypes] = useState<ManagedTypeVM[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    Promise.all([listingsApi.getListingById(id), masterApi.getCategories(true)])
-      .then(([listing, cats]) => {
+    Promise.all([
+      listingsApi.getListingById(id),
+      masterApi.getCategories(true),
+      metadataApi.getManagedTypes({ type: 'EMBEDDABLE', size: 100 }),
+    ])
+      .then(([listing, cats, mts]) => {
         origRef.current = listing;
         setName(listing.name);
         setDescription(listing.description ?? '');
         setTags(listing.tags ?? []);
         setSubCategory(listing.subCategory ?? '');
-        setEmbeddedJson(
-          listing.embedded
-            ? JSON.stringify(listing.embedded, null, 2)
-            : '{\n  "typeId": "",\n  "pathWiseState": {}\n}',
-        );
         setCategories(cats);
-        // Resolve which category owns the current subCategory
+        setManagedTypes(mts.content ?? []);
+
+        // Resolve category from subCategory
         const ownerCat = cats.find((c) =>
           c.subCategories?.some((s) => s.id === listing.subCategory),
         );
         if (ownerCat) setCategoryId(ownerCat.id);
+
+        // Pre-populate embedded fields
+        const embedded = listing.embedded as
+          | { typeId?: string; pathWiseState?: Record<string, unknown> }
+          | undefined;
+        if (embedded?.typeId) {
+          setManagedTypeId(embedded.typeId);
+          // Convert pathWiseState values to strings for the inputs
+          const state: Record<string, string> = {};
+          Object.entries(embedded.pathWiseState ?? {}).forEach(([k, v]) => {
+            state[k] = String(v ?? '');
+          });
+          setFieldValues(state);
+        }
       })
       .catch(() => setError('Failed to load listing.'))
       .finally(() => setLoading(false));
@@ -54,18 +79,15 @@ export default function EditListingPage() {
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
   const subCategories = selectedCategory?.subCategories ?? [];
+  const selectedManagedType = managedTypes.find((m) => m.id === managedTypeId);
 
   const handleCategoryChange = (cid: string) => {
     setCategoryId(cid);
     setSubCategory('');
   };
-
-  const addTag = () => {
-    const t = tagInput.trim();
-    if (t && !tags.includes(t) && tags.length < 5) {
-      setTags((prev) => [...prev, t]);
-      setTagInput('');
-    }
+  const handleManagedTypeChange = (mid: string) => {
+    setManagedTypeId(mid);
+    setFieldValues({});
   };
 
   const clearErr = (f: string) =>
@@ -82,15 +104,10 @@ export default function EditListingPage() {
     const orig = origRef.current;
     if (!orig) return;
 
-    let parsedEmbedded: { typeId: string; pathWiseState: Record<string, unknown> } | undefined;
-    try {
-      parsedEmbedded = JSON.parse(embeddedJson);
-    } catch {
-      setError('Embedded JSON is invalid. Please check the format.');
-      return;
-    }
+    const newEmbedded = managedTypeId
+      ? { typeId: managedTypeId, pathWiseState: fieldValues }
+      : undefined;
 
-    // subCategory always required per spec; only send other fields if changed
     const patch: ListingUpdationRQ = { subCategory };
     if (name.trim() !== orig.name) patch.name = name.trim();
     if ((description.trim() || '') !== (orig.description ?? ''))
@@ -100,8 +117,13 @@ export default function EditListingPage() {
       tags.length !== (orig.tags?.length ?? 0) || tags.some((t, i) => t !== orig.tags?.[i]);
     if (tagsChanged) patch.tags = tags;
 
-    const embeddedChanged = JSON.stringify(parsedEmbedded) !== JSON.stringify(orig.embedded);
-    if (embeddedChanged) patch.embedded = parsedEmbedded;
+    const origEmbedded = orig.embedded as
+      | { typeId?: string; pathWiseState?: Record<string, unknown> }
+      | undefined;
+    const embeddedChanged =
+      newEmbedded?.typeId !== origEmbedded?.typeId ||
+      JSON.stringify(newEmbedded?.pathWiseState) !== JSON.stringify(origEmbedded?.pathWiseState);
+    if (embeddedChanged && newEmbedded) patch.embedded = newEmbedded;
 
     setSaving(true);
     try {
@@ -153,7 +175,7 @@ export default function EditListingPage() {
                 setName(e.target.value);
                 clearErr('name');
               }}
-              placeholder="iPhone 14 Pro"
+              placeholder="iPhone X (Silver, 64 GB)"
               autoComplete="off"
               className={
                 fieldErrors.name ? 'border-destructive focus-visible:ring-destructive' : ''
@@ -176,7 +198,6 @@ export default function EditListingPage() {
             />
           </div>
 
-          {/* Category → Sub-category cascade */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="cat">Category</Label>
@@ -195,7 +216,6 @@ export default function EditListingPage() {
                 ))}
               </select>
             </div>
-
             <div className="space-y-1.5">
               <Label htmlFor="subcat" className={fieldErrors.subCategory ? 'text-destructive' : ''}>
                 Sub-category
@@ -208,9 +228,7 @@ export default function EditListingPage() {
                   clearErr('subCategory');
                 }}
                 disabled={!categoryId}
-                className={`w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed ${
-                  fieldErrors.subCategory ? 'border-destructive' : 'border-input'
-                }`}
+                className={`w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed ${fieldErrors.subCategory ? 'border-destructive' : 'border-input'}`}
               >
                 <option value="">
                   {categoryId ? 'Select sub-category...' : 'Select category first'}
@@ -232,65 +250,63 @@ export default function EditListingPage() {
             <Label>
               Tags <span className="text-muted-foreground font-normal">(optional, max 5)</span>
             </Label>
-            <div className="flex gap-2">
-              <Input
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addTag();
-                  }
-                }}
-                placeholder="Add tag and press Enter"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addTag}
-                disabled={tags.length >= 5}
-              >
-                Add
-              </Button>
-            </div>
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                {tags.map((t) => (
-                  <span
-                    key={t}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20"
-                  >
-                    {t}
-                    <button
-                      type="button"
-                      onClick={() => setTags((prev) => prev.filter((x) => x !== t))}
-                      className="hover:text-destructive transition-colors"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
+            <TagInput value={tags} onChange={setTags} max={5} />
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-card p-6 space-y-3">
+        {/* Embedded struct */}
+        <div className="rounded-xl border border-border bg-card p-6 space-y-4">
           <div>
-            <h3 className="text-sm font-semibold text-foreground">Embedded struct</h3>
+            <h3 className="text-sm font-semibold text-foreground">Catalog type</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              JSON with <code className="font-mono">typeId</code> and{' '}
-              <code className="font-mono">pathWiseState</code>
+              Select the type definition and fill in its fields
             </p>
           </div>
-          <textarea
-            value={embeddedJson}
-            onChange={(e) => setEmbeddedJson(e.target.value)}
-            rows={8}
-            spellCheck={false}
-            className="w-full rounded-md border border-input bg-muted/30 px-3 py-2 text-xs font-mono resize-y focus:outline-none focus:ring-2 focus:ring-ring"
-          />
+
+          <div className="space-y-1.5">
+            <Label htmlFor="mtype">Type definition</Label>
+            <select
+              id="mtype"
+              value={managedTypeId}
+              onChange={(e) => handleManagedTypeChange(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">Select type...</option>
+              {managedTypes.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {selectedManagedType && (selectedManagedType.properties ?? []).length > 0 && (
+            <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-4">
+              {selectedManagedType.description && (
+                <p className="text-xs text-muted-foreground">{selectedManagedType.description}</p>
+              )}
+              {selectedManagedType.properties?.map((prop) => (
+                <div key={prop.name} className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor={`prop-${prop.name}`}>{prop.label}</Label>
+                    <span className="text-xs text-muted-foreground font-mono">{prop.metaType}</span>
+                  </div>
+                  <textarea
+                    id={`prop-${prop.name}`}
+                    value={fieldValues[prop.name] ?? ''}
+                    onChange={(e) => setFieldValues((p) => ({ ...p, [prop.name]: e.target.value }))}
+                    placeholder={`Enter ${prop.label.toLowerCase()}...`}
+                    rows={2}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {selectedManagedType && (selectedManagedType.properties ?? []).length === 0 && (
+            <p className="text-xs text-muted-foreground">This type has no properties defined.</p>
+          )}
         </div>
 
         {error && <ErrorAlert message={error} />}

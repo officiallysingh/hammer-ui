@@ -3,17 +3,17 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { listingsApi, masterApi, metadataApi, CategoryVM, ManagedTypeVM } from '@repo/api';
-import { Loader2, ArrowLeft, X } from 'lucide-react';
+import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button, Input, Label } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { parseApiError } from '@/lib/api-errors';
+import { TagInput } from '@/components/common/admin/TagInput';
 
 export default function NewListingPage() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [categoryId, setCategoryId] = useState('');
   const [subCategory, setSubCategory] = useState('');
@@ -49,14 +49,6 @@ export default function NewListingPage() {
   const handleManagedTypeChange = (id: string) => {
     setManagedTypeId(id);
     setFieldValues({});
-  };
-
-  const addTag = () => {
-    const t = tagInput.trim();
-    if (t && !tags.includes(t) && tags.length < 5) {
-      setTags((p) => [...p, t]);
-      setTagInput('');
-    }
   };
 
   const clearErr = (f: string) =>
@@ -204,47 +196,7 @@ export default function NewListingPage() {
             <Label>
               Tags <span className="text-muted-foreground font-normal">(optional, max 5)</span>
             </Label>
-            <div className="flex gap-2">
-              <Input
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addTag();
-                  }
-                }}
-                placeholder="Add tag and press Enter"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addTag}
-                disabled={tags.length >= 5}
-              >
-                Add
-              </Button>
-            </div>
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                {tags.map((t) => (
-                  <span
-                    key={t}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20"
-                  >
-                    {t}
-                    <button
-                      type="button"
-                      onClick={() => setTags((p) => p.filter((x) => x !== t))}
-                      className="hover:text-destructive transition-colors"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
+            <TagInput value={tags} onChange={setTags} max={5} />
           </div>
         </div>
 
@@ -275,21 +227,23 @@ export default function NewListingPage() {
           </div>
 
           {selectedManagedType && (selectedManagedType.properties ?? []).length > 0 && (
-            <div className="space-y-3 pt-1">
-              <p className="text-xs text-muted-foreground">
-                {selectedManagedType.description && (
-                  <span>{selectedManagedType.description} · </span>
-                )}
-                {selectedManagedType.properties?.length} fields
-              </p>
+            <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-4">
+              {selectedManagedType.description && (
+                <p className="text-xs text-muted-foreground">{selectedManagedType.description}</p>
+              )}
               {selectedManagedType.properties?.map((prop) => (
                 <div key={prop.name} className="space-y-1.5">
-                  <Label htmlFor={`prop-${prop.name}`}>{prop.label}</Label>
-                  <Input
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor={`prop-${prop.name}`}>{prop.label}</Label>
+                    <span className="text-xs text-muted-foreground font-mono">{prop.metaType}</span>
+                  </div>
+                  <textarea
                     id={`prop-${prop.name}`}
                     value={fieldValues[prop.name] ?? ''}
                     onChange={(e) => setFieldValues((p) => ({ ...p, [prop.name]: e.target.value }))}
                     placeholder={`Enter ${prop.label.toLowerCase()}...`}
+                    rows={2}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                 </div>
               ))}

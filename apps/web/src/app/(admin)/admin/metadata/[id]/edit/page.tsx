@@ -2,22 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import {
-  metadataApi,
-  ManagedTypeVM,
-  ManagedTypeType,
-  ManagedTypeClassifier,
-  PropertyDef,
-} from '@repo/api';
-import { Loader2, ArrowLeft, X } from 'lucide-react';
+import { metadataApi, ManagedTypeVM, PropertyDef } from '@repo/api';
+import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button, Input, Label } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { parseApiError } from '@/lib/api-errors';
-import { PropertyBuilder } from '../../_components/PropertyBuilder';
-
-const TYPES: ManagedTypeType[] = ['EMBEDDABLE', 'ENTITY', 'FORM', 'WORKFLOW'];
-const CLASSIFIERS: ManagedTypeClassifier[] = ['CATALOG', 'AUCTION_PROPERTIES'];
+import { PropertyBuilder, KV } from '../../_components/PropertyBuilder';
+import { TagInput } from '@/components/common/admin/TagInput';
 
 export default function EditMetadataPage() {
   const { id } = useParams<{ id: string }>();
@@ -28,19 +20,32 @@ export default function EditMetadataPage() {
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [type, setType] = useState<ManagedTypeType>('EMBEDDABLE');
-  const [classifier, setClassifier] = useState<ManagedTypeClassifier>('CATALOG');
+  const [type, setType] = useState('');
+  const [classifier, setClassifier] = useState('');
   const [properties, setProperties] = useState<PropertyDef[]>([]);
-  const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
+  const [typeOptions, setTypeOptions] = useState<KV[]>([]);
+  const [classifierOptions, setClassifierOptions] = useState<KV[]>([]);
+  const [metaTypeOptions, setMetaTypeOptions] = useState<KV[]>([]);
+  const [propertyTypeOptions] = useState<KV[]>([
+    { key: 'SIMPLE_PROPERTY', value: 'Simple' },
+    { key: 'COMPOSITE_PROPERTY', value: 'Composite' },
+    { key: 'COMPLEX_PROPERTY', value: 'Complex' },
+    { key: 'LIST_PROPERTY', value: 'List' },
+    { key: 'SET_PROPERTY', value: 'Set' },
+  ]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    metadataApi
-      .getManagedTypeById(id)
-      .then((mt) => {
+    Promise.all([
+      metadataApi.getManagedTypeById(id),
+      metadataApi.getManagedTypeTypes(),
+      metadataApi.getClassifierTypes(),
+      metadataApi.getMetaTypes(),
+    ])
+      .then(([mt, types, classifiers, metaTypes]) => {
         origRef.current = mt;
         setName(mt.name);
         setDescription(mt.description ?? '');
@@ -48,6 +53,9 @@ export default function EditMetadataPage() {
         setClassifier(mt.classifier);
         setProperties(mt.properties ?? []);
         setTags(mt.tags ?? []);
+        setTypeOptions(types);
+        setClassifierOptions(classifiers);
+        setMetaTypeOptions(metaTypes);
       })
       .catch(() => setError('Failed to load managed type.'))
       .finally(() => setLoading(false));
@@ -60,14 +68,6 @@ export default function EditMetadataPage() {
       return n;
     });
 
-  const addTag = () => {
-    const t = tagInput.trim();
-    if (t && !tags.includes(t) && tags.length < 5) {
-      setTags((p) => [...p, t]);
-      setTagInput('');
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -75,12 +75,13 @@ export default function EditMetadataPage() {
     const orig = origRef.current;
     if (!orig) return;
 
-    // type is always required per spec; only send other changed fields
-    const patch: Parameters<typeof metadataApi.updateManagedType>[1] = { type };
+    const patch: Parameters<typeof metadataApi.updateManagedType>[1] = {
+      type: type as Parameters<typeof metadataApi.updateManagedType>[1]['type'],
+    };
     if (name.trim() !== orig.name) patch.name = name.trim();
     if ((description.trim() || '') !== (orig.description ?? ''))
       patch.description = description.trim() || undefined;
-    if (classifier !== orig.classifier) patch.classifier = classifier;
+    if (classifier !== orig.classifier) patch.classifier = classifier as typeof patch.classifier;
 
     const propsChanged = JSON.stringify(properties) !== JSON.stringify(orig.properties ?? []);
     if (propsChanged) patch.properties = properties;
@@ -163,12 +164,12 @@ export default function EditMetadataPage() {
               <Label>Type</Label>
               <select
                 value={type}
-                onChange={(e) => setType(e.target.value as ManagedTypeType)}
+                onChange={(e) => setType(e.target.value)}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                {TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                {typeOptions.map((t) => (
+                  <option key={t.key} value={t.key}>
+                    {t.value}
                   </option>
                 ))}
               </select>
@@ -177,12 +178,12 @@ export default function EditMetadataPage() {
               <Label>Classifier</Label>
               <select
                 value={classifier}
-                onChange={(e) => setClassifier(e.target.value as ManagedTypeClassifier)}
+                onChange={(e) => setClassifier(e.target.value)}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                {CLASSIFIERS.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
+                {classifierOptions.map((c) => (
+                  <option key={c.key} value={c.key}>
+                    {c.value}
                   </option>
                 ))}
               </select>
@@ -193,53 +194,18 @@ export default function EditMetadataPage() {
             <Label>
               Tags <span className="text-muted-foreground font-normal">(optional, max 5)</span>
             </Label>
-            <div className="flex gap-2">
-              <Input
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addTag();
-                  }
-                }}
-                placeholder="Add tag and press Enter"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addTag}
-                disabled={tags.length >= 5}
-              >
-                Add
-              </Button>
-            </div>
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                {tags.map((t) => (
-                  <span
-                    key={t}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20"
-                  >
-                    {t}
-                    <button
-                      type="button"
-                      onClick={() => setTags((p) => p.filter((x) => x !== t))}
-                      className="hover:text-destructive transition-colors"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
+            <TagInput value={tags} onChange={setTags} max={5} />
           </div>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-6 space-y-4">
           <h3 className="text-sm font-semibold text-foreground">Properties</h3>
-          <PropertyBuilder properties={properties} onChange={setProperties} />
+          <PropertyBuilder
+            properties={properties}
+            onChange={setProperties}
+            propertyTypes={propertyTypeOptions}
+            metaTypes={metaTypeOptions}
+          />
         </div>
 
         {error && <ErrorAlert message={error} />}

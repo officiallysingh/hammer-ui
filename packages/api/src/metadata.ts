@@ -97,6 +97,14 @@ export interface ManagedTypeUpdationReq {
   tags?: string[];
 }
 
+// Normalize the API's single-key-object format [{"BOOLEAN": "Boolean"}, ...] → [{key, value}]
+function normalizePairs(data: Record<string, string>[]): { key: string; value: string }[] {
+  return data.map((item) => {
+    const key = Object.keys(item)[0] ?? '';
+    return { key, value: item[key] ?? key };
+  });
+}
+
 export const metadataApi = {
   getManagedTypes: async (params?: {
     phrases?: string[];
@@ -135,17 +143,32 @@ export const metadataApi = {
   },
 
   getManagedTypeTypes: async (): Promise<{ key: string; value: string }[]> => {
-    const response = await apiClient.get('/api/v1/meta-data/model/managed-types/types');
-    return response.data;
+    const response = await apiClient.get<Record<string, string>[]>(
+      '/api/v1/meta-data/model/managed-types/types',
+    );
+    return normalizePairs(response.data);
   },
 
   getClassifierTypes: async (): Promise<{ key: string; value: string }[]> => {
-    const response = await apiClient.get('/api/v1/meta-data/model/classifier-types');
-    return response.data;
+    const response = await apiClient.get<Record<string, string>[]>(
+      '/api/v1/meta-data/model/classifier-types',
+    );
+    return normalizePairs(response.data);
   },
 
   getMetaTypes: async (): Promise<{ key: string; value: string }[]> => {
-    const response = await apiClient.get('/api/v1/meta-data/model/meta-types');
-    return response.data;
+    const response = await apiClient.get<Record<string, string>[]>(
+      '/api/v1/meta-data/model/meta-types',
+    );
+    return normalizePairs(response.data);
+  },
+
+  getValidatorsForMetaType: async (
+    metaType: MetaType,
+  ): Promise<{ key: string; value: string }[]> => {
+    const response = await apiClient.get<Record<string, string>[]>(
+      `/api/v1/meta-data/model/meta-types/${metaType}/validators`,
+    );
+    return normalizePairs(response.data);
   },
 };

@@ -1,30 +1,58 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { metadataApi, ManagedTypeType, ManagedTypeClassifier, PropertyDef } from '@repo/api';
-import { Loader2, ArrowLeft, X } from 'lucide-react';
+import { metadataApi, PropertyDef } from '@repo/api';
+import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button, Input, Label } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { parseApiError } from '@/lib/api-errors';
-import { PropertyBuilder } from '../_components/PropertyBuilder';
-
-const TYPES: ManagedTypeType[] = ['EMBEDDABLE', 'ENTITY', 'FORM', 'WORKFLOW'];
-const CLASSIFIERS: ManagedTypeClassifier[] = ['CATALOG', 'AUCTION_PROPERTIES'];
+import { PropertyBuilder, KV } from '../_components/PropertyBuilder';
+import { TagInput } from '@/components/common/admin/TagInput';
 
 export default function NewMetadataPage() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [type, setType] = useState<ManagedTypeType>('EMBEDDABLE');
-  const [classifier, setClassifier] = useState<ManagedTypeClassifier>('CATALOG');
+  const [type, setType] = useState('');
+  const [classifier, setClassifier] = useState('');
   const [properties, setProperties] = useState<PropertyDef[]>([]);
-  const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
+  const [typeOptions, setTypeOptions] = useState<KV[]>([]);
+  const [classifierOptions, setClassifierOptions] = useState<KV[]>([]);
+  const [metaTypeOptions, setMetaTypeOptions] = useState<KV[]>([]);
+  const [propertyTypeOptions, setPropertyTypeOptions] = useState<KV[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      metadataApi.getManagedTypeTypes(),
+      metadataApi.getClassifierTypes(),
+      metadataApi.getMetaTypes(),
+    ])
+      .then(([types, classifiers, metaTypes]) => {
+        setTypeOptions(types);
+        setType(types[0]?.key ?? '');
+        setClassifierOptions(classifiers);
+        setClassifier(classifiers[0]?.key ?? '');
+        setMetaTypeOptions(metaTypes);
+        // Property types are fixed structural types — fetch from meta-types or use known set
+        // The API doesn't have a separate endpoint for property types, use known values
+        setPropertyTypeOptions([
+          { key: 'SIMPLE_PROPERTY', value: 'Simple' },
+          { key: 'COMPOSITE_PROPERTY', value: 'Composite' },
+          { key: 'COMPLEX_PROPERTY', value: 'Complex' },
+          { key: 'LIST_PROPERTY', value: 'List' },
+          { key: 'SET_PROPERTY', value: 'Set' },
+        ]);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingOptions(false));
+  }, []);
 
   const clearErr = (f: string) =>
     setFieldErrors((p) => {
@@ -32,14 +60,6 @@ export default function NewMetadataPage() {
       delete n[f];
       return n;
     });
-
-  const addTag = () => {
-    const t = tagInput.trim();
-    if (t && !tags.includes(t) && tags.length < 5) {
-      setTags((p) => [...p, t]);
-      setTagInput('');
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,8 +74,8 @@ export default function NewMetadataPage() {
       await metadataApi.createManagedType({
         name: name.trim(),
         description: description.trim(),
-        type,
-        classifier,
+        type: type as Parameters<typeof metadataApi.createManagedType>[0]['type'],
+        classifier: classifier as Parameters<typeof metadataApi.createManagedType>[0]['classifier'],
         properties,
         tags: tags.length ? tags : undefined,
       });
@@ -68,6 +88,15 @@ export default function NewMetadataPage() {
       setSaving(false);
     }
   };
+
+  if (loadingOptions) {
+    return (
+      <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        <span className="text-sm">Loading...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -132,12 +161,12 @@ export default function NewMetadataPage() {
               <Label>Type</Label>
               <select
                 value={type}
-                onChange={(e) => setType(e.target.value as ManagedTypeType)}
+                onChange={(e) => setType(e.target.value)}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                {TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                {typeOptions.map((t) => (
+                  <option key={t.key} value={t.key}>
+                    {t.value}
                   </option>
                 ))}
               </select>
@@ -146,12 +175,12 @@ export default function NewMetadataPage() {
               <Label>Classifier</Label>
               <select
                 value={classifier}
-                onChange={(e) => setClassifier(e.target.value as ManagedTypeClassifier)}
+                onChange={(e) => setClassifier(e.target.value)}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                {CLASSIFIERS.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
+                {classifierOptions.map((c) => (
+                  <option key={c.key} value={c.key}>
+                    {c.value}
                   </option>
                 ))}
               </select>
@@ -162,53 +191,18 @@ export default function NewMetadataPage() {
             <Label>
               Tags <span className="text-muted-foreground font-normal">(optional, max 5)</span>
             </Label>
-            <div className="flex gap-2">
-              <Input
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addTag();
-                  }
-                }}
-                placeholder="Add tag and press Enter"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addTag}
-                disabled={tags.length >= 5}
-              >
-                Add
-              </Button>
-            </div>
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                {tags.map((t) => (
-                  <span
-                    key={t}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20"
-                  >
-                    {t}
-                    <button
-                      type="button"
-                      onClick={() => setTags((p) => p.filter((x) => x !== t))}
-                      className="hover:text-destructive transition-colors"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
+            <TagInput value={tags} onChange={setTags} max={5} />
           </div>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-6 space-y-4">
           <h3 className="text-sm font-semibold text-foreground">Properties</h3>
-          <PropertyBuilder properties={properties} onChange={setProperties} />
+          <PropertyBuilder
+            properties={properties}
+            onChange={setProperties}
+            propertyTypes={propertyTypeOptions}
+            metaTypes={metaTypeOptions}
+          />
         </div>
 
         {error && <ErrorAlert message={error} />}
