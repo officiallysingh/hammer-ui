@@ -232,7 +232,7 @@ export function PropertyRow({
             <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between">
                 <Label className="text-xs text-muted-foreground">
-                  Child properties {depth < 1 ? '(level 2)' : '(level 3)'}
+                  Child properties (value[]) {depth < 1 ? '— level 2' : '— level 3'}
                 </Label>
               </div>
               <div className="space-y-2">
@@ -260,6 +260,41 @@ export function PropertyRow({
                 <Plus className="h-3 w-3 mr-1" />
                 Add child property
               </Button>
+            </div>
+          )}
+
+          {/* subProperties — single nested definition for COMPOSITE_PROPERTY only, depth < 2 */}
+          {prop.type === 'COMPOSITE_PROPERTY' && depth < 2 && (
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">
+                  Sub-properties (subProperties)
+                </Label>
+                {!prop.subProperties && (
+                  <button
+                    type="button"
+                    onClick={() => onUpdate({ subProperties: emptyProperty(metaTypes) })}
+                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add
+                  </button>
+                )}
+              </div>
+              {prop.subProperties && (
+                <PropertyRow
+                  prop={prop.subProperties}
+                  index={0}
+                  total={1}
+                  depth={depth + 1}
+                  metaTypes={metaTypes}
+                  onUpdate={(patch) =>
+                    onUpdate({ subProperties: { ...prop.subProperties!, ...patch } })
+                  }
+                  onRemove={() => onUpdate({ subProperties: undefined })}
+                  onMove={() => {}}
+                />
+              )}
             </div>
           )}
         </div>
