@@ -68,8 +68,14 @@ export const listingsApi = {
     return response.data;
   },
 
-  createListing: async (data: ListingCreationRQ): Promise<void> => {
-    await apiClient.post('/api/v1/listings', data);
+  createListing: async (data: ListingCreationRQ): Promise<string> => {
+    const response = await apiClient.post<{ values?: Record<string, unknown> }>(
+      '/api/v1/listings',
+      data,
+    );
+    // APIResponse.values may contain the created id
+    const id = response.data?.values?.id ?? response.headers?.['location']?.split('/').pop() ?? '';
+    return id as string;
   },
 
   updateListing: async (id: string, data: ListingUpdationRQ): Promise<void> => {
