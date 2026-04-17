@@ -52,6 +52,7 @@ export default function NewListingPage() {
   const [loadingType, setLoadingType] = useState(false);
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [step3Saving, setStep3Saving] = useState(false);
+  const [step3Error, setStep3Error] = useState<string | null>(null);
   const hasChanges = () => {
     const orig = origRef.current;
     if (!orig) return true; // if no orig, need to save
@@ -116,14 +117,13 @@ export default function NewListingPage() {
         origRef.current = { ...details };
       } else {
         // Create new
-        const id = await listingsApi.createListing({
+        const res = await listingsApi.createListing({
           name: details.name.trim(),
           description: details.description.trim() || undefined,
           tags: details.tags.length ? details.tags : undefined,
           subCategory: details.subCategory,
-          embedded: { typeId: '', pathWiseState: {} },
         });
-        setListingId(id as unknown as string);
+        setListingId(res);
         origRef.current = { ...details };
       }
       setStep(2);
@@ -203,9 +203,9 @@ export default function NewListingPage() {
             onChange={(patch) => setDetails((p) => ({ ...p, ...patch }))}
             categories={categories}
             fieldErrors={step1Errors}
-            onNext={listingId && !hasChanges() ? handleContinue : handleStep1}
+            onNext={handleStep1}
             onCancel={() => router.push('/admin/listings')}
-            nextLabel={listingId && !hasChanges() ? 'Continue' : 'Save & Continue'}
+            nextLabel={listingId ? 'Continue' : 'Save & Continue'}
           />
         </>
       )}

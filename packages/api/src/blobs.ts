@@ -3,6 +3,7 @@ import { apiClient } from './client';
 export interface BlobMetadata {
   bucket: string;
   entityId?: string;
+  entityType?: string;
   classifier?: string;
   thumbnail?: string; // "true" | "false"
   [key: string]: string | undefined;

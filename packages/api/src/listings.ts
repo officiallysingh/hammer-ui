@@ -29,14 +29,14 @@ export interface ListingCreationRQ {
   description?: string;
   tags?: string[];
   subCategory: string;
-  embedded: { typeId: string; pathWiseState: Record<string, unknown> };
+  embedded?: { typeId: string; pathWiseState: Record<string, unknown> };
 }
 
 export interface ListingUpdationRQ {
   name?: string;
   description?: string;
   tags?: string[];
-  subCategory: string; // required per spec
+  subCategory?: string;
   embedded?: { typeId: string; pathWiseState: Record<string, unknown> };
 }
 
@@ -68,14 +68,9 @@ export const listingsApi = {
     return response.data;
   },
 
-  createListing: async (data: ListingCreationRQ): Promise<string> => {
-    const response = await apiClient.post<{ values?: Record<string, unknown> }>(
-      '/api/v1/listings',
-      data,
-    );
-    // APIResponse.values may contain the created id
-    const id = response.data?.values?.id ?? response.headers?.['location']?.split('/').pop() ?? '';
-    return id as string;
+  createListing: async (data: ListingCreationRQ) => {
+    const response = await apiClient.post<{ id: string }>('/api/v1/listings', data);
+    return response.data.id;
   },
 
   updateListing: async (id: string, data: ListingUpdationRQ): Promise<void> => {

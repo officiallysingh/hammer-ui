@@ -7,39 +7,73 @@ import {
   masterApi,
   metadataApi,
   ListingVM,
-  ListingUpdationRQ,
   CategoryVM,
   ManagedTypeVM,
   ManagedTypeListItem,
 } from '@repo/api';
 import { Loader2, ArrowLeft } from 'lucide-react';
-import { Button, Input, Label } from '@repo/ui';
+import { Button } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
-import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { parseApiError } from '@/lib/api-errors';
-import { TagInput } from '@/components/common/admin/TagInput';
+import { useAuthStore } from '@/store/authStore';
+import { StepIndicator } from '../../_components/StepIndicator';
+import { Step1Details, ListingDetails } from '../../_components/Step1Details';
+import { Step2Media } from '../../_components/Step2Media';
+import { Step3Catalog } from '../../_components/Step3Catalog';
 
 export default function EditListingPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuthStore();
+  const username = user?.username ?? 'unknown';
 
   const [loading, setLoading] = useState(true);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const origRef = useRef<ListingVM | null>(null);
 
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
-  const [categoryId, setCategoryId] = useState('');
-  const [subCategory, setSubCategory] = useState('');
-  const [managedTypeId, setManagedTypeId] = useState('');
-  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  // Step 1 state
+  const [details, setDetails] = useState<ListingDetails>({
+    name: '',
+    description: '',
+    categoryId: '',
+    subCategory: '',
+    tags: [],
+  });
   const [categories, setCategories] = useState<CategoryVM[]>([]);
+  const [step1Errors, setStep1Errors] = useState<Record<string, string>>({});
+  const [step1Saving, setStep1Saving] = useState(false);
+  const [step1Error, setStep1Error] = useState<string | null>(null);
+
+  // Step 2 state
+  const [uploads, setUploads] = useState<Parameters<typeof Step2Media>[0]['uploads']>([]);
+
+  // Step 3 state
   const [typeListItems, setTypeListItems] = useState<ManagedTypeListItem[]>([]);
+  const [managedTypeId, setManagedTypeId] = useState('');
   const [selectedManagedType, setSelectedManagedType] = useState<ManagedTypeVM | null>(null);
   const [loadingType, setLoadingType] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const [step3Saving, setStep3Saving] = useState(false);
+  const [step3Error, setStep3Error] = useState<string | null>(null);
+
+  const hasChanges = () => {
+    const orig = origRef.current;
+    if (!orig) return true;
+    if (details.name.trim() !== orig.name) return true;
+    if ((details.description.trim() || '') !== (orig.description ?? '')) return true;
+    if (
+      details.tags.length !== (orig.tags?.length ?? 0) ||
+      details.tags.some((t: string, i: number) => t !== orig.tags?.[i])
+    )
+      return true;
+    if (details.subCategory !== orig.subCategory) return true;
+    return false;
+  };
+
+  const handleContinue = (e: React.FormEvent) => {
+    e.preventDefault();
+    setStep(2);
+  };
 
   useEffect(() => {
     Promise.all([
@@ -49,18 +83,22 @@ export default function EditListingPage() {
     ])
       .then(([listing, cats, items]) => {
         origRef.current = listing;
-        setName(listing.name);
-        setDescription(listing.description ?? '');
-        setTags(listing.tags ?? []);
-        setSubCategory(listing.subCategory ?? '');
         setCategories(cats);
         setTypeListItems(items);
 
+        // Load Step 1 details
         const ownerCat = cats.find((c) =>
           c.subCategories?.some((s) => s.id === listing.subCategory),
         );
-        if (ownerCat) setCategoryId(ownerCat.id);
+        setDetails({
+          name: listing.name,
+          description: listing.description ?? '',
+          categoryId: ownerCat?.id ?? '',
+          subCategory: listing.subCategory ?? '',
+          tags: listing.tags ?? [],
+        });
 
+        // Load Step 3 data
         const embedded = listing.embedded as
           | { typeId?: string; pathWiseState?: Record<string, unknown> }
           | undefined;
@@ -78,19 +116,74 @@ export default function EditListingPage() {
             .catch(() => {});
         }
       })
-      .catch(() => setError('Failed to load listing.'))
+      .catch(() => setStep1Error('Failed to load listing.'))
       .finally(() => setLoading(false));
   }, [id]);
 
-  const selectedCategory = categories.find((c) => c.id === categoryId);
-  const subCategories = selectedCategory?.subCategories ?? [];
+  // ── Step 1: update listing details ────────────────────────────────────────
+  const handleStep1 = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const errs: Record<string, string> = {};
+    if (!details.name.trim()) errs.name = 'Name is required.';
+    if (!details.subCategory) errs.subCategory = 'Sub-category is required.';
+    if (Object.keys(errs).length) {
+      setStep1Errors(errs);
+      return;
+    }
+    setStep1Errors({});
+    setStep1Error(null);
+    setStep1Saving(true);
+    try {
+      const orig = origRef.current;
+      if (!orig) return;
 
-  const handleCategoryChange = (cid: string) => {
-    setCategoryId(cid);
-    setSubCategory('');
+      const patch: Record<string, unknown> = { subCategory: details.subCategory };
+      if (details.name.trim() !== orig.name) patch.name = details.name.trim();
+      if ((details.description.trim() || '') !== (orig.description ?? ''))
+        patch.description = details.description.trim() || undefined;
+      const tagsChanged =
+        details.tags.length !== (orig.tags?.length ?? 0) ||
+        details.tags.some((t: string, i: number) => t !== orig.tags?.[i]);
+      if (tagsChanged) patch.tags = details.tags;
+
+      if (Object.keys(patch).length > 0) {
+        await listingsApi.updateListing(id, patch as never);
+      }
+      origRef.current = { ...orig, ...patch } as ListingVM;
+      setStep(2);
+    } catch (err) {
+      const parsed = parseApiError(err);
+      if (Object.keys(parsed.fieldErrors).length) setStep1Errors(parsed.fieldErrors);
+      else setStep1Error(parsed.general ?? 'Failed to save listing.');
+    } finally {
+      setStep1Saving(false);
+    }
   };
 
-  const handleManagedTypeChange = async (mid: string) => {
+  // ── Step 3: patch listing with embedded struct ────────────────────────────
+  const handleStep3 = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStep3Error(null);
+    if (!managedTypeId) {
+      setStep3Error('Please select a type definition.');
+      return;
+    }
+    setStep3Saving(true);
+    try {
+      await listingsApi.updateListing(id, {
+        subCategory: details.subCategory,
+        embedded: { typeId: managedTypeId, pathWiseState: fieldValues },
+      });
+      router.push('/admin/listings');
+    } catch (err) {
+      const parsed = parseApiError(err);
+      setStep3Error(parsed.general ?? 'Failed to update listing.');
+    } finally {
+      setStep3Saving(false);
+    }
+  };
+
+  const handleTypeChange = async (mid: string) => {
     setManagedTypeId(mid);
     setFieldValues({});
     if (!mid) {
@@ -99,60 +192,11 @@ export default function EditListingPage() {
     }
     setLoadingType(true);
     try {
-      const mt = await metadataApi.getManagedTypeById(mid);
-      setSelectedManagedType(mt);
+      setSelectedManagedType(await metadataApi.getManagedTypeById(mid));
     } catch {
       setSelectedManagedType(null);
     } finally {
       setLoadingType(false);
-    }
-  };
-
-  const clearErr = (f: string) =>
-    setFieldErrors((p) => {
-      const n = { ...p };
-      delete n[f];
-      return n;
-    });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setFieldErrors({});
-    const orig = origRef.current;
-    if (!orig) return;
-
-    const newEmbedded = managedTypeId
-      ? { typeId: managedTypeId, pathWiseState: fieldValues }
-      : undefined;
-
-    const patch: ListingUpdationRQ = { subCategory };
-    if (name.trim() !== orig.name) patch.name = name.trim();
-    if ((description.trim() || '') !== (orig.description ?? ''))
-      patch.description = description.trim() || undefined;
-
-    const tagsChanged =
-      tags.length !== (orig.tags?.length ?? 0) || tags.some((t, i) => t !== orig.tags?.[i]);
-    if (tagsChanged) patch.tags = tags;
-
-    const origEmbedded = orig.embedded as
-      | { typeId?: string; pathWiseState?: Record<string, unknown> }
-      | undefined;
-    const embeddedChanged =
-      newEmbedded?.typeId !== origEmbedded?.typeId ||
-      JSON.stringify(newEmbedded?.pathWiseState) !== JSON.stringify(origEmbedded?.pathWiseState);
-    if (embeddedChanged && newEmbedded) patch.embedded = newEmbedded;
-
-    setSaving(true);
-    try {
-      await listingsApi.updateListing(id, patch);
-      router.push('/admin/listings');
-    } catch (err) {
-      const parsed = parseApiError(err);
-      if (Object.keys(parsed.fieldErrors).length > 0) setFieldErrors(parsed.fieldErrors);
-      else setError(parsed.general ?? 'Failed to update listing.');
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -169,7 +213,7 @@ export default function EditListingPage() {
     <div className="space-y-6">
       <PageHeader
         title="Edit listing"
-        description={name ? `Editing: ${name}` : 'Update listing details'}
+        description={details.name ? `Editing: ${details.name}` : 'Update listing details'}
         actions={
           <Button variant="outline" size="sm" onClick={() => router.push('/admin/listings')}>
             <ArrowLeft className="h-4 w-4 mr-1" />
@@ -178,185 +222,57 @@ export default function EditListingPage() {
         }
       />
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="rounded-xl border border-border bg-card p-6 space-y-4">
-          <h3 className="text-sm font-semibold text-foreground">Listing details</h3>
+      <StepIndicator current={step} />
 
-          <div className="space-y-1.5">
-            <Label htmlFor="name" className={fieldErrors.name ? 'text-destructive' : ''}>
-              Name
-            </Label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                clearErr('name');
-              }}
-              placeholder="iPhone X (Silver, 64 GB)"
-              autoComplete="off"
-              className={
-                fieldErrors.name ? 'border-destructive focus-visible:ring-destructive' : ''
-              }
-            />
-            {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="desc">
-              Description <span className="text-muted-foreground font-normal">(optional)</span>
-            </Label>
-            <textarea
-              id="desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe the listing..."
-              rows={3}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="cat">Category</Label>
-              <select
-                id="cat"
-                value={categoryId}
-                onChange={(e) => handleCategoryChange(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="">Select category...</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.icon ? `${c.icon} ` : ''}
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="subcat" className={fieldErrors.subCategory ? 'text-destructive' : ''}>
-                Sub-category
-              </Label>
-              <select
-                id="subcat"
-                value={subCategory}
-                onChange={(e) => {
-                  setSubCategory(e.target.value);
-                  clearErr('subCategory');
-                }}
-                disabled={!categoryId}
-                className={`w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed ${fieldErrors.subCategory ? 'border-destructive' : 'border-input'}`}
-              >
-                <option value="">
-                  {categoryId ? 'Select sub-category...' : 'Select category first'}
-                </option>
-                {subCategories.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.icon ? `${s.icon} ` : ''}
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-              {fieldErrors.subCategory && (
-                <p className="text-xs text-destructive">{fieldErrors.subCategory}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>
-              Tags <span className="text-muted-foreground font-normal">(optional, max 5)</span>
-            </Label>
-            <TagInput value={tags} onChange={setTags} max={5} />
-          </div>
-        </div>
-
-        {/* Embedded struct */}
-        <div className="rounded-xl border border-border bg-card p-6 space-y-4">
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">Catalog type</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Select the type definition and fill in its fields
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="mtype">Type definition</Label>
-            <select
-              id="mtype"
-              value={managedTypeId}
-              onChange={(e) => handleManagedTypeChange(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="">Select type...</option>
-              {typeListItems.map((m) => (
-                <option key={m.key} value={m.key}>
-                  {m.value}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {loadingType && (
-            <div className="flex items-center gap-2 text-muted-foreground text-xs py-2">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Loading type fields...
+      {step === 1 && (
+        <>
+          {step1Error && (
+            <div className="py-2 px-3 bg-destructive/10 text-destructive text-sm rounded-md">
+              {step1Error}
             </div>
           )}
+          <Step1Details
+            values={details}
+            onChange={(patch: Partial<ListingDetails>) => setDetails((p) => ({ ...p, ...patch }))}
+            categories={categories}
+            fieldErrors={step1Errors}
+            onNext={!hasChanges() ? handleContinue : handleStep1}
+            onCancel={() => router.push('/admin/listings')}
+            nextLabel={!hasChanges() ? 'Continue' : 'Save & Continue'}
+          />
+        </>
+      )}
 
-          {selectedManagedType && (selectedManagedType.properties ?? []).length > 0 && (
-            <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-4">
-              {selectedManagedType.description && (
-                <p className="text-xs text-muted-foreground">{selectedManagedType.description}</p>
-              )}
-              {selectedManagedType.properties?.map((prop) => (
-                <div key={prop.name} className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor={`prop-${prop.name}`}>{prop.label}</Label>
-                    <span className="text-xs text-muted-foreground font-mono">{prop.metaType}</span>
-                  </div>
-                  <textarea
-                    id={`prop-${prop.name}`}
-                    value={fieldValues[prop.name] ?? ''}
-                    onChange={(e) => setFieldValues((p) => ({ ...p, [prop.name]: e.target.value }))}
-                    placeholder={`Enter ${prop.label.toLowerCase()}...`}
-                    rows={2}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
-              ))}
-            </div>
-          )}
+      {step === 2 && (
+        <Step2Media
+          listingId={id}
+          username={username}
+          uploads={uploads}
+          onUploadsChange={setUploads}
+          onNext={() => setStep(3)}
+          onBack={() => setStep(1)}
+          onCancel={() => router.push('/admin/listings')}
+        />
+      )}
 
-          {selectedManagedType && (selectedManagedType.properties ?? []).length === 0 && (
-            <p className="text-xs text-muted-foreground">This type has no properties defined.</p>
-          )}
-        </div>
-
-        {error && <ErrorAlert message={error} />}
-
-        <div className="flex gap-3">
-          <Button type="submit" disabled={saving} className="gap-2">
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              'Save changes'
-            )}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.push('/admin/listings')}
-            disabled={saving}
-          >
-            Cancel
-          </Button>
-        </div>
-      </form>
+      {step === 3 && (
+        <Step3Catalog
+          typeListItems={typeListItems}
+          managedTypeId={managedTypeId}
+          selectedManagedType={selectedManagedType}
+          loadingType={loadingType}
+          fieldValues={fieldValues}
+          onTypeChange={handleTypeChange}
+          onFieldChange={(name: string, value: string) =>
+            setFieldValues((p) => ({ ...p, [name]: value }))
+          }
+          onSubmit={handleStep3}
+          onBack={() => setStep(2)}
+          onCancel={() => router.push('/admin/listings')}
+          saving={step3Saving}
+          error={step3Error}
+        />
+      )}
     </div>
   );
 }
