@@ -16,8 +16,12 @@ export default function EditCategoryPage() {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
 
-  const [name, setName] = useState('');
-  const [icon, setIcon] = useState('');
+  interface EditCategoryFormValues {
+    name: string;
+    icon: string;
+  }
+
+  const [form, setForm] = useState<EditCategoryFormValues>({ name: '', icon: '' });
   const originalRef = React.useRef<{ name: string; icon: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -30,8 +34,7 @@ export default function EditCategoryPage() {
       .getCategoryById(id)
       .then((cat) => {
         originalRef.current = { name: cat.name, icon: cat.icon ?? '' };
-        setName(cat.name);
-        setIcon(cat.icon ?? '');
+        setForm({ name: cat.name, icon: cat.icon ?? '' });
       })
       .catch(() => setLoadError('Failed to load category.'))
       .finally(() => setLoading(false));
@@ -43,8 +46,8 @@ export default function EditCategoryPage() {
     setFieldErrors({});
     const orig = originalRef.current;
     const patch: { name?: string; icon?: string } = {};
-    if (!orig || name.trim() !== orig.name) patch.name = name.trim() || undefined;
-    if (!orig || icon !== orig.icon) patch.icon = icon || undefined;
+    if (!orig || form.name.trim() !== orig.name) patch.name = form.name.trim() || undefined;
+    if (!orig || form.icon !== orig.icon) patch.icon = form.icon || undefined;
     if (orig && Object.keys(patch).length === 0) {
       router.push('/admin/master/categories');
       return;
@@ -93,9 +96,9 @@ export default function EditCategoryPage() {
               </Label>
               <Input
                 id="name"
-                value={name}
+                value={form.name}
                 onChange={(e) => {
-                  setName(e.target.value);
+                  setForm((prev) => ({ ...prev, name: e.target.value }));
                   setFieldErrors((p) => {
                     const n = { ...p };
                     delete n.name;
@@ -117,8 +120,8 @@ export default function EditCategoryPage() {
                 Icon <span className="text-muted-foreground font-normal text-xs">(optional)</span>
               </Label>
               <EmojiPicker
-                value={icon}
-                onChange={setIcon}
+                value={form.icon}
+                onChange={(value) => setForm((prev) => ({ ...prev, icon: value }))}
                 placeholder="Pick an icon for this category"
               />
             </div>

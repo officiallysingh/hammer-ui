@@ -28,4 +28,13 @@ export const blobsApi = {
     });
     return response.data;
   },
+
+  getBlobsByEntityId: async (entityId: string): Promise<BlobVM[]> => {
+    const response = await apiClient.get<BlobVM[]>(`/api/v1/blobs/entity/${entityId}`);
+    return response.data;
+  },
+
+  deleteBlob: async (id: string): Promise<void> => {
+    await apiClient.delete(`/api/v1/blobs/${id}`);
+  },
 };

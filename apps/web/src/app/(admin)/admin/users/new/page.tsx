@@ -79,25 +79,46 @@ function Toggle({
   );
 }
 
+interface NewUserFormValues {
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  mobile: string;
+  enabled: boolean;
+  emailVerified: boolean;
+  mobileVerified: boolean;
+  promptChangePwd: boolean;
+  selectedRoles: string[];
+  selectedPerms: string[];
+}
+
+const EMPTY_NEW_USER_FORM: NewUserFormValues = {
+  username: '',
+  email: '',
+  firstName: '',
+  lastName: '',
+  mobile: '',
+  enabled: true,
+  emailVerified: true,
+  mobileVerified: true,
+  promptChangePwd: true,
+  selectedRoles: [],
+  selectedPerms: [],
+};
+
 export default function NewUserPage() {
   const router = useRouter();
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [mobile, setMobile] = useState('');
-  const [enabled, setEnabled] = useState(true);
-  const [emailVerified, setEmailVerified] = useState(true);
-  const [mobileVerified, setMobileVerified] = useState(true);
-  const [promptChangePwd, setPromptChangePwd] = useState(true);
-  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
-  const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
+  const [form, setForm] = useState<NewUserFormValues>(EMPTY_NEW_USER_FORM);
   const [allRoles, setAllRoles] = useState<AuthorityGroupVM[]>([]);
   const [availablePerms, setAvailablePerms] = useState<AuthorityVM[]>([]);
   const [loadingPerms, setLoadingPerms] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const setField = <K extends keyof NewUserFormValues>(key: K, value: NewUserFormValues[K]) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
 
   useEffect(() => {
     adminApi
@@ -109,7 +130,7 @@ export default function NewUserPage() {
   const fetchPermsForRoles = useCallback(async (roleIds: string[]) => {
     if (roleIds.length === 0) {
       setAvailablePerms([]);
-      setSelectedPerms([]);
+      setForm((prev) => ({ ...prev, selectedPerms: [] }));
       return;
     }
     setLoadingPerms(true);
@@ -120,7 +141,10 @@ export default function NewUserPage() {
       const perms = Array.from(map.values());
       setAvailablePerms(perms);
       const availableIds = new Set(perms.map((p) => p.id));
-      setSelectedPerms((prev) => prev.filter((id) => availableIds.has(id)));
+      setForm((prev) => ({
+        ...prev,
+        selectedPerms: prev.selectedPerms.filter((id) => availableIds.has(id)),
+      }));
     } catch {
       setAvailablePerms([]);
     } finally {
@@ -129,7 +153,7 @@ export default function NewUserPage() {
   }, []);
 
   const handleRolesChange = (roles: string[]) => {
-    setSelectedRoles(roles);
+    setForm((prev) => ({ ...prev, selectedRoles: roles }));
     fetchPermsForRoles(roles);
   };
 
@@ -147,20 +171,20 @@ export default function NewUserPage() {
     setSaving(true);
     try {
       const payload: UserCreationReq = {
-        username: username.trim(),
-        emailId: email.trim(),
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        mobileNo: mobile.trim() || undefined,
-        enabled,
-        emailIdVerified: emailVerified,
-        mobileNoVerified: mobileVerified,
-        credentialsNonExpired: !promptChangePwd,
-        promptChangePassword: promptChangePwd,
+        username: form.username.trim(),
+        emailId: form.email.trim(),
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        mobileNo: form.mobile.trim() || undefined,
+        enabled: form.enabled,
+        emailIdVerified: form.emailVerified,
+        mobileNoVerified: form.mobileVerified,
+        credentialsNonExpired: !form.promptChangePwd,
+        promptChangePassword: form.promptChangePwd,
         accountNonLocked: true,
         accountNonExpired: true,
-        authorityGroups: selectedRoles.length ? selectedRoles : undefined,
-        authorities: selectedPerms.length ? selectedPerms : undefined,
+        authorityGroups: form.selectedRoles.length ? form.selectedRoles : undefined,
+        authorities: form.selectedPerms.length ? form.selectedPerms : undefined,
       };
       await usersApi.createUser(payload);
       router.push('/admin/users');
@@ -192,9 +216,9 @@ export default function NewUserPage() {
           <Field
             id="username"
             label="Username"
-            value={username}
+            value={form.username}
             onChange={(v) => {
-              setUsername(v);
+              setField('username', v);
               clearErr('username');
             }}
             placeholder="rajveer.singh"
@@ -204,9 +228,9 @@ export default function NewUserPage() {
             id="email"
             label="Email"
             type="email"
-            value={email}
+            value={form.email}
             onChange={(v) => {
-              setEmail(v);
+              setField('email', v);
               clearErr('emailId');
             }}
             placeholder="abc@xyz.com"
@@ -216,9 +240,9 @@ export default function NewUserPage() {
             <Field
               id="firstName"
               label="First name"
-              value={firstName}
+              value={form.firstName}
               onChange={(v) => {
-                setFirstName(v);
+                setField('firstName', v);
                 clearErr('firstName');
               }}
               placeholder="Rajveer"
@@ -227,9 +251,9 @@ export default function NewUserPage() {
             <Field
               id="lastName"
               label="Last name"
-              value={lastName}
+              value={form.lastName}
               onChange={(v) => {
-                setLastName(v);
+                setField('lastName', v);
                 clearErr('lastName');
               }}
               placeholder="Singh"
@@ -239,9 +263,9 @@ export default function NewUserPage() {
           <Field
             id="mobile"
             label="Mobile"
-            value={mobile}
+            value={form.mobile}
             onChange={(v) => {
-              setMobile(v);
+              setField('mobile', v);
               clearErr('mobileNo');
             }}
             placeholder="7082690057"
@@ -258,7 +282,7 @@ export default function NewUserPage() {
             </Label>
             <MultiSelect
               options={allRoles.map((r) => ({ value: r.id, label: r.label, sublabel: r.name }))}
-              value={selectedRoles}
+              value={form.selectedRoles}
               onChange={handleRolesChange}
               placeholder="Select roles..."
               searchPlaceholder="Search roles..."
@@ -275,7 +299,7 @@ export default function NewUserPage() {
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
               )}
             </div>
-            {selectedRoles.length === 0 ? (
+            {form.selectedRoles.length === 0 ? (
               <p className="text-xs text-muted-foreground py-2">
                 Select roles first to see their permissions.
               </p>
@@ -286,8 +310,8 @@ export default function NewUserPage() {
                   label: p.label,
                   sublabel: p.name,
                 }))}
-                value={selectedPerms}
-                onChange={setSelectedPerms}
+                value={form.selectedPerms}
+                onChange={(ids) => setForm((prev) => ({ ...prev, selectedPerms: ids }))}
                 placeholder="Select permissions..."
                 searchPlaceholder="Search permissions..."
                 emptyMessage={loadingPerms ? 'Loading...' : 'No permissions in selected roles'}
@@ -301,16 +325,24 @@ export default function NewUserPage() {
           <Toggle
             label="Enabled"
             description="User can log in"
-            value={enabled}
-            onChange={setEnabled}
+            value={form.enabled}
+            onChange={(value) => setField('enabled', value)}
           />
-          <Toggle label="Email verified" value={emailVerified} onChange={setEmailVerified} />
-          <Toggle label="Mobile verified" value={mobileVerified} onChange={setMobileVerified} />
+          <Toggle
+            label="Email verified"
+            value={form.emailVerified}
+            onChange={(value) => setField('emailVerified', value)}
+          />
+          <Toggle
+            label="Mobile verified"
+            value={form.mobileVerified}
+            onChange={(value) => setField('mobileVerified', value)}
+          />
           <Toggle
             label="Prompt change password"
             description="User must set a new password on next login"
-            value={promptChangePwd}
-            onChange={setPromptChangePwd}
+            value={form.promptChangePwd}
+            onChange={(value) => setField('promptChangePwd', value)}
           />
         </div>
 

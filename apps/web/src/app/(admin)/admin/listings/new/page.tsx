@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   listingsApi,
@@ -27,6 +27,7 @@ export default function NewListingPage() {
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [listingId, setListingId] = useState('');
+  const origRef = useRef<ListingDetails | null>(null);
 
   // Step 1 state
   const [details, setDetails] = useState<ListingDetails>({
@@ -51,7 +52,21 @@ export default function NewListingPage() {
   const [loadingType, setLoadingType] = useState(false);
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [step3Saving, setStep3Saving] = useState(false);
-  const [step3Error, setStep3Error] = useState<string | null>(null);
+  const hasChanges = () => {
+    const orig = origRef.current;
+    if (!orig) return true; // if no orig, need to save
+    if (details.name.trim() !== orig.name) return true;
+    if ((details.description.trim() || '') !== (orig.description || '')) return true;
+    if (details.tags.length !== orig.tags.length || details.tags.some((t, i) => t !== orig.tags[i]))
+      return true;
+    if (details.subCategory !== orig.subCategory) return true;
+    return false;
+  };
+
+  const handleContinue = (e: React.FormEvent) => {
+    e.preventDefault();
+    setStep(2);
+  };
 
   useEffect(() => {
     Promise.all([masterApi.getCategories(true), metadataApi.getManagedTypeListItems()])
@@ -76,19 +91,46 @@ export default function NewListingPage() {
     setStep1Error(null);
     setStep1Saving(true);
     try {
-      const id = await listingsApi.createListing({
-        name: details.name.trim(),
-        description: details.description.trim() || undefined,
-        tags: details.tags.length ? details.tags : undefined,
-        subCategory: details.subCategory,
-        embedded: { typeId: '', pathWiseState: {} }, // placeholder, updated in step 3
-      });
-      setListingId(id as unknown as string); // API returns id or void — handle both
+      if (listingId) {
+        // Update existing
+        const orig = origRef.current;
+        const patch: {
+          name?: string;
+          description?: string;
+          tags?: string[];
+          subCategory?: string;
+        } = {};
+        if (!orig || details.name.trim() !== orig.name) patch.name = details.name.trim();
+        if (!orig || (details.description.trim() || '') !== (orig.description || ''))
+          patch.description = details.description.trim() || undefined;
+        const tagsChanged =
+          !orig ||
+          details.tags.length !== orig.tags.length ||
+          details.tags.some((t, i) => t !== orig.tags[i]);
+        if (tagsChanged) patch.tags = details.tags;
+        if (!orig || details.subCategory !== orig.subCategory)
+          patch.subCategory = details.subCategory;
+        if (Object.keys(patch).length > 0) {
+          await listingsApi.updateListing(listingId, patch);
+        }
+        origRef.current = { ...details };
+      } else {
+        // Create new
+        const id = await listingsApi.createListing({
+          name: details.name.trim(),
+          description: details.description.trim() || undefined,
+          tags: details.tags.length ? details.tags : undefined,
+          subCategory: details.subCategory,
+          embedded: { typeId: '', pathWiseState: {} },
+        });
+        setListingId(id as unknown as string);
+        origRef.current = { ...details };
+      }
       setStep(2);
     } catch (err) {
       const parsed = parseApiError(err);
       if (Object.keys(parsed.fieldErrors).length) setStep1Errors(parsed.fieldErrors);
-      else setStep1Error(parsed.general ?? 'Failed to create listing.');
+      else setStep1Error(parsed.general ?? 'Failed to save listing.');
     } finally {
       setStep1Saving(false);
     }
@@ -161,8 +203,9 @@ export default function NewListingPage() {
             onChange={(patch) => setDetails((p) => ({ ...p, ...patch }))}
             categories={categories}
             fieldErrors={step1Errors}
-            onNext={handleStep1}
+            onNext={listingId && !hasChanges() ? handleContinue : handleStep1}
             onCancel={() => router.push('/admin/listings')}
+            nextLabel={listingId && !hasChanges() ? 'Continue' : 'Save & Continue'}
           />
         </>
       )}

@@ -101,16 +101,39 @@ export default function EditUserPage() {
   const originalRolesRef = useRef<string[]>([]);
   const originalPermsRef = useRef<string[]>([]);
 
-  const [email, setEmail] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [mobile, setMobile] = useState('');
-  const [enabled, setEnabled] = useState(true);
-  const [emailVerified, setEmailVerified] = useState(true);
-  const [mobileVerified, setMobileVerified] = useState(true);
-  const [promptChangePwd, setPromptChangePwd] = useState(false);
-  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
-  const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
+  type UserFormValues = {
+    email: string;
+    firstName: string;
+    lastName: string;
+    mobile: string;
+    enabled: boolean;
+    emailVerified: boolean;
+    mobileVerified: boolean;
+    promptChangePwd: boolean;
+    selectedRoles: string[];
+    selectedPerms: string[];
+  };
+
+  const EMPTY_USER_FORM: UserFormValues = {
+    email: '',
+    firstName: '',
+    lastName: '',
+    mobile: '',
+    enabled: true,
+    emailVerified: true,
+    mobileVerified: true,
+    promptChangePwd: false,
+    selectedRoles: [],
+    selectedPerms: [],
+  };
+
+  const [form, setForm] = useState<UserFormValues>(EMPTY_USER_FORM);
+  const setField = useCallback(
+    <K extends keyof UserFormValues>(field: K, value: UserFormValues[K]) =>
+      setForm((prev) => ({ ...prev, [field]: value })),
+    [],
+  );
+
   const [allRoles, setAllRoles] = useState<AuthorityGroupVM[]>([]);
   const [availablePerms, setAvailablePerms] = useState<AuthorityVM[]>([]);
   const [loadingPerms, setLoadingPerms] = useState(false);
@@ -124,7 +147,7 @@ export default function EditUserPage() {
   const fetchPermsForRoles = useCallback(async (roleIds: string[], keepPerms?: string[]) => {
     if (roleIds.length === 0) {
       setAvailablePerms([]);
-      setSelectedPerms([]);
+      setForm((prev) => ({ ...prev, selectedPerms: [] }));
       return;
     }
     setLoadingPerms(true);
@@ -136,9 +159,15 @@ export default function EditUserPage() {
       setAvailablePerms(perms);
       const availableIds = new Set(perms.map((p) => p.id));
       if (keepPerms !== undefined) {
-        setSelectedPerms(keepPerms.filter((pid) => availableIds.has(pid)));
+        setForm((prev) => ({
+          ...prev,
+          selectedPerms: keepPerms.filter((pid) => availableIds.has(pid)),
+        }));
       } else {
-        setSelectedPerms((prev) => prev.filter((pid) => availableIds.has(pid)));
+        setForm((prev) => ({
+          ...prev,
+          selectedPerms: prev.selectedPerms.filter((pid) => availableIds.has(pid)),
+        }));
       }
     } catch {
       setAvailablePerms([]);
@@ -152,20 +181,23 @@ export default function EditUserPage() {
       .then(([u, roles]) => {
         originalRef.current = u;
         setUsername(u.username ?? '');
-        setEmail(u.emailId ?? '');
-        setFirstName(u.firstName ?? '');
-        setLastName(u.lastName ?? '');
-        setMobile(u.mobileNo ?? '');
-        setEnabled(u.enabled);
-        setEmailVerified(u.emailIdVerified);
-        setMobileVerified(u.mobileNoVerified);
-        setPromptChangePwd(u.promptChangePassword);
+        setForm({
+          email: u.emailId ?? '',
+          firstName: u.firstName ?? '',
+          lastName: u.lastName ?? '',
+          mobile: u.mobileNo ?? '',
+          enabled: u.enabled,
+          emailVerified: u.emailIdVerified,
+          mobileVerified: u.mobileNoVerified,
+          promptChangePwd: u.promptChangePassword,
+          selectedRoles: (u.authorityGroups ?? []).map((g) => g.id),
+          selectedPerms: (u.authorities ?? []).map((a) => a.id),
+        });
         setAllRoles(roles);
         const roleIds = (u.authorityGroups ?? []).map((g) => g.id);
         const permIds = (u.authorities ?? []).map((a) => a.id);
         originalRolesRef.current = roleIds;
         originalPermsRef.current = permIds;
-        setSelectedRoles(roleIds);
         fetchPermsForRoles(roleIds, permIds);
       })
       .catch(() => setError('Failed to load user.'))
@@ -173,7 +205,7 @@ export default function EditUserPage() {
   }, [id, fetchPermsForRoles]);
 
   const handleRolesChange = (roles: string[]) => {
-    setSelectedRoles(roles);
+    setForm((prev) => ({ ...prev, selectedRoles: roles }));
     fetchPermsForRoles(roles);
   };
 
@@ -193,28 +225,30 @@ export default function EditUserPage() {
 
     // Build patch with only changed fields
     const patch: UserUpdateReq = {};
-    if (email.trim() !== (orig.emailId ?? '')) patch.emailId = email.trim() || undefined;
-    if (firstName.trim() !== (orig.firstName ?? ''))
-      patch.firstName = firstName.trim() || undefined;
-    if (lastName.trim() !== (orig.lastName ?? '')) patch.lastName = lastName.trim() || undefined;
-    if (mobile.trim() !== (orig.mobileNo ?? '')) patch.mobileNo = mobile.trim() || undefined;
-    if (enabled !== orig.enabled) patch.enabled = enabled;
-    if (emailVerified !== orig.emailIdVerified) patch.emailIdVerified = emailVerified;
-    if (mobileVerified !== orig.mobileNoVerified) patch.mobileNoVerified = mobileVerified;
-    if (promptChangePwd !== orig.promptChangePassword)
-      patch.credentialsNonExpired = !promptChangePwd;
+    if (form.email.trim() !== (orig.emailId ?? '')) patch.emailId = form.email.trim() || undefined;
+    if (form.firstName.trim() !== (orig.firstName ?? ''))
+      patch.firstName = form.firstName.trim() || undefined;
+    if (form.lastName.trim() !== (orig.lastName ?? ''))
+      patch.lastName = form.lastName.trim() || undefined;
+    if (form.mobile.trim() !== (orig.mobileNo ?? ''))
+      patch.mobileNo = form.mobile.trim() || undefined;
+    if (form.enabled !== orig.enabled) patch.enabled = form.enabled;
+    if (form.emailVerified !== orig.emailIdVerified) patch.emailIdVerified = form.emailVerified;
+    if (form.mobileVerified !== orig.mobileNoVerified) patch.mobileNoVerified = form.mobileVerified;
+    if (form.promptChangePwd !== orig.promptChangePassword)
+      patch.credentialsNonExpired = !form.promptChangePwd;
 
     // Roles changed?
     const rolesChanged =
-      selectedRoles.length !== originalRolesRef.current.length ||
-      selectedRoles.some((r) => !originalRolesRef.current.includes(r));
-    if (rolesChanged) patch.authorityGroups = selectedRoles;
+      form.selectedRoles.length !== originalRolesRef.current.length ||
+      form.selectedRoles.some((r) => !originalRolesRef.current.includes(r));
+    if (rolesChanged) patch.authorityGroups = form.selectedRoles;
 
     // Perms changed?
     const permsChanged =
-      selectedPerms.length !== originalPermsRef.current.length ||
-      selectedPerms.some((p) => !originalPermsRef.current.includes(p));
-    if (permsChanged) patch.authorities = selectedPerms;
+      form.selectedPerms.length !== originalPermsRef.current.length ||
+      form.selectedPerms.some((p) => !originalPermsRef.current.includes(p));
+    if (permsChanged) patch.authorities = form.selectedPerms;
 
     if (Object.keys(patch).length === 0) {
       router.push('/admin/users');
@@ -264,9 +298,9 @@ export default function EditUserPage() {
             id="email"
             label="Email"
             type="email"
-            value={email}
+            value={form.email}
             onChange={(v) => {
-              setEmail(v);
+              setField('email', v);
               clearErr('emailId');
             }}
             placeholder="abc@xyz.com"
@@ -276,9 +310,9 @@ export default function EditUserPage() {
             <Field
               id="firstName"
               label="First name"
-              value={firstName}
+              value={form.firstName}
               onChange={(v) => {
-                setFirstName(v);
+                setField('firstName', v);
                 clearErr('firstName');
               }}
               placeholder="Rajveer"
@@ -287,9 +321,9 @@ export default function EditUserPage() {
             <Field
               id="lastName"
               label="Last name"
-              value={lastName}
+              value={form.lastName}
               onChange={(v) => {
-                setLastName(v);
+                setField('lastName', v);
                 clearErr('lastName');
               }}
               placeholder="Singh"
@@ -299,9 +333,9 @@ export default function EditUserPage() {
           <Field
             id="mobile"
             label="Mobile"
-            value={mobile}
+            value={form.mobile}
             onChange={(v) => {
-              setMobile(v);
+              setField('mobile', v);
               clearErr('mobileNo');
             }}
             placeholder="7082690057"
@@ -318,7 +352,7 @@ export default function EditUserPage() {
             </Label>
             <MultiSelect
               options={allRoles.map((r) => ({ value: r.id, label: r.label, sublabel: r.name }))}
-              value={selectedRoles}
+              value={form.selectedRoles}
               onChange={handleRolesChange}
               placeholder="Select roles..."
               searchPlaceholder="Search roles..."
@@ -335,7 +369,7 @@ export default function EditUserPage() {
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
               )}
             </div>
-            {selectedRoles.length === 0 ? (
+            {form.selectedRoles.length === 0 ? (
               <p className="text-xs text-muted-foreground py-2">
                 Select roles first to see their permissions.
               </p>
@@ -346,8 +380,8 @@ export default function EditUserPage() {
                   label: p.label,
                   sublabel: p.name,
                 }))}
-                value={selectedPerms}
-                onChange={setSelectedPerms}
+                value={form.selectedPerms}
+                onChange={(perms) => setField('selectedPerms', perms)}
                 placeholder="Select permissions..."
                 searchPlaceholder="Search permissions..."
                 emptyMessage={loadingPerms ? 'Loading...' : 'No permissions in selected roles'}
@@ -361,16 +395,24 @@ export default function EditUserPage() {
           <Toggle
             label="Enabled"
             description="User can log in"
-            value={enabled}
-            onChange={setEnabled}
+            value={form.enabled}
+            onChange={(v) => setField('enabled', v)}
           />
-          <Toggle label="Email verified" value={emailVerified} onChange={setEmailVerified} />
-          <Toggle label="Mobile verified" value={mobileVerified} onChange={setMobileVerified} />
+          <Toggle
+            label="Email verified"
+            value={form.emailVerified}
+            onChange={(v) => setField('emailVerified', v)}
+          />
+          <Toggle
+            label="Mobile verified"
+            value={form.mobileVerified}
+            onChange={(v) => setField('mobileVerified', v)}
+          />
           <Toggle
             label="Prompt change password"
             description="User must set a new password on next login"
-            value={promptChangePwd}
-            onChange={setPromptChangePwd}
+            value={form.promptChangePwd}
+            onChange={(v) => setField('promptChangePwd', v)}
           />
         </div>
 

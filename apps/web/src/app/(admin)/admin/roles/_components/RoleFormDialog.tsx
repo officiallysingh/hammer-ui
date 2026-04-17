@@ -28,19 +28,33 @@ interface CreateRoleDialogProps {
   onCreated: () => void;
 }
 
+interface RoleFormValues {
+  name: string;
+  label: string;
+  description: string;
+  selectedIds: string[];
+}
+
+const EMPTY_ROLE_FORM: RoleFormValues = {
+  name: '',
+  label: '',
+  description: '',
+  selectedIds: [],
+};
+
 export function RoleFormDialog({
   open,
   onOpenChange,
   allPermissions,
   onCreated,
 }: CreateRoleDialogProps) {
-  const [name, setName] = useState('');
-  const [label, setLabel] = useState('');
-  const [description, setDescription] = useState('');
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [form, setForm] = useState<RoleFormValues>(EMPTY_ROLE_FORM);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const setField = <K extends keyof RoleFormValues>(key: K, value: RoleFormValues[K]) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
 
   const clearErr = (f: string) =>
     setFieldErrors((p) => {
@@ -50,10 +64,7 @@ export function RoleFormDialog({
     });
 
   const reset = () => {
-    setName('');
-    setLabel('');
-    setDescription('');
-    setSelectedIds([]);
+    setForm(EMPTY_ROLE_FORM);
     setFieldErrors({});
     setError(null);
   };
@@ -69,10 +80,10 @@ export function RoleFormDialog({
     setSaving(true);
     try {
       await adminApi.createAuthorityGroup({
-        name: name.trim(),
-        label: label.trim(),
-        description: description.trim() || '',
-        authorities: selectedIds,
+        name: form.name.trim(),
+        label: form.label.trim(),
+        description: form.description.trim() || '',
+        authorities: form.selectedIds,
       });
       reset();
       onOpenChange(false);
@@ -100,9 +111,9 @@ export function RoleFormDialog({
             </Label>
             <Input
               id="cr-name"
-              value={name}
+              value={form.name}
               onChange={(e) => {
-                setName(e.target.value);
+                setField('name', e.target.value);
                 clearErr('name');
               }}
               placeholder="admin"
@@ -119,9 +130,9 @@ export function RoleFormDialog({
             </Label>
             <Input
               id="cr-label"
-              value={label}
+              value={form.label}
               onChange={(e) => {
-                setLabel(e.target.value);
+                setField('label', e.target.value);
                 clearErr('label');
               }}
               placeholder="Admin"
@@ -138,8 +149,8 @@ export function RoleFormDialog({
             </Label>
             <Input
               id="cr-desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              value={form.description}
+              onChange={(e) => setField('description', e.target.value)}
               placeholder="Administration"
               autoComplete="off"
             />
@@ -154,8 +165,8 @@ export function RoleFormDialog({
                 label: p.label,
                 sublabel: p.name,
               }))}
-              value={selectedIds}
-              onChange={setSelectedIds}
+              value={form.selectedIds}
+              onChange={(ids) => setField('selectedIds', ids)}
               placeholder="Select permissions..."
               searchPlaceholder="Search permissions..."
               emptyMessage="No permissions found"
@@ -198,13 +209,13 @@ interface EditRoleDialogProps {
 }
 
 export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: EditRoleDialogProps) {
-  const [name, setName] = useState('');
-  const [label, setLabel] = useState('');
-  const [description, setDescription] = useState('');
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [form, setForm] = useState<RoleFormValues>(EMPTY_ROLE_FORM);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const setField = <K extends keyof RoleFormValues>(key: K, value: RoleFormValues[K]) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
 
   // Track originals for diff
   const origRef = React.useRef<{
@@ -223,10 +234,12 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
         description: role.description ?? '',
         perms,
       };
-      setName(role.name);
-      setLabel(role.label);
-      setDescription(role.description ?? '');
-      setSelectedIds(perms);
+      setForm({
+        name: role.name,
+        label: role.label,
+        description: role.description ?? '',
+        selectedIds: perms,
+      });
       setFieldErrors({});
       setError(null);
     }
@@ -247,15 +260,15 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
 
     const orig = origRef.current;
     const patch: Parameters<typeof adminApi.updateAuthorityGroup>[1] = {};
-    if (name.trim() !== orig.name) patch.name = name.trim() || undefined;
-    if (label.trim() !== orig.label) patch.label = label.trim() || undefined;
-    if ((description.trim() || '') !== orig.description)
-      patch.description = description.trim() || undefined;
+    if (form.name.trim() !== orig.name) patch.name = form.name.trim() || undefined;
+    if (form.label.trim() !== orig.label) patch.label = form.label.trim() || undefined;
+    if ((form.description.trim() || '') !== orig.description)
+      patch.description = form.description.trim() || undefined;
 
     const permsChanged =
-      selectedIds.length !== orig.perms.length ||
-      selectedIds.some((id) => !orig.perms.includes(id));
-    if (permsChanged) patch.authorities = selectedIds;
+      form.selectedIds.length !== orig.perms.length ||
+      form.selectedIds.some((id) => !orig.perms.includes(id));
+    if (permsChanged) patch.authorities = form.selectedIds;
 
     if (Object.keys(patch).length === 0) {
       onClose();
@@ -297,9 +310,9 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
             </Label>
             <Input
               id="er-name"
-              value={name}
+              value={form.name}
               onChange={(e) => {
-                setName(e.target.value);
+                setField('name', e.target.value);
                 clearErr('name');
               }}
               placeholder="admin"
@@ -316,9 +329,9 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
             </Label>
             <Input
               id="er-label"
-              value={label}
+              value={form.label}
               onChange={(e) => {
-                setLabel(e.target.value);
+                setField('label', e.target.value);
                 clearErr('label');
               }}
               placeholder="Admin"
@@ -335,8 +348,8 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
             </Label>
             <Input
               id="er-desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              value={form.description}
+              onChange={(e) => setField('description', e.target.value)}
               placeholder="Administration"
               autoComplete="off"
             />
@@ -351,8 +364,8 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
                 label: p.label,
                 sublabel: p.name,
               }))}
-              value={selectedIds}
-              onChange={setSelectedIds}
+              value={form.selectedIds}
+              onChange={(ids) => setField('selectedIds', ids)}
               placeholder="Select permissions..."
               searchPlaceholder="Search permissions..."
               emptyMessage="No permissions found"

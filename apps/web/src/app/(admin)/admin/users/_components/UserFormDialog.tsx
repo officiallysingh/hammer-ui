@@ -107,20 +107,38 @@ interface CreateUserDialogProps {
   onCreated: () => void;
 }
 
+interface CreateUserFormValues {
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  mobile: string;
+  enabled: boolean;
+  emailVerified: boolean;
+  mobileVerified: boolean;
+  promptChangePwd: boolean;
+}
+
+const EMPTY_CREATE_USER_FORM: CreateUserFormValues = {
+  username: '',
+  email: '',
+  firstName: '',
+  lastName: '',
+  mobile: '',
+  enabled: true,
+  emailVerified: true,
+  mobileVerified: true,
+  promptChangePwd: true,
+};
+
 export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDialogProps) {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [mobile, setMobile] = useState('');
-  // flags — defaults per spec
-  const [enabled, setEnabled] = useState(true);
-  const [emailVerified, setEmailVerified] = useState(true);
-  const [mobileVerified, setMobileVerified] = useState(true);
-  const [promptChangePwd, setPromptChangePwd] = useState(true); // credentialsNonExpired=false
+  const [form, setForm] = useState<CreateUserFormValues>(EMPTY_CREATE_USER_FORM);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const setField = <K extends keyof CreateUserFormValues>(key: K, value: CreateUserFormValues[K]) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
 
   const clearErr = (f: string) =>
     setFieldErrors((p) => {
@@ -130,15 +148,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
     });
 
   const reset = () => {
-    setUsername('');
-    setEmail('');
-    setFirstName('');
-    setLastName('');
-    setMobile('');
-    setEnabled(true);
-    setEmailVerified(true);
-    setMobileVerified(true);
-    setPromptChangePwd(true);
+    setForm(EMPTY_CREATE_USER_FORM);
     setFieldErrors({});
     setError(null);
   };
@@ -152,24 +162,29 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
     e.preventDefault();
     setError(null);
     setFieldErrors({});
-    if (!username.trim() || !email.trim() || !firstName.trim() || !lastName.trim()) {
+    if (
+      !form.username.trim() ||
+      !form.email.trim() ||
+      !form.firstName.trim() ||
+      !form.lastName.trim()
+    ) {
       setError('Username, email, first name and last name are required.');
       return;
     }
     setSaving(true);
     try {
       const payload: UserCreationReq = {
-        username: username.trim(),
-        emailId: email.trim(),
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        mobileNo: mobile.trim() || undefined,
-        enabled,
-        emailIdVerified: emailVerified,
-        mobileNoVerified: mobileVerified,
+        username: form.username.trim(),
+        emailId: form.email.trim(),
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        mobileNo: form.mobile.trim() || undefined,
+        enabled: form.enabled,
+        emailIdVerified: form.emailVerified,
+        mobileNoVerified: form.mobileVerified,
         // promptChangePassword=true means credentialsNonExpired=false
-        credentialsNonExpired: !promptChangePwd,
-        promptChangePassword: promptChangePwd,
+        credentialsNonExpired: !form.promptChangePwd,
+        promptChangePassword: form.promptChangePwd,
         accountNonLocked: true,
         accountNonExpired: true,
       };
@@ -197,9 +212,9 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
           <FieldInput
             id="cu-username"
             label="Username"
-            value={username}
+            value={form.username}
             onChange={(v) => {
-              setUsername(v);
+              setField('username', v);
               clearErr('username');
             }}
             placeholder="rajveer.singh"
@@ -209,9 +224,9 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
             id="cu-email"
             label="Email"
             type="email"
-            value={email}
+            value={form.email}
             onChange={(v) => {
-              setEmail(v);
+              setField('email', v);
               clearErr('emailId');
             }}
             placeholder="abc@xyz.com"
@@ -221,9 +236,9 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
             <FieldInput
               id="cu-first"
               label="First name"
-              value={firstName}
+              value={form.firstName}
               onChange={(v) => {
-                setFirstName(v);
+                setField('firstName', v);
                 clearErr('firstName');
               }}
               placeholder="Rajveer"
@@ -232,9 +247,9 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
             <FieldInput
               id="cu-last"
               label="Last name"
-              value={lastName}
+              value={form.lastName}
               onChange={(v) => {
-                setLastName(v);
+                setField('lastName', v);
                 clearErr('lastName');
               }}
               placeholder="Singh"
@@ -244,9 +259,9 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
           <FieldInput
             id="cu-mobile"
             label="Mobile"
-            value={mobile}
+            value={form.mobile}
             onChange={(v) => {
-              setMobile(v);
+              setField('mobile', v);
               clearErr('mobileNo');
             }}
             placeholder="7082690057"
@@ -258,20 +273,24 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
           <div className="rounded-lg border border-border bg-muted/30 px-4 py-2 space-y-1 divide-y divide-border">
             <ToggleField
               label="Enabled"
-              value={enabled}
-              onChange={setEnabled}
+              value={form.enabled}
+              onChange={(value) => setField('enabled', value)}
               description="User can log in"
             />
-            <ToggleField label="Email verified" value={emailVerified} onChange={setEmailVerified} />
+            <ToggleField
+              label="Email verified"
+              value={form.emailVerified}
+              onChange={(value) => setField('emailVerified', value)}
+            />
             <ToggleField
               label="Mobile verified"
-              value={mobileVerified}
-              onChange={setMobileVerified}
+              value={form.mobileVerified}
+              onChange={(value) => setField('mobileVerified', value)}
             />
             <ToggleField
               label="Prompt change password"
-              value={promptChangePwd}
-              onChange={setPromptChangePwd}
+              value={form.promptChangePwd}
+              onChange={(value) => setField('promptChangePwd', value)}
               description="User must change password on next login"
             />
           </div>
@@ -312,20 +331,34 @@ interface EditUserDialogProps {
 }
 
 export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps) {
-  const [email, setEmail] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [mobile, setMobile] = useState('');
+  interface EditUserFormValues {
+    email: string;
+    firstName: string;
+    lastName: string;
+    mobile: string;
+  }
+
+  const [form, setForm] = useState<EditUserFormValues>({
+    email: '',
+    firstName: '',
+    lastName: '',
+    mobile: '',
+  });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const setField = <K extends keyof EditUserFormValues>(key: K, value: EditUserFormValues[K]) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
+
   useEffect(() => {
     if (user) {
-      setEmail(user.emailId ?? '');
-      setFirstName(user.firstName ?? '');
-      setLastName(user.lastName ?? '');
-      setMobile(user.mobileNo ?? '');
+      setForm({
+        email: user.emailId ?? '',
+        firstName: user.firstName ?? '',
+        lastName: user.lastName ?? '',
+        mobile: user.mobileNo ?? '',
+      });
       setFieldErrors({});
       setError(null);
     }
@@ -346,16 +379,16 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
     setSaving(true);
     try {
       await usersApi.updateUser(user.id, {
-        emailId: email.trim() || undefined,
-        firstName: firstName.trim() || undefined,
-        lastName: lastName.trim() || undefined,
-        mobileNo: mobile.trim() || undefined,
+        emailId: form.email.trim() || undefined,
+        firstName: form.firstName.trim() || undefined,
+        lastName: form.lastName.trim() || undefined,
+        mobileNo: form.mobile.trim() || undefined,
       });
       onUpdated({
-        emailId: email.trim(),
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        mobileNo: mobile.trim(),
+        emailId: form.email.trim(),
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        mobileNo: form.mobile.trim(),
       });
       onClose();
     } catch (err) {
@@ -387,9 +420,9 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
             id="eu-email"
             label="Email"
             type="email"
-            value={email}
+            value={form.email}
             onChange={(v) => {
-              setEmail(v);
+              setField('email', v);
               clearErr('emailId');
             }}
             placeholder="abc@xyz.com"
@@ -399,9 +432,9 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
             <FieldInput
               id="eu-first"
               label="First name"
-              value={firstName}
+              value={form.firstName}
               onChange={(v) => {
-                setFirstName(v);
+                setField('firstName', v);
                 clearErr('firstName');
               }}
               placeholder="Rajveer"
@@ -410,9 +443,9 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
             <FieldInput
               id="eu-last"
               label="Last name"
-              value={lastName}
+              value={form.lastName}
               onChange={(v) => {
-                setLastName(v);
+                setField('lastName', v);
                 clearErr('lastName');
               }}
               placeholder="Singh"
@@ -422,9 +455,9 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
           <FieldInput
             id="eu-mobile"
             label="Mobile"
-            value={mobile}
+            value={form.mobile}
             onChange={(v) => {
-              setMobile(v);
+              setField('mobile', v);
               clearErr('mobileNo');
             }}
             placeholder="7082690057"

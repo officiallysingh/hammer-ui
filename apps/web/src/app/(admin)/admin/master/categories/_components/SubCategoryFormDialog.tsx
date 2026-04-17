@@ -25,21 +25,34 @@ interface SubCategoryFormDialogProps {
   onCreated: (categoryId: string, subs: SubCategoryVM[]) => void;
 }
 
+interface SubCategoryFormValues {
+  name: string;
+  icon: string;
+}
+
+const EMPTY_SUBCATEGORY_FORM: SubCategoryFormValues = {
+  name: '',
+  icon: '',
+};
+
 export function SubCategoryFormDialog({
   categoryId,
   categoryName,
   onClose,
   onCreated,
 }: SubCategoryFormDialogProps) {
-  const [name, setName] = useState('');
-  const [icon, setIcon] = useState('');
+  const [form, setForm] = useState<SubCategoryFormValues>(EMPTY_SUBCATEGORY_FORM);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const setField = <K extends keyof SubCategoryFormValues>(
+    key: K,
+    value: SubCategoryFormValues[K],
+  ) => setForm((prev) => ({ ...prev, [key]: value }));
+
   const reset = () => {
-    setName('');
-    setIcon('');
+    setForm(EMPTY_SUBCATEGORY_FORM);
     setFieldErrors({});
     setError(null);
   };
@@ -57,8 +70,8 @@ export function SubCategoryFormDialog({
     setSaving(true);
     try {
       await masterApi.createSubCategory(categoryId, {
-        name: name.trim(),
-        icon: icon || undefined,
+        name: form.name.trim(),
+        icon: form.icon || undefined,
       });
       const subs = await masterApi.getSubCategoriesByCategory(categoryId);
       reset();
@@ -94,9 +107,9 @@ export function SubCategoryFormDialog({
             </Label>
             <Input
               id="sc-name"
-              value={name}
+              value={form.name}
               onChange={(e) => {
-                setName(e.target.value);
+                setField('name', e.target.value);
                 setFieldErrors((p) => {
                   const n = { ...p };
                   delete n.name;
@@ -116,8 +129,8 @@ export function SubCategoryFormDialog({
               Icon <span className="text-muted-foreground font-normal">(optional)</span>
             </Label>
             <EmojiPicker
-              value={icon}
-              onChange={setIcon}
+              value={form.icon}
+              onChange={(value) => setField('icon', value)}
               placeholder="Pick an icon for this sub-category"
             />
           </div>

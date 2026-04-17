@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button, Label } from '@repo/ui';
-import { metadataApi, ManagedTypeVM, ManagedTypeListItem } from '@repo/api';
+import { metadataApi, ManagedTypeVM, ManagedTypeListItem, PropertyDef } from '@repo/api';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 
 interface Step3Props {
@@ -80,13 +80,10 @@ export function Step3Catalog({
                   <Label htmlFor={`prop-${prop.name}`}>{prop.label}</Label>
                   <span className="text-xs text-muted-foreground font-mono">{prop.metaType}</span>
                 </div>
-                <textarea
-                  id={`prop-${prop.name}`}
+                <PropertyField
+                  prop={prop}
                   value={fieldValues[prop.name] ?? ''}
-                  onChange={(e) => onFieldChange(prop.name, e.target.value)}
-                  placeholder={`Enter ${prop.label.toLowerCase()}...`}
-                  rows={2}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-ring"
+                  onChange={(value) => onFieldChange(prop.name, value)}
                 />
               </div>
             ))}
@@ -121,4 +118,132 @@ export function Step3Catalog({
       </div>
     </form>
   );
+}
+
+function PropertyField({
+  prop,
+  value,
+  onChange,
+}: {
+  prop: PropertyDef;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const baseClass =
+    'w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
+
+  switch (prop.metaType) {
+    case 'LOCAL_DATE':
+    case 'YEAR_MONTH':
+    case 'LOCAL_DATE_TIME':
+    case 'ZONED_DATE_TIME':
+    case 'INSTANT':
+      return (
+        <input
+          id={`prop-${prop.name}`}
+          type="date"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={`Enter ${prop.label.toLowerCase()}...`}
+          className={baseClass}
+        />
+      );
+    case 'LOCAL_TIME':
+      return (
+        <input
+          id={`prop-${prop.name}`}
+          type="time"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={`Enter ${prop.label.toLowerCase()}...`}
+          className={baseClass}
+        />
+      );
+    case 'BOOLEAN':
+      return (
+        <select
+          id={`prop-${prop.name}`}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={baseClass}
+        >
+          <option value="">Select...</option>
+          <option value="true">Yes</option>
+          <option value="false">No</option>
+        </select>
+      );
+    case 'COORDINATES':
+      const [lat, lng] = value.split(',').map((s) => s.trim());
+      return (
+        <div className="flex gap-2">
+          <input
+            type="number"
+            step="any"
+            placeholder="Latitude"
+            value={lat || ''}
+            onChange={(e) => onChange(`${e.target.value},${lng || ''}`)}
+            className={`${baseClass} flex-1`}
+          />
+          <input
+            type="number"
+            step="any"
+            placeholder="Longitude"
+            value={lng || ''}
+            onChange={(e) => onChange(`${lat || ''},${e.target.value}`)}
+            className={`${baseClass} flex-1`}
+          />
+        </div>
+      );
+    case 'FILE':
+      return (
+        <input
+          id={`prop-${prop.name}`}
+          type="file"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            onChange(file ? file.name : '');
+          }}
+          className={baseClass}
+        />
+      );
+    case 'INTEGER':
+    case 'LONG':
+    case 'BIG_INTEGER':
+      return (
+        <input
+          id={`prop-${prop.name}`}
+          type="number"
+          step="1"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={`Enter ${prop.label.toLowerCase()}...`}
+          className={baseClass}
+        />
+      );
+    case 'FLOAT':
+    case 'DOUBLE':
+    case 'BIG_DECIMAL':
+      return (
+        <input
+          id={`prop-${prop.name}`}
+          type="number"
+          step="any"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={`Enter ${prop.label.toLowerCase()}...`}
+          className={baseClass}
+        />
+      );
+    default:
+      return (
+        <textarea
+          id={`prop-${prop.name}`}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={`Enter ${prop.label.toLowerCase()}...`}
+          rows={2}
+          className={`${baseClass} resize-y`}
+        />
+      );
+  }
 }

@@ -20,6 +20,7 @@ interface Step1Props {
   fieldErrors: Record<string, string>;
   onNext: (e: React.FormEvent) => void;
   onCancel: () => void;
+  nextLabel?: string;
 }
 
 export function Step1Details({
@@ -29,6 +30,7 @@ export function Step1Details({
   fieldErrors,
   onNext,
   onCancel,
+  nextLabel = 'Save & Continue',
 }: Step1Props) {
   const selectedCategory = categories.find((c) => c.id === values.categoryId);
   const subCategories = selectedCategory?.subCategories ?? [];
@@ -125,7 +127,7 @@ export function Step1Details({
 
       <div className="flex gap-3">
         <Button type="submit" className="gap-2">
-          Save &amp; Continue <ArrowRight className="h-4 w-4" />
+          {nextLabel} <ArrowRight className="h-4 w-4" />
         </Button>
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel

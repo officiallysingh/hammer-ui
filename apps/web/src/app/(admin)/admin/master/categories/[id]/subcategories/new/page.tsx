@@ -15,8 +15,7 @@ export default function NewSubCategoryPage() {
   const router = useRouter();
 
   const [categoryName, setCategoryName] = useState('');
-  const [name, setName] = useState('');
-  const [icon, setIcon] = useState('');
+  const [form, setForm] = useState({ name: '', icon: '' });
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -39,13 +38,16 @@ export default function NewSubCategoryPage() {
     e.preventDefault();
     setError(null);
     setFieldErrors({});
-    if (!name.trim()) {
+    if (!form.name.trim()) {
       setFieldErrors({ name: 'Name is required.' });
       return;
     }
     setSaving(true);
     try {
-      await masterApi.createSubCategory(categoryId, { name: name.trim(), icon: icon || undefined });
+      await masterApi.createSubCategory(categoryId, {
+        name: form.name.trim(),
+        icon: form.icon || undefined,
+      });
       router.push('/admin/master/categories');
     } catch (err) {
       const parsed = parseApiError(err);
@@ -81,9 +83,9 @@ export default function NewSubCategoryPage() {
             </Label>
             <Input
               id="sc-name"
-              value={name}
+              value={form.name}
               onChange={(e) => {
-                setName(e.target.value);
+                setForm((prev) => ({ ...prev, name: e.target.value }));
                 clearErr('name');
               }}
               placeholder="e.g. Mobile"
@@ -100,8 +102,8 @@ export default function NewSubCategoryPage() {
               Icon <span className="text-muted-foreground font-normal">(optional)</span>
             </Label>
             <EmojiPicker
-              value={icon}
-              onChange={setIcon}
+              value={form.icon}
+              onChange={(value) => setForm((prev) => ({ ...prev, icon: value }))}
               placeholder="Pick an icon for this sub-category"
             />
           </div>

@@ -1,6 +1,6 @@
 import { Check } from 'lucide-react';
 
-const STEPS = ['Details', 'Media', 'Catalog'];
+const STEPS = ['Details', 'Media', 'Property Metadata'];
 
 interface StepIndicatorProps {
   current: 1 | 2 | 3;

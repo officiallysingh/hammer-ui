@@ -11,13 +11,27 @@ import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import EmojiPicker from '@/components/common/EmojiPicker';
 import { parseApiError } from '@/lib/api-errors';
 
+interface NewCategoryFormValues {
+  name: string;
+  icon: string;
+}
+
+const EMPTY_NEW_CATEGORY_FORM: NewCategoryFormValues = {
+  name: '',
+  icon: '',
+};
+
 export default function NewCategoryPage() {
   const router = useRouter();
-  const [name, setName] = useState('');
-  const [icon, setIcon] = useState('');
+  const [form, setForm] = useState<NewCategoryFormValues>(EMPTY_NEW_CATEGORY_FORM);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const setField = <K extends keyof NewCategoryFormValues>(
+    key: K,
+    value: NewCategoryFormValues[K],
+  ) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +39,7 @@ export default function NewCategoryPage() {
     setFieldErrors({});
     setSaving(true);
     try {
-      await masterApi.createCategory({ name: name.trim(), icon: icon || undefined });
+      await masterApi.createCategory({ name: form.name.trim(), icon: form.icon || undefined });
       router.push('/admin/master/categories');
     } catch (err) {
       const parsed = parseApiError(err);
@@ -59,9 +73,9 @@ export default function NewCategoryPage() {
             </Label>
             <Input
               id="name"
-              value={name}
+              value={form.name}
               onChange={(e) => {
-                setName(e.target.value);
+                setField('name', e.target.value);
                 setFieldErrors((p) => {
                   const n = { ...p };
                   delete n.name;
@@ -83,8 +97,8 @@ export default function NewCategoryPage() {
               Icon <span className="text-muted-foreground font-normal text-xs">(optional)</span>
             </Label>
             <EmojiPicker
-              value={icon}
-              onChange={setIcon}
+              value={form.icon}
+              onChange={(value) => setField('icon', value)}
               placeholder="Pick an icon for this category"
             />
           </div>

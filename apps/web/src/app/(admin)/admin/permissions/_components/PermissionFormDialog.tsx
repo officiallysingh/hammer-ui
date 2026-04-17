@@ -105,7 +105,17 @@ function PermissionFields({
   );
 }
 
-// ── Create ────────────────────────────────────────────────────────────────────
+interface PermissionFormValues {
+  name: string;
+  label: string;
+  description: string;
+}
+
+const EMPTY_PERMISSION_FORM: PermissionFormValues = {
+  name: '',
+  label: '',
+  description: '',
+};
 
 interface CreatePermissionDialogProps {
   open: boolean;
@@ -118,12 +128,13 @@ export function CreatePermissionDialog({
   onOpenChange,
   onCreated,
 }: CreatePermissionDialogProps) {
-  const [name, setName] = useState('');
-  const [label, setLabel] = useState('');
-  const [description, setDescription] = useState('');
+  const [form, setForm] = useState<PermissionFormValues>(EMPTY_PERMISSION_FORM);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const setField = <K extends keyof PermissionFormValues>(key: K, value: PermissionFormValues[K]) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
 
   const clearErr = (f: string) =>
     setFieldErrors((p) => {
@@ -132,9 +143,7 @@ export function CreatePermissionDialog({
       return n;
     });
   const reset = () => {
-    setName('');
-    setLabel('');
-    setDescription('');
+    setForm(EMPTY_PERMISSION_FORM);
     setFieldErrors({});
     setError(null);
   };
@@ -150,9 +159,9 @@ export function CreatePermissionDialog({
     setSaving(true);
     try {
       await adminApi.createAuthority({
-        name: name.trim(),
-        label: label.trim(),
-        description: description.trim(),
+        name: form.name.trim(),
+        label: form.label.trim(),
+        description: form.description.trim(),
       });
       reset();
       onOpenChange(false);
@@ -175,12 +184,21 @@ export function CreatePermissionDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <PermissionFields
-            name={name}
-            onName={setName}
-            label={label}
-            onLabel={setLabel}
-            description={description}
-            onDescription={setDescription}
+            name={form.name}
+            onName={(value) => {
+              setField('name', value);
+              clearErr('name');
+            }}
+            label={form.label}
+            onLabel={(value) => {
+              setField('label', value);
+              clearErr('label');
+            }}
+            description={form.description}
+            onDescription={(value) => {
+              setField('description', value);
+              clearErr('description');
+            }}
             fieldErrors={fieldErrors}
             clearErr={clearErr}
             nameId="cp-name"
@@ -227,13 +245,14 @@ export function EditPermissionDialog({
   onClose,
   onUpdated,
 }: EditPermissionDialogProps) {
-  const [name, setName] = useState('');
-  const [label, setLabel] = useState('');
-  const [description, setDescription] = useState('');
+  const [form, setForm] = useState<PermissionFormValues>(EMPTY_PERMISSION_FORM);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const origRef = useRef<{ name: string; label: string; description: string } | null>(null);
+
+  const setField = <K extends keyof PermissionFormValues>(key: K, value: PermissionFormValues[K]) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
 
   useEffect(() => {
     if (permission) {
@@ -243,9 +262,7 @@ export function EditPermissionDialog({
         description: permission.description ?? '',
       };
       origRef.current = orig;
-      setName(orig.name);
-      setLabel(orig.label);
-      setDescription(orig.description);
+      setForm(orig);
       setFieldErrors({});
       setError(null);
     }
@@ -266,10 +283,10 @@ export function EditPermissionDialog({
 
     const orig = origRef.current;
     const patch: Parameters<typeof adminApi.updateAuthority>[1] = {};
-    if (name.trim() !== orig.name) patch.name = name.trim() || undefined;
-    if (label.trim() !== orig.label) patch.label = label.trim() || undefined;
-    if ((description.trim() || '') !== orig.description)
-      patch.description = description.trim() || undefined;
+    if (form.name.trim() !== orig.name) patch.name = form.name.trim() || undefined;
+    if (form.label.trim() !== orig.label) patch.label = form.label.trim() || undefined;
+    if ((form.description.trim() || '') !== orig.description)
+      patch.description = form.description.trim() || undefined;
 
     if (Object.keys(patch).length === 0) {
       onClose();
@@ -280,9 +297,9 @@ export function EditPermissionDialog({
     try {
       await adminApi.updateAuthority(permission.id, patch);
       onUpdated({
-        name: name.trim(),
-        label: label.trim(),
-        description: description.trim() || undefined,
+        name: form.name.trim(),
+        label: form.label.trim(),
+        description: form.description.trim() || undefined,
       });
       onClose();
     } catch (err) {
@@ -310,12 +327,21 @@ export function EditPermissionDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <PermissionFields
-            name={name}
-            onName={setName}
-            label={label}
-            onLabel={setLabel}
-            description={description}
-            onDescription={setDescription}
+            name={form.name}
+            onName={(value) => {
+              setField('name', value);
+              clearErr('name');
+            }}
+            label={form.label}
+            onLabel={(value) => {
+              setField('label', value);
+              clearErr('label');
+            }}
+            description={form.description}
+            onDescription={(value) => {
+              setField('description', value);
+              clearErr('description');
+            }}
             fieldErrors={fieldErrors}
             clearErr={clearErr}
             nameId="ep-name"

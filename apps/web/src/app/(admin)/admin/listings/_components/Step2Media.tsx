@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -12,7 +12,7 @@ import {
   FileText,
   Film,
 } from 'lucide-react';
-import { Button, Label } from '@repo/ui';
+import { Button } from '@repo/ui';
 import { blobsApi, BlobVM } from '@repo/api';
 
 interface UploadedFile {
@@ -23,6 +23,9 @@ interface UploadedFile {
   thumbnail: boolean;
   classifier: 'IMAGE' | 'VIDEO' | 'DOCUMENT';
 }
+
+const MAX_FILE_SIZE_MB = 5; //5mb
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 interface Step2Props {
   listingId: string;
@@ -57,10 +60,58 @@ export function Step2Media({
 }: Step2Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [existingBlobs, setExistingBlobs] = useState<BlobVM[]>([]);
+  const [loadingBlobs, setLoadingBlobs] = useState(false);
+
+  useEffect(() => {
+    if (!listingId) return;
+
+    const controller = new AbortController();
+    const loadBlobs = async () => {
+      setLoadingBlobs(true);
+      try {
+        const data = await blobsApi.getBlobsByEntityId(listingId);
+        if (!controller.signal.aborted) {
+          setExistingBlobs(data);
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setExistingBlobs([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoadingBlobs(false);
+        }
+      }
+    };
+
+    loadBlobs();
+
+    return () => controller.abort();
+  }, [listingId]);
 
   const addFiles = async (files: FileList | null) => {
     if (!files?.length) return;
-    const newUploads: UploadedFile[] = Array.from(files).map((file) => ({
+    const validFiles: File[] = [];
+    const invalidFiles: { name: string; size: string }[] = [];
+
+    Array.from(files).forEach((file) => {
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        invalidFiles.push({ name: file.name, size: (file.size / 1024 / 1024).toFixed(1) });
+      } else {
+        validFiles.push(file);
+      }
+    });
+
+    if (invalidFiles.length > 0) {
+      alert(
+        `The following files exceed the ${MAX_FILE_SIZE_MB}MB limit:\n${invalidFiles.map((f) => `${f.name} (${f.size}MB)`).join('\n')}`,
+      );
+    }
+
+    if (!validFiles.length) return;
+
+    const newUploads: UploadedFile[] = validFiles.map((file) => ({
       file,
       uploading: true,
       thumbnail: false,
@@ -76,15 +127,16 @@ export function Step2Media({
         const blob = await blobsApi.upload(item.file, {
           bucket: username,
           entityId: listingId,
+          entityType: 'listing',
           classifier: item.classifier,
           thumbnail: item.thumbnail ? 'true' : 'false',
         });
-        onUploadsChange((prev: UploadedFile[]) =>
-          prev.map((u, j) => (j === idx ? { ...u, blob, uploading: false } : u)),
-        );
+        onUploadsChange(uploads.map((u, j) => (j === idx ? { ...u, blob, uploading: false } : u)));
       } catch {
-        onUploadsChange((prev: UploadedFile[]) =>
-          prev.map((u, j) => (j === idx ? { ...u, uploading: false, error: 'Upload failed' } : u)),
+        onUploadsChange(
+          uploads.map((u, j) =>
+            j === idx ? { ...u, uploading: false, error: 'Upload failed' } : u,
+          ),
         );
       }
     }
@@ -94,6 +146,15 @@ export function Step2Media({
     onUploadsChange(uploads.map((u, i) => (i === idx ? { ...u, ...patch } : u)));
 
   const removeUpload = (idx: number) => onUploadsChange(uploads.filter((_, i) => i !== idx));
+
+  const deleteBlob = async (blobId: string) => {
+    try {
+      await blobsApi.deleteBlob(blobId);
+      setExistingBlobs((prev) => prev.filter((b) => b.id !== blobId));
+    } catch {
+      // handle error
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -148,7 +209,15 @@ export function Step2Media({
                 key={i}
                 className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2.5"
               >
-                <FileIcon classifier={u.classifier} />
+                {u.blob && u.classifier === 'IMAGE' ? (
+                  <img
+                    src={`/api/v1/blobs/${u.blob.id}/download`}
+                    alt={`Thumbnail for ${u.file.name}`}
+                    className="h-4 w-4 object-cover rounded"
+                  />
+                ) : (
+                  <FileIcon classifier={u.classifier} />
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{u.file.name}</p>
                   <p className="text-xs text-muted-foreground">
@@ -203,6 +272,54 @@ export function Step2Media({
           </div>
         )}
       </div>
+
+      {/* Existing blobs */}
+      {loadingBlobs && (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-sm text-muted-foreground">Loading existing media...</span>
+        </div>
+      )}
+
+      {existingBlobs.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-foreground">Existing Media</h4>
+          {existingBlobs.map((blob) => (
+            <div
+              key={blob.id}
+              className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2.5"
+            >
+              {blob.metadata?.classifier === 'IMAGE' ? (
+                <img
+                  src={`/api/v1/blobs/${blob.id}/download`}
+                  alt={`Existing media: ${blob.fileName || 'image'}`}
+                  className="h-4 w-4 object-cover rounded"
+                />
+              ) : (
+                <FileIcon
+                  classifier={
+                    (blob.metadata?.classifier as 'IMAGE' | 'VIDEO' | 'DOCUMENT') || 'DOCUMENT'
+                  }
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">{blob.fileName}</p>
+                <p className="text-xs text-muted-foreground">
+                  {blob.size ? `${(blob.size / 1024).toFixed(1)} KB` : ''} ·{' '}
+                  {blob.metadata?.classifier}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => deleteBlob(blob.id)}
+                className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="flex gap-3">
         <Button type="button" variant="outline" onClick={onBack}>
