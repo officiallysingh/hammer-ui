@@ -168,7 +168,9 @@ export function PropertyRow({
           </div>
 
           {/* Type + MetaType */}
-          <div className="grid grid-cols-2 gap-3">
+          <div
+            className={`grid gap-3 ${HAS_CHILDREN.includes(prop.type) ? 'grid-cols-1' : 'grid-cols-2'}`}
+          >
             <div className="space-y-1">
               <Label className="text-xs">Property type</Label>
               <select
@@ -188,20 +190,22 @@ export function PropertyRow({
                 ))}
               </select>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Meta type</Label>
-              <select
-                value={prop.metaType}
-                onChange={(e) => handleMetaTypeChange(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                {metaTypes.map((t) => (
-                  <option key={t.key} value={t.key}>
-                    {t.value}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {!HAS_CHILDREN.includes(prop.type) && (
+              <div className="space-y-1">
+                <Label className="text-xs">Meta type</Label>
+                <select
+                  value={prop.metaType}
+                  onChange={(e) => handleMetaTypeChange(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {metaTypes.map((t) => (
+                    <option key={t.key} value={t.key}>
+                      {t.value}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Validators */}

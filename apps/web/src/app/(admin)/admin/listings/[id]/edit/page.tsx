@@ -41,7 +41,6 @@ export default function EditListingPage() {
   });
   const [categories, setCategories] = useState<CategoryVM[]>([]);
   const [step1Errors, setStep1Errors] = useState<Record<string, string>>({});
-  const [step1Saving, setStep1Saving] = useState(false);
   const [step1Error, setStep1Error] = useState<string | null>(null);
 
   // Step 2 state
@@ -52,7 +51,7 @@ export default function EditListingPage() {
   const [managedTypeId, setManagedTypeId] = useState('');
   const [selectedManagedType, setSelectedManagedType] = useState<ManagedTypeVM | null>(null);
   const [loadingType, setLoadingType] = useState(false);
-  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const [fieldValues, setFieldValues] = useState<Record<string, unknown>>({});
   const [step3Saving, setStep3Saving] = useState(false);
   const [step3Error, setStep3Error] = useState<string | null>(null);
 
@@ -104,11 +103,7 @@ export default function EditListingPage() {
           | undefined;
         if (embedded?.typeId) {
           setManagedTypeId(embedded.typeId);
-          const state: Record<string, string> = {};
-          Object.entries(embedded.pathWiseState ?? {}).forEach(([k, v]) => {
-            state[k] = String(v ?? '');
-          });
-          setFieldValues(state);
+          setFieldValues(embedded.pathWiseState ?? {});
           // Fetch full type to render fields
           metadataApi
             .getManagedTypeById(embedded.typeId)
@@ -132,7 +127,6 @@ export default function EditListingPage() {
     }
     setStep1Errors({});
     setStep1Error(null);
-    setStep1Saving(true);
     try {
       const orig = origRef.current;
       if (!orig) return;
@@ -155,8 +149,6 @@ export default function EditListingPage() {
       const parsed = parseApiError(err);
       if (Object.keys(parsed.fieldErrors).length) setStep1Errors(parsed.fieldErrors);
       else setStep1Error(parsed.general ?? 'Failed to save listing.');
-    } finally {
-      setStep1Saving(false);
     }
   };
 
@@ -263,7 +255,7 @@ export default function EditListingPage() {
           loadingType={loadingType}
           fieldValues={fieldValues}
           onTypeChange={handleTypeChange}
-          onFieldChange={(name: string, value: string) =>
+          onFieldChange={(name: string, value: unknown) =>
             setFieldValues((p) => ({ ...p, [name]: value }))
           }
           onSubmit={handleStep3}

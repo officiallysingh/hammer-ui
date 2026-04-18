@@ -39,7 +39,6 @@ export default function NewListingPage() {
   });
   const [categories, setCategories] = useState<CategoryVM[]>([]);
   const [step1Errors, setStep1Errors] = useState<Record<string, string>>({});
-  const [step1Saving, setStep1Saving] = useState(false);
   const [step1Error, setStep1Error] = useState<string | null>(null);
 
   // Step 2 state
@@ -50,24 +49,9 @@ export default function NewListingPage() {
   const [managedTypeId, setManagedTypeId] = useState('');
   const [selectedManagedType, setSelectedManagedType] = useState<ManagedTypeVM | null>(null);
   const [loadingType, setLoadingType] = useState(false);
-  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const [fieldValues, setFieldValues] = useState<Record<string, unknown>>({});
   const [step3Saving, setStep3Saving] = useState(false);
   const [step3Error, setStep3Error] = useState<string | null>(null);
-  const hasChanges = () => {
-    const orig = origRef.current;
-    if (!orig) return true; // if no orig, need to save
-    if (details.name.trim() !== orig.name) return true;
-    if ((details.description.trim() || '') !== (orig.description || '')) return true;
-    if (details.tags.length !== orig.tags.length || details.tags.some((t, i) => t !== orig.tags[i]))
-      return true;
-    if (details.subCategory !== orig.subCategory) return true;
-    return false;
-  };
-
-  const handleContinue = (e: React.FormEvent) => {
-    e.preventDefault();
-    setStep(2);
-  };
 
   useEffect(() => {
     Promise.all([masterApi.getCategories(true), metadataApi.getManagedTypeListItems()])
@@ -90,7 +74,6 @@ export default function NewListingPage() {
     }
     setStep1Errors({});
     setStep1Error(null);
-    setStep1Saving(true);
     try {
       if (listingId) {
         // Update existing
@@ -131,8 +114,6 @@ export default function NewListingPage() {
       const parsed = parseApiError(err);
       if (Object.keys(parsed.fieldErrors).length) setStep1Errors(parsed.fieldErrors);
       else setStep1Error(parsed.general ?? 'Failed to save listing.');
-    } finally {
-      setStep1Saving(false);
     }
   };
 

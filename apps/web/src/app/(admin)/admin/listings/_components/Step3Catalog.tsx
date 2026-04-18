@@ -1,9 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button, Label } from '@repo/ui';
-import { metadataApi, ManagedTypeVM, ManagedTypeListItem, PropertyDef } from '@repo/api';
+import { ManagedTypeVM, ManagedTypeListItem, PropertyDef } from '@repo/api';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 
 interface Step3Props {
@@ -11,9 +10,9 @@ interface Step3Props {
   managedTypeId: string;
   selectedManagedType: ManagedTypeVM | null;
   loadingType: boolean;
-  fieldValues: Record<string, string>;
+  fieldValues: Record<string, unknown>;
   onTypeChange: (id: string) => void;
-  onFieldChange: (name: string, value: string) => void;
+  onFieldChange: (name: string, value: unknown) => void;
   onSubmit: (e: React.FormEvent) => void;
   onBack: () => void;
   onCancel: () => void;
@@ -74,18 +73,13 @@ export function Step3Catalog({
             {selectedManagedType.description && (
               <p className="text-xs text-muted-foreground">{selectedManagedType.description}</p>
             )}
-            {selectedManagedType.properties?.map((prop) => (
-              <div key={prop.name} className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor={`prop-${prop.name}`}>{prop.label}</Label>
-                  <span className="text-xs text-muted-foreground font-mono">{prop.metaType}</span>
-                </div>
-                <PropertyField
-                  prop={prop}
-                  value={fieldValues[prop.name] ?? ''}
-                  onChange={(value) => onFieldChange(prop.name, value)}
-                />
-              </div>
+            {selectedManagedType.properties?.map((prop: PropertyDef) => (
+              <PropertyFieldGroup
+                key={prop.name}
+                prop={prop}
+                value={fieldValues[prop.name]}
+                onChange={(value) => onFieldChange(prop.name, value)}
+              />
             ))}
           </div>
         )}
@@ -120,14 +114,161 @@ export function Step3Catalog({
   );
 }
 
-function PropertyField({
+// ─── PropertyFieldGroup ───────────────────────────────────────────────────────
+// Renders a label + the appropriate input for any PropertyDef, including
+// COMPOSITE_PROPERTY (nested object) and LIST_PROPERTY (array of objects).
+
+interface FieldGroupProps {
+  prop: PropertyDef;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  depth?: number;
+}
+
+function PropertyFieldGroup({ prop, value, onChange, depth = 0 }: FieldGroupProps) {
+  const indent = depth > 0 ? 'ml-4 pl-3 border-l border-border' : '';
+
+  // ── COMPOSITE_PROPERTY: render child properties as a nested object ──────────
+  if (prop.type === 'COMPOSITE_PROPERTY') {
+    const children = prop.value ?? [];
+    const obj =
+      typeof value === 'object' && value !== null && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : {};
+
+    if (children.length === 0) {
+      return (
+        <div className={`space-y-1.5 ${indent}`}>
+          <Label className="text-sm font-medium">{prop.label}</Label>
+          <p className="text-xs text-muted-foreground">No child properties defined.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className={`space-y-3 ${indent}`}>
+        <Label className="text-sm font-medium">{prop.label}</Label>
+        <div className="rounded-md border border-border bg-background/50 p-3 space-y-3">
+          {children.map((child: PropertyDef) => (
+            <PropertyFieldGroup
+              key={child.name}
+              prop={child}
+              value={obj[child.name]}
+              onChange={(v) => onChange({ ...obj, [child.name]: v })}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ── LIST_PROPERTY: render an array of items, each item is a nested object ──
+  if (prop.type === 'LIST_PROPERTY' || prop.type === 'SET_PROPERTY') {
+    const children = prop.value ?? [];
+    const items = Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
+
+    const addItem = () => {
+      const empty: Record<string, unknown> = {};
+      children.forEach((c: PropertyDef) => {
+        empty[c.name] = '';
+      });
+      onChange([...items, empty]);
+    };
+
+    const removeItem = (idx: number) => onChange(items.filter((_, i) => i !== idx));
+
+    const updateItem = (idx: number, key: string, v: unknown) => {
+      onChange(items.map((item, i) => (i === idx ? { ...item, [key]: v } : item)));
+    };
+
+    return (
+      <div className={`space-y-2 ${indent}`}>
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-medium">{prop.label}</Label>
+          <button
+            type="button"
+            onClick={addItem}
+            className="flex items-center gap-1 text-xs text-primary hover:underline"
+          >
+            <Plus className="h-3 w-3" />
+            Add item
+          </button>
+        </div>
+
+        {items.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            No items yet. Click &quot;Add item&quot; to start.
+          </p>
+        )}
+
+        {items.map((item, idx) => (
+          <div
+            key={idx}
+            className="rounded-md border border-border bg-background/50 p-3 space-y-3 relative"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-medium text-muted-foreground">Item {idx + 1}</span>
+              <button
+                type="button"
+                onClick={() => removeItem(idx)}
+                className="text-destructive hover:text-destructive/80 transition-colors"
+                aria-label="Remove item"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            {children.length > 0 ? (
+              children.map((child: PropertyDef) => (
+                <PropertyFieldGroup
+                  key={child.name}
+                  prop={child}
+                  value={item[child.name]}
+                  onChange={(v) => updateItem(idx, child.name, v)}
+                  depth={depth + 1}
+                />
+              ))
+            ) : (
+              // No child schema — treat each item as a scalar
+              <ScalarField
+                prop={prop}
+                value={typeof item === 'string' ? item : ''}
+                onChange={(v) => onChange(items.map((it, i) => (i === idx ? v : it)))}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // ── SIMPLE / COMPLEX / default: scalar field ────────────────────────────────
+  return (
+    <div className={`space-y-1.5 ${indent}`}>
+      <div className="flex items-center gap-2">
+        <Label htmlFor={`prop-${prop.name}`}>{prop.label}</Label>
+        <span className="text-xs text-muted-foreground font-mono">{prop.metaType}</span>
+      </div>
+      <ScalarField
+        prop={prop}
+        value={typeof value === 'string' ? value : value != null ? String(value) : ''}
+        onChange={onChange}
+      />
+    </div>
+  );
+}
+
+// ─── ScalarField ──────────────────────────────────────────────────────────────
+// Renders the appropriate HTML input for a scalar metaType.
+
+function ScalarField({
   prop,
   value,
   onChange,
 }: {
   prop: PropertyDef;
   value: string;
-  onChange: (value: string) => void;
+  onChange: (value: unknown) => void;
 }) {
   const baseClass =
     'w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
@@ -144,7 +285,6 @@ function PropertyField({
           type="date"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={`Enter ${prop.label.toLowerCase()}...`}
           className={baseClass}
         />
       );
@@ -155,7 +295,6 @@ function PropertyField({
           type="time"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={`Enter ${prop.label.toLowerCase()}...`}
           className={baseClass}
         />
       );
@@ -172,7 +311,7 @@ function PropertyField({
           <option value="false">No</option>
         </select>
       );
-    case 'COORDINATES':
+    case 'COORDINATES': {
       const [lat, lng] = value.split(',').map((s) => s.trim());
       return (
         <div className="flex gap-2">
@@ -194,6 +333,7 @@ function PropertyField({
           />
         </div>
       );
+    }
     case 'FILE':
       return (
         <input

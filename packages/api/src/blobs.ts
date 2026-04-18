@@ -21,12 +21,23 @@ export interface BlobVM {
 export const blobsApi = {
   upload: async (file: File, metadata: BlobMetadata): Promise<BlobVM> => {
     const formData = new FormData();
+
     formData.append('file', file);
-    // metadata sent as JSON string in `properties` field
-    formData.append('properties', JSON.stringify(metadata));
-    const response = await apiClient.post<BlobVM>('/api/v1/blobs', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+
+    formData.append(
+      'properties',
+      new Blob([JSON.stringify(metadata)], {
+        type: 'application/json',
+      }),
+    );
+
+    const response = await apiClient.post('/api/v1/blobs', formData, {
+      headers: {
+        // âœ… override/remove JSON header
+        'Content-Type': undefined,
+      },
     });
+
     return response.data;
   },
 
