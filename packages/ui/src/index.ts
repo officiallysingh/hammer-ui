@@ -48,4 +48,15 @@ export {
   DropdownMenuSeparator,
   DropdownMenuGroup,
 } from './components/dropdown-menu';
+export {
+  DatePicker,
+  TimePicker,
+  DateTimePicker,
+  DateRangePicker,
+  type DatePickerProps,
+  type TimePickerProps,
+  type DateTimePickerProps,
+  type DateRangePickerProps,
+  type DateRange,
+} from './components/date-picker';
 export * from './hooks';

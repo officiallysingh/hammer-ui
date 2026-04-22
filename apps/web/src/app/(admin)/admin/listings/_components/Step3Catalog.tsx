@@ -1,7 +1,7 @@
 'use client';
 
 import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react';
-import { Button, Label } from '@repo/ui';
+import { Button, Label, DatePicker, TimePicker, DateTimePicker } from '@repo/ui';
 import { ManagedTypeVM, ManagedTypeListItem, PropertyDef } from '@repo/api';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 
@@ -400,6 +400,7 @@ function ScalarField({
     'w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground/60';
 
   const strVal = typeof value === 'string' ? value : value != null ? String(value) : '';
+  const attrs = prop.attributes ?? {};
 
   switch (prop.metaType) {
     // ── Numeric ──────────────────────────────────────────────────────────────
@@ -416,6 +417,7 @@ function ScalarField({
           value={strVal}
           onChange={(e) => onChange(e.target.value)}
           placeholder={`Enter ${prop.label.toLowerCase()}…`}
+          {...attrs}
           className={base}
         />
       );
@@ -431,6 +433,7 @@ function ScalarField({
           value={strVal}
           onChange={(e) => onChange(e.target.value)}
           placeholder={`Enter ${prop.label.toLowerCase()}…`}
+          {...attrs}
           className={base}
         />
       );
@@ -461,23 +464,21 @@ function ScalarField({
     // ── Date / Time ──────────────────────────────────────────────────────────
     case 'LOCAL_DATE':
       return (
-        <input
+        <DatePicker
           id={`prop-${prop.name}`}
-          type="date"
-          value={strVal}
-          onChange={(e) => onChange(e.target.value)}
-          className={base}
+          value={strVal || undefined}
+          onChange={onChange}
+          placeholder={attrs.placeholder ?? `Pick a date…`}
         />
       );
 
     case 'LOCAL_TIME':
       return (
-        <input
+        <TimePicker
           id={`prop-${prop.name}`}
-          type="time"
-          value={strVal}
-          onChange={(e) => onChange(e.target.value)}
-          className={base}
+          value={strVal || undefined}
+          onChange={onChange}
+          placeholder={attrs.placeholder ?? `Pick a time…`}
         />
       );
 
@@ -486,12 +487,11 @@ function ScalarField({
     case 'OFFSET_DATE_TIME':
     case 'INSTANT':
       return (
-        <input
+        <DateTimePicker
           id={`prop-${prop.name}`}
-          type="datetime-local"
-          value={strVal}
-          onChange={(e) => onChange(e.target.value)}
-          className={base}
+          value={strVal || undefined}
+          onChange={onChange}
+          placeholder={attrs.placeholder ?? `Pick date & time…`}
         />
       );
 
@@ -669,6 +669,7 @@ function ScalarField({
           value={strVal}
           onChange={(e) => onChange(e.target.value)}
           placeholder={`Enter ${prop.label.toLowerCase()}…`}
+          {...attrs}
           className={base}
         />
       );

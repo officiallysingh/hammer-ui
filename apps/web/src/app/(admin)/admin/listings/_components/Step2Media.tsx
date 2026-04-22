@@ -172,8 +172,8 @@ export function Step2Media({
       previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
     }));
 
-    const merged = [...uploads, ...newUploads];
-    onUploadsChange(merged);
+    let current = [...uploads, ...newUploads];
+    onUploadsChange(current);
 
     for (let i = 0; i < newUploads.length; i++) {
       const item = newUploads[i]!;
@@ -188,13 +188,13 @@ export function Step2Media({
             thumbnail: item.thumbnail ? 'true' : 'false',
           },
         } satisfies BlobProperties);
-        onUploadsChange(merged.map((u, j) => (j === idx ? { ...u, blob, uploading: false } : u)));
+        current = current.map((u, j) => (j === idx ? { ...u, blob, uploading: false } : u));
+        onUploadsChange(current);
       } catch {
-        onUploadsChange(
-          merged.map((u, j) =>
-            j === idx ? { ...u, uploading: false, error: 'Upload failed' } : u,
-          ),
+        current = current.map((u, j) =>
+          j === idx ? { ...u, uploading: false, error: 'Upload failed' } : u,
         );
+        onUploadsChange(current);
       }
     }
   };
