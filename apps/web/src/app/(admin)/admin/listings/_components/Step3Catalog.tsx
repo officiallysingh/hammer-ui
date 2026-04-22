@@ -69,7 +69,7 @@ export function Step3Catalog({
         )}
 
         {selectedManagedType && (selectedManagedType.properties ?? []).length > 0 && (
-          <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-4">
+          <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-5">
             {selectedManagedType.description && (
               <p className="text-xs text-muted-foreground">{selectedManagedType.description}</p>
             )}
@@ -114,9 +114,42 @@ export function Step3Catalog({
   );
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function isRequired(prop: PropertyDef): boolean {
+  return (prop.validators ?? []).some((v) => {
+    const t = v.type as unknown;
+    if (typeof t === 'string') return t === 'NOT_NULL';
+    if (typeof t === 'object' && t !== null) return 'NOT_NULL' in (t as object);
+    return false;
+  });
+}
+
+const META_TYPE_LABELS: Partial<Record<string, string>> = {
+  BOOLEAN: 'Boolean',
+  BYTE: 'Byte',
+  SHORT: 'Small Int',
+  INTEGER: 'Integer',
+  LONG: 'Long',
+  FLOAT: 'Float',
+  DOUBLE: 'Double',
+  BIG_INTEGER: 'Big Int',
+  BIG_DECIMAL: 'Decimal',
+  STRING: 'Text',
+  YEAR: 'Year',
+  MONTH: 'Month',
+  DAY_OF_WEEK: 'Day',
+  YEAR_MONTH: 'Year/Month',
+  LOCAL_DATE: 'Date',
+  LOCAL_TIME: 'Time',
+  LOCAL_DATE_TIME: 'Date & Time',
+  COORDINATES: 'Coordinates',
+  ADDRESS: 'Address',
+  FILE: 'File',
+  LIST: 'List',
+};
+
 // ─── PropertyFieldGroup ───────────────────────────────────────────────────────
-// Renders a label + the appropriate input for any PropertyDef, including
-// COMPOSITE_PROPERTY (nested object) and LIST_PROPERTY (array of objects).
 
 interface FieldGroupProps {
   prop: PropertyDef;
@@ -127,8 +160,9 @@ interface FieldGroupProps {
 
 function PropertyFieldGroup({ prop, value, onChange, depth = 0 }: FieldGroupProps) {
   const indent = depth > 0 ? 'ml-4 pl-3 border-l border-border' : '';
+  const required = isRequired(prop);
 
-  // ── COMPOSITE_PROPERTY: render child properties as a nested object ──────────
+  // COMPOSITE_PROPERTY → labeled card with child fields inside
   if (prop.type === 'COMPOSITE_PROPERTY') {
     const children = prop.value ?? [];
     const obj =
@@ -136,84 +170,140 @@ function PropertyFieldGroup({ prop, value, onChange, depth = 0 }: FieldGroupProp
         ? (value as Record<string, unknown>)
         : {};
 
-    if (children.length === 0) {
-      return (
-        <div className={`space-y-1.5 ${indent}`}>
-          <Label className="text-sm font-medium">{prop.label}</Label>
-          <p className="text-xs text-muted-foreground">No child properties defined.</p>
-        </div>
-      );
-    }
-
     return (
-      <div className={`space-y-3 ${indent}`}>
-        <Label className="text-sm font-medium">{prop.label}</Label>
-        <div className="rounded-md border border-border bg-background/50 p-3 space-y-3">
-          {children.map((child: PropertyDef) => (
-            <PropertyFieldGroup
-              key={child.name}
-              prop={child}
-              value={obj[child.name]}
-              onChange={(v) => onChange({ ...obj, [child.name]: v })}
-              depth={depth + 1}
-            />
-          ))}
+      <div className={`rounded-lg border border-border overflow-hidden ${indent}`}>
+        {/* section header */}
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/40 border-b border-border">
+          <span className="text-xs font-semibold text-foreground tracking-wide">{prop.label}</span>
+          {required && <span className="text-destructive text-xs leading-none">*</span>}
         </div>
+
+        {/* child fields */}
+        {children.length === 0 ? (
+          <p className="px-4 py-3 text-xs text-muted-foreground">No child properties defined.</p>
+        ) : (
+          <div className="px-4 py-4 space-y-4 bg-background/60">
+            {children.map((child: PropertyDef) => (
+              <PropertyFieldGroup
+                key={child.name}
+                prop={child}
+                value={obj[child.name]}
+                onChange={(v) => onChange({ ...obj, [child.name]: v })}
+                depth={depth + 1}
+              />
+            ))}
+          </div>
+        )}
       </div>
     );
   }
 
-  // ── LIST_PROPERTY: render an array of items, each item is a nested object ──
+  // LIST_PROPERTY / SET_PROPERTY → array of schema-defined items
   if (prop.type === 'LIST_PROPERTY' || prop.type === 'SET_PROPERTY') {
-    const children = prop.value ?? [];
-    const items = Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
-
-    const addItem = () => {
-      const empty: Record<string, unknown> = {};
-      children.forEach((c: PropertyDef) => {
-        empty[c.name] = '';
-      });
-      onChange([...items, empty]);
-    };
-
-    const removeItem = (idx: number) => onChange(items.filter((_, i) => i !== idx));
-
-    const updateItem = (idx: number, key: string, v: unknown) => {
-      onChange(items.map((item, i) => (i === idx ? { ...item, [key]: v } : item)));
-    };
-
     return (
-      <div className={`space-y-2 ${indent}`}>
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">{prop.label}</Label>
-          <button
-            type="button"
-            onClick={addItem}
-            className="flex items-center gap-1 text-xs text-primary hover:underline"
-          >
-            <Plus className="h-3 w-3" />
-            Add item
-          </button>
-        </div>
+      <CompositeListField
+        prop={prop}
+        value={value}
+        onChange={onChange}
+        depth={depth}
+        indent={indent}
+        required={required}
+      />
+    );
+  }
 
-        {items.length === 0 && (
-          <p className="text-xs text-muted-foreground">
-            No items yet. Click &quot;Add item&quot; to start.
-          </p>
+  // SIMPLE / COMPLEX / default → scalar input
+  return (
+    <div className={`space-y-1.5 ${indent}`}>
+      <div className="flex items-center gap-2">
+        <FieldLabel label={prop.label} required={required} />
+        {prop.metaType && prop.metaType !== 'STRING' && (
+          <span className="text-[10px] text-muted-foreground/70 font-mono bg-muted/40 px-1.5 py-0.5 rounded">
+            {META_TYPE_LABELS[prop.metaType] ?? prop.metaType}
+          </span>
         )}
+      </div>
+      <ScalarField prop={prop} value={value} onChange={onChange} />
+    </div>
+  );
+}
 
+// ─── CompositeListField ───────────────────────────────────────────────────────
+// Shared renderer for lists of composite items (COMPOSITE_PROPERTY+LIST and LIST_PROPERTY).
+
+function CompositeListField({
+  prop,
+  value,
+  onChange,
+  depth,
+  indent,
+  required,
+}: {
+  prop: PropertyDef;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  depth: number;
+  indent: string;
+  required: boolean;
+}) {
+  const children = prop.value ?? [];
+  const items = Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
+
+  const addItem = () => {
+    const empty: Record<string, unknown> = {};
+    children.forEach((c: PropertyDef) => {
+      empty[c.name] = '';
+    });
+    onChange([...items, empty]);
+  };
+
+  const removeItem = (idx: number) => onChange(items.filter((_, i) => i !== idx));
+
+  const updateItem = (idx: number, key: string, v: unknown) => {
+    onChange(items.map((item, i) => (i === idx ? { ...item, [key]: v } : item)));
+  };
+
+  return (
+    <div className={`space-y-2 ${indent}`}>
+      <div className="flex items-center justify-between">
+        <FieldLabel label={prop.label} required={required} />
+        <button
+          type="button"
+          onClick={addItem}
+          className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors font-medium"
+        >
+          <Plus className="h-3 w-3" />
+          Add item
+        </button>
+      </div>
+
+      {items.length === 0 && (
+        <div className="rounded-md border border-dashed border-border bg-muted/10 py-4 text-center">
+          <p className="text-xs text-muted-foreground">
+            No items yet —{' '}
+            <button
+              type="button"
+              onClick={addItem}
+              className="text-primary hover:underline font-medium"
+            >
+              add the first one
+            </button>
+          </p>
+        </div>
+      )}
+
+      <div className="space-y-2">
         {items.map((item, idx) => (
-          <div
-            key={idx}
-            className="rounded-md border border-border bg-background/50 p-3 space-y-3 relative"
-          >
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-medium text-muted-foreground">Item {idx + 1}</span>
+          <div key={idx} className="rounded-md border border-border bg-background/60 p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">
+                {prop.label} #{idx + 1}
+              </span>
               <button
                 type="button"
                 onClick={() => removeItem(idx)}
-                className="text-destructive hover:text-destructive/80 transition-colors"
-                aria-label="Remove item"
+                className="text-muted-foreground hover:text-destructive transition-colors"
+                aria-label={`Remove item ${idx + 1}`}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -229,7 +319,6 @@ function PropertyFieldGroup({ prop, value, onChange, depth = 0 }: FieldGroupProp
                 />
               ))
             ) : (
-              // No child schema — treat each item as a scalar
               <ScalarField
                 prop={prop}
                 value={typeof item === 'string' ? item : ''}
@@ -239,27 +328,64 @@ function PropertyFieldGroup({ prop, value, onChange, depth = 0 }: FieldGroupProp
           </div>
         ))}
       </div>
-    );
-  }
-
-  // ── SIMPLE / COMPLEX / default: scalar field ────────────────────────────────
-  return (
-    <div className={`space-y-1.5 ${indent}`}>
-      <div className="flex items-center gap-2">
-        <Label htmlFor={`prop-${prop.name}`}>{prop.label}</Label>
-        <span className="text-xs text-muted-foreground font-mono">{prop.metaType}</span>
-      </div>
-      <ScalarField
-        prop={prop}
-        value={typeof value === 'string' ? value : value != null ? String(value) : ''}
-        onChange={onChange}
-      />
     </div>
   );
 }
 
+// ─── FieldLabel ───────────────────────────────────────────────────────────────
+
+function FieldLabel({ label, required }: { label: string; required: boolean }) {
+  return (
+    <Label className="text-sm font-medium">
+      {label}
+      {required && <span className="text-destructive ml-0.5">*</span>}
+    </Label>
+  );
+}
+
 // ─── ScalarField ──────────────────────────────────────────────────────────────
-// Renders the appropriate HTML input for a scalar metaType.
+
+const MONTHS = [
+  'JANUARY',
+  'FEBRUARY',
+  'MARCH',
+  'APRIL',
+  'MAY',
+  'JUNE',
+  'JULY',
+  'AUGUST',
+  'SEPTEMBER',
+  'OCTOBER',
+  'NOVEMBER',
+  'DECEMBER',
+] as const;
+
+const MONTH_LABELS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+const DAYS_OF_WEEK = [
+  'MONDAY',
+  'TUESDAY',
+  'WEDNESDAY',
+  'THURSDAY',
+  'FRIDAY',
+  'SATURDAY',
+  'SUNDAY',
+] as const;
+
+const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 function ScalarField({
   prop,
@@ -267,85 +393,18 @@ function ScalarField({
   onChange,
 }: {
   prop: PropertyDef;
-  value: string;
+  value: unknown;
   onChange: (value: unknown) => void;
 }) {
-  const baseClass =
-    'w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
+  const base =
+    'w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground/60';
+
+  const strVal = typeof value === 'string' ? value : value != null ? String(value) : '';
 
   switch (prop.metaType) {
-    case 'LOCAL_DATE':
-    case 'YEAR_MONTH':
-    case 'LOCAL_DATE_TIME':
-    case 'ZONED_DATE_TIME':
-    case 'INSTANT':
-      return (
-        <input
-          id={`prop-${prop.name}`}
-          type="date"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={baseClass}
-        />
-      );
-    case 'LOCAL_TIME':
-      return (
-        <input
-          id={`prop-${prop.name}`}
-          type="time"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={baseClass}
-        />
-      );
-    case 'BOOLEAN':
-      return (
-        <select
-          id={`prop-${prop.name}`}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={baseClass}
-        >
-          <option value="">Select...</option>
-          <option value="true">Yes</option>
-          <option value="false">No</option>
-        </select>
-      );
-    case 'COORDINATES': {
-      const [lat, lng] = value.split(',').map((s) => s.trim());
-      return (
-        <div className="flex gap-2">
-          <input
-            type="number"
-            step="any"
-            placeholder="Latitude"
-            value={lat || ''}
-            onChange={(e) => onChange(`${e.target.value},${lng || ''}`)}
-            className={`${baseClass} flex-1`}
-          />
-          <input
-            type="number"
-            step="any"
-            placeholder="Longitude"
-            value={lng || ''}
-            onChange={(e) => onChange(`${lat || ''},${e.target.value}`)}
-            className={`${baseClass} flex-1`}
-          />
-        </div>
-      );
-    }
-    case 'FILE':
-      return (
-        <input
-          id={`prop-${prop.name}`}
-          type="file"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            onChange(file ? file.name : '');
-          }}
-          className={baseClass}
-        />
-      );
+    // ── Numeric ──────────────────────────────────────────────────────────────
+    case 'BYTE':
+    case 'SHORT':
     case 'INTEGER':
     case 'LONG':
     case 'BIG_INTEGER':
@@ -354,12 +413,13 @@ function ScalarField({
           id={`prop-${prop.name}`}
           type="number"
           step="1"
-          value={value}
+          value={strVal}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={`Enter ${prop.label.toLowerCase()}...`}
-          className={baseClass}
+          placeholder={`Enter ${prop.label.toLowerCase()}…`}
+          className={base}
         />
       );
+
     case 'FLOAT':
     case 'DOUBLE':
     case 'BIG_DECIMAL':
@@ -368,21 +428,248 @@ function ScalarField({
           id={`prop-${prop.name}`}
           type="number"
           step="any"
-          value={value}
+          value={strVal}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={`Enter ${prop.label.toLowerCase()}...`}
-          className={baseClass}
+          placeholder={`Enter ${prop.label.toLowerCase()}…`}
+          className={base}
         />
       );
+
+    // ── Boolean ──────────────────────────────────────────────────────────────
+    case 'BOOLEAN':
+      return (
+        <div className="flex gap-4 pt-0.5">
+          {[
+            { label: 'Yes', val: 'true' },
+            { label: 'No', val: 'false' },
+          ].map(({ label, val }) => (
+            <label key={val} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+              <input
+                type="radio"
+                name={`prop-${prop.name}`}
+                value={val}
+                checked={strVal === val}
+                onChange={() => onChange(val)}
+                className="accent-primary"
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      );
+
+    // ── Date / Time ──────────────────────────────────────────────────────────
+    case 'LOCAL_DATE':
+      return (
+        <input
+          id={`prop-${prop.name}`}
+          type="date"
+          value={strVal}
+          onChange={(e) => onChange(e.target.value)}
+          className={base}
+        />
+      );
+
+    case 'LOCAL_TIME':
+      return (
+        <input
+          id={`prop-${prop.name}`}
+          type="time"
+          value={strVal}
+          onChange={(e) => onChange(e.target.value)}
+          className={base}
+        />
+      );
+
+    case 'LOCAL_DATE_TIME':
+    case 'ZONED_DATE_TIME':
+    case 'OFFSET_DATE_TIME':
+    case 'INSTANT':
+      return (
+        <input
+          id={`prop-${prop.name}`}
+          type="datetime-local"
+          value={strVal}
+          onChange={(e) => onChange(e.target.value)}
+          className={base}
+        />
+      );
+
+    case 'YEAR':
+      return (
+        <input
+          id={`prop-${prop.name}`}
+          type="number"
+          step="1"
+          min="1900"
+          max="2099"
+          value={strVal}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="YYYY"
+          className={base}
+        />
+      );
+
+    case 'YEAR_MONTH':
+      return (
+        <input
+          id={`prop-${prop.name}`}
+          type="month"
+          value={strVal}
+          onChange={(e) => onChange(e.target.value)}
+          className={base}
+        />
+      );
+
+    case 'MONTH':
+      return (
+        <select
+          id={`prop-${prop.name}`}
+          value={strVal}
+          onChange={(e) => onChange(e.target.value)}
+          className={base}
+        >
+          <option value="">Select month…</option>
+          {MONTHS.map((m, i) => (
+            <option key={m} value={m}>
+              {MONTH_LABELS[i]}
+            </option>
+          ))}
+        </select>
+      );
+
+    case 'DAY_OF_WEEK':
+      return (
+        <select
+          id={`prop-${prop.name}`}
+          value={strVal}
+          onChange={(e) => onChange(e.target.value)}
+          className={base}
+        >
+          <option value="">Select day…</option>
+          {DAYS_OF_WEEK.map((d, i) => (
+            <option key={d} value={d}>
+              {DAY_LABELS[i]}
+            </option>
+          ))}
+        </select>
+      );
+
+    // ── Spatial ───────────────────────────────────────────────────────────────
+    case 'COORDINATES': {
+      const parts = strVal.split(',').map((s) => s.trim());
+      const lat = parts[0] ?? '';
+      const lng = parts[1] ?? '';
+      return (
+        <div className="flex gap-2">
+          <div className="flex-1 relative">
+            <input
+              type="number"
+              step="any"
+              min="-90"
+              max="90"
+              placeholder="Latitude"
+              value={lat}
+              onChange={(e) => onChange(`${e.target.value},${lng}`)}
+              className={base}
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
+              lat
+            </span>
+          </div>
+          <div className="flex-1 relative">
+            <input
+              type="number"
+              step="any"
+              min="-180"
+              max="180"
+              placeholder="Longitude"
+              value={lng}
+              onChange={(e) => onChange(`${lat},${e.target.value}`)}
+              className={base}
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
+              lng
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Address ───────────────────────────────────────────────────────────────
+    case 'ADDRESS': {
+      const addr =
+        typeof value === 'object' && value !== null && !Array.isArray(value)
+          ? (value as Record<string, string>)
+          : {};
+      const set = (key: string, v: string) => onChange({ ...addr, [key]: v });
+      return (
+        <div className="space-y-2">
+          <input
+            type="text"
+            placeholder="Street address"
+            value={addr.street ?? ''}
+            onChange={(e) => set('street', e.target.value)}
+            className={base}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="text"
+              placeholder="City"
+              value={addr.city ?? ''}
+              onChange={(e) => set('city', e.target.value)}
+              className={base}
+            />
+            <input
+              type="text"
+              placeholder="State / Province"
+              value={addr.state ?? ''}
+              onChange={(e) => set('state', e.target.value)}
+              className={base}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="text"
+              placeholder="Postal code"
+              value={addr.zip ?? ''}
+              onChange={(e) => set('zip', e.target.value)}
+              className={base}
+            />
+            <input
+              type="text"
+              placeholder="Country"
+              value={addr.country ?? ''}
+              onChange={(e) => set('country', e.target.value)}
+              className={base}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // ── File ──────────────────────────────────────────────────────────────────
+    case 'FILE':
+      return (
+        <input
+          id={`prop-${prop.name}`}
+          type="file"
+          onChange={(e) => onChange(e.target.files?.[0]?.name ?? '')}
+          className={base}
+        />
+      );
+
+    // ── String & default ──────────────────────────────────────────────────────
+    case 'STRING':
     default:
       return (
-        <textarea
+        <input
           id={`prop-${prop.name}`}
-          value={value}
+          type="text"
+          value={strVal}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={`Enter ${prop.label.toLowerCase()}...`}
-          rows={2}
-          className={`${baseClass} resize-y`}
+          placeholder={`Enter ${prop.label.toLowerCase()}…`}
+          className={base}
         />
       );
   }

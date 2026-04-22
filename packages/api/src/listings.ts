@@ -37,6 +37,7 @@ export interface ListingUpdationRQ {
   description?: string;
   tags?: string[];
   subCategory?: string;
+  blobs?: string[];
   embedded?: { typeId: string; pathWiseState: Record<string, unknown> };
 }
 

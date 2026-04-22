@@ -4,7 +4,7 @@ import { Plus } from 'lucide-react';
 import { Button } from '@repo/ui';
 import type { PropertyDef } from '@repo/api';
 import { PropertyRow } from './PropertyRow';
-import { emptyProperty } from './types';
+import { emptyProperty, sanitizeProperties } from './types';
 import type { KV } from './types';
 
 export type { KV };
@@ -18,9 +18,10 @@ interface PropertyBuilderProps {
 
 export function PropertyBuilder({ properties, onChange, metaTypes }: PropertyBuilderProps) {
   const update = (i: number, patch: Partial<PropertyDef>) =>
-    onChange(properties.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
+    onChange(sanitizeProperties(properties.map((p, idx) => (idx === i ? { ...p, ...patch } : p))));
 
-  const remove = (i: number) => onChange(properties.filter((_, idx) => idx !== i));
+  const remove = (i: number) =>
+    onChange(sanitizeProperties(properties.filter((_, idx) => idx !== i)));
 
   const move = (i: number, dir: -1 | 1) => {
     const arr = [...properties];
@@ -29,7 +30,7 @@ export function PropertyBuilder({ properties, onChange, metaTypes }: PropertyBui
     const tmp = arr[i]!;
     arr[i] = arr[j]!;
     arr[j] = tmp;
-    onChange(arr);
+    onChange(sanitizeProperties(arr));
   };
 
   return (

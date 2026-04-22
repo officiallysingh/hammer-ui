@@ -128,7 +128,6 @@ export default function NewListingPage() {
     setStep3Saving(true);
     try {
       await listingsApi.updateListing(listingId, {
-        subCategory: details.subCategory,
         embedded: { typeId: managedTypeId, pathWiseState: fieldValues },
       });
       router.push('/admin/listings');
@@ -197,6 +196,9 @@ export default function NewListingPage() {
           username={username}
           uploads={uploads}
           onUploadsChange={setUploads}
+          onSave={async (blobIds) => {
+            await listingsApi.updateListing(listingId, { blobs: blobIds });
+          }}
           onNext={() => setStep(3)}
           onBack={() => setStep(1)}
           onCancel={() => router.push('/admin/listings')}

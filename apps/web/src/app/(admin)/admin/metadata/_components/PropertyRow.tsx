@@ -175,9 +175,16 @@ export function PropertyRow({
               <Label className="text-xs">Property type</Label>
               <select
                 value={prop.type}
-                onChange={(e) =>
-                  onUpdate({ type: e.target.value as PropertyType, value: undefined })
-                }
+                onChange={(e) => {
+                  const newType = e.target.value as PropertyType;
+                  const isContainer = HAS_CHILDREN.includes(newType);
+                  onUpdate({
+                    type: newType,
+                    value: undefined,
+                    // clear metaType when switching to a container type
+                    ...(isContainer ? { metaType: undefined as unknown as MetaType } : {}),
+                  });
+                }}
                 className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 {(depth >= 2
