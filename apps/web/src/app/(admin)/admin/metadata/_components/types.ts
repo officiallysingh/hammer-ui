@@ -29,13 +29,35 @@ export function sanitizeProperties(properties: PropertyDef[]): PropertyDef[] {
   return properties.map(sanitizeProperty);
 }
 
+/** Extract a plain string type key from whatever the server/state gives us. */
+function extractValidatorType(raw: unknown): string {
+  if (typeof raw === 'string') return raw.trim();
+  // Server may return {NOT_NULL: "Not Null"} or {type: "NOT_NULL"} shaped objects
+  if (raw && typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>;
+    // Shape: { type: "NOT_NULL" }
+    if (typeof obj['type'] === 'string') return obj['type'].trim();
+    // Shape: { NOT_NULL: "Not Null" } — take the first key
+    const firstKey = Object.keys(obj)[0];
+    if (firstKey) return firstKey.trim();
+  }
+  return '';
+}
+
+/** Strip validators with no type and omit empty arrays recursively. */
 function sanitizeProperty(prop: PropertyDef): PropertyDef {
   const isContainer = HAS_CHILDREN.includes(prop.type);
-  const cleaned: PropertyDef = {
+  const validators = (prop.validators ?? [])
+    .map((v) => ({
+      type: extractValidatorType(v.type),
+      ...(v.message && String(v.message).trim() ? { message: String(v.message).trim() } : {}),
+    }))
+    .filter((v) => v.type.length > 0);
+  return {
     ...prop,
     ...(isContainer ? { metaType: undefined as unknown as MetaType } : {}),
+    validators: validators.length > 0 ? validators : undefined,
     value: prop.value ? prop.value.map(sanitizeProperty) : undefined,
     subProperties: prop.subProperties ? sanitizeProperty(prop.subProperties) : undefined,
   };
-  return cleaned;
 }

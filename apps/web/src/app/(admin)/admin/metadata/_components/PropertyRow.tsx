@@ -59,13 +59,13 @@ export function PropertyRow({
     fetchValidators(mt);
   };
 
-  const addValidator = () =>
+  const addValidator = () => {
+    const firstType = validatorOptions[0]?.key;
+    if (!firstType) return; // no options loaded yet — guard already on button
     onUpdate({
-      validators: [
-        ...(prop.validators ?? []),
-        { type: validatorOptions[0]?.key ?? 'NOT_NULL', message: '' },
-      ],
+      validators: [...(prop.validators ?? []), { type: firstType, message: '' }],
     });
+  };
 
   const updateValidator = (vi: number, patch: Partial<{ type: string; message: string }>) =>
     onUpdate({

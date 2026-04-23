@@ -12,16 +12,30 @@ interface ValidatorRowProps {
   onRemove: () => void;
 }
 
+/** Safely extract a string key from whatever shape the server returned. */
+function resolveType(raw: unknown): string {
+  if (typeof raw === 'string') return raw;
+  if (raw && typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>;
+    if (typeof obj['type'] === 'string') return obj['type'];
+    const firstKey = Object.keys(obj)[0];
+    if (firstKey) return firstKey;
+  }
+  return '';
+}
+
 export function ValidatorRow({
   validator,
   validatorOptions,
   onChange,
   onRemove,
 }: ValidatorRowProps) {
+  const typeKey = resolveType(validator.type);
+
   return (
     <div className="flex items-center gap-2">
       <select
-        value={validator.type}
+        value={typeKey}
         onChange={(e) => onChange({ type: e.target.value })}
         className="rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring w-40 shrink-0"
       >
