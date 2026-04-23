@@ -1,7 +1,7 @@
 'use client';
 
 import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react';
-import { Button, Label, DatePicker, TimePicker, DateTimePicker } from '@repo/ui';
+import { Button, Label, DatePicker, TimePicker, DateTimePicker, YearPicker } from '@repo/ui';
 import { ManagedTypeVM, ManagedTypeListItem, PropertyDef } from '@repo/api';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 
@@ -497,16 +497,11 @@ function ScalarField({
 
     case 'YEAR':
       return (
-        <input
+        <YearPicker
           id={`prop-${prop.name}`}
-          type="number"
-          step="1"
-          min="1900"
-          max="2099"
-          value={strVal}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="YYYY"
-          className={base}
+          value={strVal || undefined}
+          onChange={onChange}
+          placeholder="Pick a year…"
         />
       );
 

@@ -30,7 +30,9 @@ export function PropertyRow({
   onRemove,
   onMove,
 }: PropertyRowProps) {
-  const [open, setOpen] = useState(depth === 0); // root open by default
+  const [open, setOpen] = useState(depth === 0);
+  const [nameTouched, setNameTouched] = useState(false);
+  const [labelTouched, setLabelTouched] = useState(false);
   const [validatorOptions, setValidatorOptions] = useState<KV[]>([]);
   const [loadingValidators, setLoadingValidators] = useState(false);
 
@@ -110,7 +112,14 @@ export function PropertyRow({
         />
         <span className="flex-1 text-sm font-medium text-foreground truncate">{displayName}</span>
         {!open && (
-          <span className="text-xs text-muted-foreground font-mono shrink-0">{prop.metaType}</span>
+          <>
+            {(!prop.name.trim() || !prop.label.trim()) && (
+              <span className="text-xs text-destructive shrink-0">⚠ incomplete</span>
+            )}
+            <span className="text-xs text-muted-foreground font-mono shrink-0">
+              {prop.metaType}
+            </span>
+          </>
         )}
         {canHaveChildren && children.length > 0 && (
           <span className="text-xs text-primary shrink-0">{children.length} children</span>
@@ -148,22 +157,38 @@ export function PropertyRow({
           {/* Name + Label */}
           <div className="grid grid-cols-2 gap-3 pt-3">
             <div className="space-y-1">
-              <Label className="text-xs">Name</Label>
+              <Label
+                className={`text-xs ${nameTouched && !prop.name.trim() ? 'text-destructive' : ''}`}
+              >
+                Name <span className="text-destructive">*</span>
+              </Label>
               <Input
                 value={prop.name}
                 onChange={(e) => onUpdate({ name: e.target.value })}
+                onBlur={() => setNameTouched(true)}
                 placeholder="fieldName"
-                className="h-8 text-sm"
+                className={`h-8 text-sm ${nameTouched && !prop.name.trim() ? 'border-destructive focus-visible:ring-destructive' : ''}`}
               />
+              {nameTouched && !prop.name.trim() && (
+                <p className="text-xs text-destructive">Required</p>
+              )}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Label</Label>
+              <Label
+                className={`text-xs ${labelTouched && !prop.label.trim() ? 'text-destructive' : ''}`}
+              >
+                Label <span className="text-destructive">*</span>
+              </Label>
               <Input
                 value={prop.label}
                 onChange={(e) => onUpdate({ label: e.target.value })}
+                onBlur={() => setLabelTouched(true)}
                 placeholder="Field Label"
-                className="h-8 text-sm"
+                className={`h-8 text-sm ${labelTouched && !prop.label.trim() ? 'border-destructive focus-visible:ring-destructive' : ''}`}
               />
+              {labelTouched && !prop.label.trim() && (
+                <p className="text-xs text-destructive">Required</p>
+              )}
             </div>
           </div>
 

@@ -80,6 +80,27 @@ function StepIndicator({ step }: { step: 1 | 2 }) {
   );
 }
 
+// ── Validation ────────────────────────────────────────────────────────────────
+function validateProperties(properties: PropertyDef[], path = 'Property'): string | null {
+  for (let i = 0; i < properties.length; i++) {
+    const prop = properties[i]!;
+    const label = `${path} ${i + 1}`;
+    if (!prop.name?.trim()) return `${label}: name is required.`;
+    if (!prop.label?.trim()) return `${label} ("${prop.name}"): label is required.`;
+    if (prop.value?.length) {
+      const childError = validateProperties(prop.value, `${label} > child`);
+      if (childError) return childError;
+    }
+    if (prop.subProperties) {
+      if (!prop.subProperties.name?.trim())
+        return `${label} ("${prop.name}") sub-property: name is required.`;
+      if (!prop.subProperties.label?.trim())
+        return `${label} ("${prop.name}") sub-property: label is required.`;
+    }
+  }
+  return null;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 export function MetadataForm({
   initialValues,
@@ -164,14 +185,30 @@ export function MetadataForm({
       setError('At least one property is required.');
       return;
     }
+    const propError = validateProperties(form.properties);
+    if (propError) {
+      setError(propError);
+      return;
+    }
     setSaving(true);
     try {
       await onSubmit(form, original);
       router.push('/admin/metadata');
     } catch (err) {
       const parsed = parseApiError(err);
-      if (Object.keys(parsed.fieldErrors).length > 0) setFieldErrors(parsed.fieldErrors);
-      else setError(parsed.general ?? 'Failed to save.');
+      if (Object.keys(parsed.fieldErrors).length > 0) {
+        setFieldErrors(parsed.fieldErrors);
+        // If any field errors belong to step 1 fields, flag it so we can show a banner
+        const step1Fields = ['name', 'description', 'type', 'classifier'];
+        const hasStep1Errors = Object.keys(parsed.fieldErrors).some((k) => step1Fields.includes(k));
+        if (hasStep1Errors) {
+          setError(
+            'Some errors are in the Details step. Please go back and fix them before saving.',
+          );
+        }
+      } else {
+        setError(parsed.general ?? 'Failed to save.');
+      }
     } finally {
       setSaving(false);
     }
@@ -304,6 +341,33 @@ export function MetadataForm({
       {/* ── Step 2: Properties ── */}
       {step === 2 && (
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Top error banner — always visible, especially for step-1 field errors */}
+          {(error || Object.keys(fieldErrors).length > 0) && (
+            <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 space-y-2">
+              {error && <p className="text-sm font-medium text-destructive">{error}</p>}
+              {Object.entries(fieldErrors).map(([field, msg]) => (
+                <p key={field} className="text-sm text-destructive">
+                  <span className="font-medium capitalize">{field}</span>: {msg}
+                </p>
+              ))}
+              {/* If any errors are from step 1 fields, offer a quick way back */}
+              {Object.keys(fieldErrors).some((k) =>
+                ['name', 'description', 'type', 'classifier'].includes(k),
+              ) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep(1);
+                    setError(null);
+                  }}
+                  className="text-sm text-destructive underline underline-offset-2 hover:text-destructive/80 font-medium"
+                >
+                  ← Go back to Details to fix
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="rounded-xl border border-border bg-card p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-foreground">Properties</h3>
@@ -317,8 +381,6 @@ export function MetadataForm({
               metaTypes={metaTypeOptions}
             />
           </div>
-
-          {error && <ErrorAlert message={error} />}
 
           <div className="flex gap-3">
             <Button type="button" variant="outline" onClick={() => setStep(1)} disabled={saving}>

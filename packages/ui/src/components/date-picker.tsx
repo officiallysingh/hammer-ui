@@ -76,6 +76,67 @@ function ScrollList({
   );
 }
 
+// ─── YearPicker ───────────────────────────────────────────────────────────────
+
+export interface YearPickerProps {
+  id?: string;
+  value?: string; // "yyyy"
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+  minYear?: number;
+  maxYear?: number;
+}
+
+export function YearPicker({
+  id,
+  value,
+  onChange,
+  placeholder = 'Pick a year',
+  disabled,
+  className,
+  minYear = 1900,
+  maxYear = 2099,
+}: YearPickerProps) {
+  const [open, setOpen] = React.useState(false);
+  const years = Array.from({ length: maxYear - minYear + 1 }, (_, i) => String(maxYear - i));
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          id={id}
+          type="button"
+          variant="outline"
+          disabled={disabled}
+          className={cn(
+            'w-full justify-start text-left font-normal',
+            !value && 'text-muted-foreground',
+            className,
+          )}
+        >
+          <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+          {value || <span>{placeholder}</span>}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-3" align="start">
+        <div className="flex flex-col">
+          <p className="text-xs font-medium text-muted-foreground text-center pb-2">Year</p>
+          <ScrollList
+            items={years}
+            selected={value ?? ''}
+            onSelect={(y) => {
+              onChange(y);
+              setOpen(false);
+            }}
+          />
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // ─── DateRangePicker ──────────────────────────────────────────────────────────
 
 export interface DateRange {

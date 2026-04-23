@@ -135,7 +135,7 @@ export function Step2Media({
 
   const countByType = (classifier: UploadedFile['classifier']) =>
     uploads.filter((u) => u.classifier === classifier).length +
-    existingBlobs.filter((b) => b.metadata?.classifier === classifier).length;
+    existingBlobs.filter((b) => b.classifier === classifier).length;
 
   const addFiles = async (files: FileList | null) => {
     if (!files?.length) return;

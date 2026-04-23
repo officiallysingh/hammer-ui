@@ -53,10 +53,12 @@ export {
   TimePicker,
   DateTimePicker,
   DateRangePicker,
+  YearPicker,
   type DatePickerProps,
   type TimePickerProps,
   type DateTimePickerProps,
   type DateRangePickerProps,
   type DateRange,
+  type YearPickerProps,
 } from './components/date-picker';
 export * from './hooks';
