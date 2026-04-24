@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { metadataApi, ManagedTypeVM } from '@repo/api';
+import { sanitizeProperties } from '../../_components/types';
 import { Loader2 } from 'lucide-react';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { MetadataForm, MetadataFormValues } from '../../_components/MetadataForm';
@@ -47,7 +48,7 @@ export default function EditMetadataPage() {
 
     const propsChanged =
       JSON.stringify(values.properties) !== JSON.stringify(orig.properties ?? []);
-    if (propsChanged) patch.properties = values.properties;
+    if (propsChanged) patch.properties = sanitizeProperties(values.properties);
 
     const tagsChanged =
       values.tags.length !== (orig.tags?.length ?? 0) ||

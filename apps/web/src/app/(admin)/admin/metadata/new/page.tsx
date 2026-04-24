@@ -2,6 +2,7 @@
 
 import { metadataApi } from '@repo/api';
 import { MetadataForm, MetadataFormValues } from '../_components/MetadataForm';
+import { sanitizeProperties } from '../_components/types';
 
 export default function NewMetadataPage() {
   const handleSubmit = async (values: MetadataFormValues) => {
@@ -12,7 +13,7 @@ export default function NewMetadataPage() {
       classifier: values.classifier as Parameters<
         typeof metadataApi.createManagedType
       >[0]['classifier'],
-      properties: values.properties,
+      properties: sanitizeProperties(values.properties),
       tags: values.tags.length ? values.tags : undefined,
     });
   };

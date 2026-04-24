@@ -14,8 +14,8 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: 'Hammer Technologies',
-  description: 'Build amazing things with Hammer Technologies',
+  title: 'Oxneer',
+  description: 'Efficiency and Optimality',
 };
 
 export default function RootLayout({

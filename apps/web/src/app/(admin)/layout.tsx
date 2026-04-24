@@ -4,12 +4,12 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
+import Image from 'next/image';
 import {
   Users,
   ShieldCheck,
   KeyRound,
   LogOut,
-  Gavel,
   Menu,
   ChevronRight,
   Tag,
@@ -145,18 +145,8 @@ function SidebarContent({ pathname, username, onNavClick, onSignOut }: SidebarCo
   return (
     <>
       {/* Brand */}
-      <div className="h-16 flex items-center px-5 border-b border-border gap-2.5 shrink-0">
-        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-          <Gavel className="h-4 w-4 text-primary-foreground" />
-        </div>
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="font-display font-bold text-foreground text-base">
-            HAM<span className="text-gradient-gold">MER</span>
-          </span>
-          <span className="text-[10px] font-semibold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded uppercase tracking-wider">
-            Admin
-          </span>
-        </div>
+      <div className="h-16 flex items-center justify-center px-5 border-b border-border shrink-0">
+        <img src="/oxneer_logo_dark.svg" alt="OXNEER" className="h-12 w-auto shrink-0" />
       </div>
 
       {/* Nav groups */}
