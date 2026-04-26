@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@repo/ui';
 import { blobsApi, BlobVM, BlobProperties } from '@repo/api';
+import type { BlobPropertyPatch } from '@repo/api';
 
 interface UploadedFile {
   file: File;
@@ -26,17 +27,28 @@ interface UploadedFile {
   previewUrl?: string;
 }
 
-// Per-type size limits
 const SIZE_LIMITS: Record<UploadedFile['classifier'], number> = {
-  IMAGE: 2 * 1024 * 1024, // 2 MB
-  VIDEO: 10 * 1024 * 1024, // 10 MB
-  DOCUMENT: 5 * 1024 * 1024, // 5 MB
+  IMAGE: 2 * 1024 * 1024,
+  VIDEO: 10 * 1024 * 1024,
+  DOCUMENT: 5 * 1024 * 1024,
 };
 
 const SIZE_LABELS: Record<UploadedFile['classifier'], string> = {
   IMAGE: '2 MB',
   VIDEO: '10 MB',
   DOCUMENT: '5 MB',
+};
+
+const FORMATS: Record<UploadedFile['classifier'], string> = {
+  IMAGE: 'PNG, JPG, WEBP, GIF',
+  VIDEO: 'MP4, MOV, AVI, WEBM',
+  DOCUMENT: 'PDF, DOC, DOCX',
+};
+
+const ACCEPT: Record<UploadedFile['classifier'], string> = {
+  IMAGE: 'image/png,image/jpg,image/jpeg,image/webp,image/gif',
+  VIDEO: 'video/mp4,video/quicktime,video/avi,video/webm',
+  DOCUMENT: '.pdf,.doc,.docx',
 };
 
 const MAX_PER_TYPE = 5;
@@ -46,11 +58,24 @@ interface Step2Props {
   username: string;
   uploads: UploadedFile[];
   onUploadsChange: (uploads: UploadedFile[]) => void;
-  /** Called with all blob IDs (new + kept existing) when user has new uploads */
-  onSave: (blobIds: string[]) => Promise<void>;
+  /** Called with blob IDs and any changed blob properties */
+  onSave: (blobIds: string[], blobProperties: Record<string, BlobPropertyPatch>) => Promise<void>;
   onNext: () => void;
   onBack: () => void;
   onCancel: () => void;
+}
+
+function blobDisplayClassifier(blob: BlobVM): UploadedFile['classifier'] {
+  // mediaType can be a string like "image/jpeg" or a BlobMediaType object
+  const mt =
+    typeof blob.mediaType === 'string'
+      ? blob.mediaType
+      : blob.mediaType
+        ? `${blob.mediaType.type ?? ''}/${blob.mediaType.subtype ?? ''}`
+        : '';
+  if (mt.startsWith('image/')) return 'IMAGE';
+  if (mt.startsWith('video/')) return 'VIDEO';
+  return 'DOCUMENT';
 }
 
 function fileClassifier(file: File): UploadedFile['classifier'] {
@@ -59,34 +84,290 @@ function fileClassifier(file: File): UploadedFile['classifier'] {
   return 'DOCUMENT';
 }
 
-function ClassifierBadge({ classifier }: { classifier: UploadedFile['classifier'] }) {
-  if (classifier === 'IMAGE')
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-600 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-400 px-1.5 py-0.5 rounded">
-        <ImageIcon className="h-2.5 w-2.5" />
-        Image
-      </span>
-    );
-  if (classifier === 'VIDEO')
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-purple-600 bg-purple-50 dark:bg-purple-950/40 dark:text-purple-400 px-1.5 py-0.5 rounded">
-        <Film className="h-2.5 w-2.5" />
-        Video
-      </span>
-    );
+// ─── MediaBlock ───────────────────────────────────────────────────────────────
+
+interface MediaBlockProps {
+  classifier: UploadedFile['classifier'];
+  uploads: UploadedFile[];
+  existingBlobs: BlobVM[];
+  onAddFiles: (files: FileList | null, classifier: UploadedFile['classifier']) => void;
+  onRemoveUpload: (idx: number) => void;
+  onRemoveExisting: (id: string) => void;
+  onSetThumbnail: (idx: number, checked: boolean) => void;
+  onSetExistingThumbnail: (id: string, checked: boolean) => void;
+}
+
+function MediaBlock({
+  classifier,
+  uploads,
+  existingBlobs,
+  onAddFiles,
+  onRemoveUpload,
+  onRemoveExisting,
+  onSetThumbnail,
+  onSetExistingThumbnail,
+}: MediaBlockProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  const myUploads = uploads
+    .map((u, i) => ({ ...u, originalIdx: i }))
+    .filter((u) => u.classifier === classifier);
+  const myExisting = existingBlobs.filter((b) => blobDisplayClassifier(b) === classifier);
+  const total = myUploads.length + myExisting.length;
+  const remaining = MAX_PER_TYPE - total;
+  const atLimit = remaining <= 0;
+
+  const Icon = classifier === 'IMAGE' ? ImageIcon : classifier === 'VIDEO' ? Film : FileText;
+  const iconColor =
+    classifier === 'IMAGE'
+      ? 'text-blue-500'
+      : classifier === 'VIDEO'
+        ? 'text-purple-500'
+        : 'text-amber-500';
+  const borderColor =
+    classifier === 'IMAGE'
+      ? 'border-blue-200 dark:border-blue-900'
+      : classifier === 'VIDEO'
+        ? 'border-purple-200 dark:border-purple-900'
+        : 'border-amber-200 dark:border-amber-900';
+  const headerBg =
+    classifier === 'IMAGE'
+      ? 'bg-blue-50 dark:bg-blue-950/30'
+      : classifier === 'VIDEO'
+        ? 'bg-purple-50 dark:bg-purple-950/30'
+        : 'bg-amber-50 dark:bg-amber-950/30';
+  const label = classifier === 'IMAGE' ? 'Images' : classifier === 'VIDEO' ? 'Videos' : 'Documents';
+
   return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-600 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-400 px-1.5 py-0.5 rounded">
-      <FileText className="h-2.5 w-2.5" />
-      Document
-    </span>
+    <div className={`rounded-xl border ${borderColor} overflow-hidden flex flex-col`}>
+      {/* Block header */}
+      <div
+        className={`${headerBg} px-4 py-3 flex items-center justify-between border-b ${borderColor}`}
+      >
+        <div className="flex items-center gap-2">
+          <Icon className={`h-4 w-4 ${iconColor}`} />
+          <span className="text-sm font-semibold text-foreground">{label}</span>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span>{FORMATS[classifier]}</span>
+          <span>·</span>
+          <span>Max {SIZE_LABELS[classifier]}</span>
+          <span>·</span>
+          {/* Slot indicator */}
+          <span className={`font-medium ${atLimit ? 'text-destructive' : 'text-foreground'}`}>
+            {total}/{MAX_PER_TYPE}
+          </span>
+        </div>
+      </div>
+
+      <div className="p-3 space-y-3 flex-1">
+        {/* Slot progress bar */}
+        <div className="flex gap-1">
+          {Array.from({ length: MAX_PER_TYPE }).map((_, i) => (
+            <div
+              key={i}
+              className={`h-1 flex-1 rounded-full transition-colors ${
+                i < total
+                  ? atLimit
+                    ? 'bg-destructive'
+                    : classifier === 'IMAGE'
+                      ? 'bg-blue-500'
+                      : classifier === 'VIDEO'
+                        ? 'bg-purple-500'
+                        : 'bg-amber-500'
+                  : 'bg-muted'
+              }`}
+            />
+          ))}
+        </div>
+
+        {/* File grid */}
+        {(myUploads.length > 0 || myExisting.length > 0) && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {/* Existing blobs */}
+            {myExisting.map((blob) => {
+              const isThumbnail = blob.metadata?.['thumbnail'] === 'true';
+              return (
+                <div
+                  key={blob.id}
+                  className={`relative rounded-lg border overflow-hidden bg-muted/20 flex flex-col ${
+                    isThumbnail ? 'border-primary ring-2 ring-primary/30' : 'border-border'
+                  }`}
+                >
+                  <div className="relative aspect-square bg-muted flex items-center justify-center overflow-hidden">
+                    {classifier === 'IMAGE' ? (
+                      <Image
+                        src={blobsApi.getDownloadUrl(blob.id)}
+                        alt={blob.fileName || 'image'}
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                    ) : classifier === 'VIDEO' ? (
+                      <Film className="h-8 w-8 text-purple-400" />
+                    ) : (
+                      <FileText className="h-8 w-8 text-amber-400" />
+                    )}
+                    {isThumbnail && (
+                      <div className="absolute top-1 left-1 rounded bg-primary px-1 py-0.5 text-[9px] text-primary-foreground font-medium leading-none">
+                        Thumb
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => onRemoveExisting(blob.id)}
+                      className="absolute top-1 right-1 rounded-full bg-background/80 p-0.5 text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                  <div className="p-1.5 space-y-1">
+                    <p
+                      className="text-[10px] font-medium text-foreground truncate"
+                      title={blob.fileName}
+                    >
+                      {blob.fileName}
+                    </p>
+                    {classifier === 'IMAGE' && (
+                      <label className="flex items-center gap-1 cursor-pointer text-[10px] select-none">
+                        <input
+                          type="checkbox"
+                          checked={isThumbnail}
+                          onChange={(e) => onSetExistingThumbnail(blob.id, e.target.checked)}
+                          className="accent-primary h-3 w-3"
+                        />
+                        <span
+                          className={
+                            isThumbnail ? 'text-primary font-medium' : 'text-muted-foreground'
+                          }
+                        >
+                          Thumbnail
+                        </span>
+                      </label>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* New uploads */}
+            {myUploads.map((u) => (
+              <div
+                key={u.originalIdx}
+                className={`relative rounded-lg border overflow-hidden bg-muted/20 flex flex-col ${
+                  u.thumbnail ? 'border-primary ring-2 ring-primary/30' : 'border-border'
+                }`}
+              >
+                <div className="relative aspect-square bg-muted flex items-center justify-center overflow-hidden">
+                  {classifier === 'IMAGE' && u.previewUrl ? (
+                    <Image src={u.previewUrl} alt={u.file.name} fill className="object-cover" />
+                  ) : classifier === 'VIDEO' ? (
+                    <Film className="h-8 w-8 text-purple-400" />
+                  ) : (
+                    <FileText className="h-8 w-8 text-amber-400" />
+                  )}
+                  {u.uploading && (
+                    <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    </div>
+                  )}
+                  {!u.uploading && u.blob && (
+                    <div className="absolute top-1 left-1">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 drop-shadow" />
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onRemoveUpload(u.originalIdx)}
+                    className="absolute top-1 right-1 rounded-full bg-background/80 p-0.5 text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+                <div className="p-1.5 space-y-1">
+                  <p
+                    className="text-[10px] font-medium text-foreground truncate"
+                    title={u.file.name}
+                  >
+                    {u.file.name}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {(u.file.size / 1024).toFixed(0)} KB
+                  </p>
+                  {classifier === 'IMAGE' && (
+                    <label className="flex items-center gap-1 cursor-pointer text-[10px] select-none">
+                      <input
+                        type="checkbox"
+                        checked={u.thumbnail}
+                        onChange={(e) => onSetThumbnail(u.originalIdx, e.target.checked)}
+                        className="accent-primary h-3 w-3"
+                      />
+                      <span
+                        className={
+                          u.thumbnail ? 'text-primary font-medium' : 'text-muted-foreground'
+                        }
+                      >
+                        Thumbnail
+                      </span>
+                    </label>
+                  )}
+                  {u.error && <p className="text-[10px] text-destructive">{u.error}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Drop zone */}
+        {!atLimit && (
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              onAddFiles(e.dataTransfer.files, classifier);
+            }}
+            onClick={() => inputRef.current?.click()}
+            className={`border-2 border-dashed rounded-lg py-4 text-center cursor-pointer transition-colors ${
+              dragOver
+                ? 'border-primary bg-primary/5'
+                : 'border-border hover:border-primary/40 hover:bg-muted/20'
+            }`}
+          >
+            <Upload className="h-5 w-5 text-muted-foreground mx-auto mb-1" />
+            <p className="text-xs text-muted-foreground">
+              Drop or <span className="text-primary">browse</span>
+              <span className="ml-1 text-muted-foreground/60">
+                ({remaining} slot{remaining !== 1 ? 's' : ''} left)
+              </span>
+            </p>
+            <input
+              ref={inputRef}
+              type="file"
+              multiple
+              accept={ACCEPT[classifier]}
+              className="hidden"
+              onChange={(e) => onAddFiles(e.target.files, classifier)}
+            />
+          </div>
+        )}
+
+        {atLimit && (
+          <p className="text-xs text-destructive text-center py-2">
+            Maximum {MAX_PER_TYPE} {label.toLowerCase()} reached
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
-function FilePreviewIcon({ classifier }: { classifier: UploadedFile['classifier'] }) {
-  if (classifier === 'VIDEO') return <Film className="h-10 w-10 text-purple-400" />;
-  if (classifier === 'DOCUMENT') return <FileText className="h-10 w-10 text-amber-400" />;
-  return <ImageIcon className="h-10 w-10 text-blue-400" />;
-}
+// ─── Step2Media ───────────────────────────────────────────────────────────────
 
 export function Step2Media({
   listingId,
@@ -98,9 +379,8 @@ export function Step2Media({
   onBack,
   onCancel,
 }: Step2Props) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [dragOver, setDragOver] = useState(false);
   const [existingBlobs, setExistingBlobs] = useState<BlobVM[]>([]);
+  const [originalBlobs, setOriginalBlobs] = useState<BlobVM[]>([]);
   const [originalBlobIds, setOriginalBlobIds] = useState<string[]>([]);
   const [loadingBlobs, setLoadingBlobs] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -109,25 +389,25 @@ export function Step2Media({
   useEffect(() => {
     if (!listingId) return;
     const controller = new AbortController();
-    const loadBlobs = async () => {
-      setLoadingBlobs(true);
-      try {
-        const data = await blobsApi.getBlobsByEntityId(listingId);
+    setLoadingBlobs(true);
+    blobsApi
+      .getBlobsByEntityId(listingId)
+      .then((data) => {
         if (!controller.signal.aborted) {
           setExistingBlobs(data);
+          setOriginalBlobs(data);
           setOriginalBlobIds(data.map((b) => b.id));
         }
-      } catch {
+      })
+      .catch(() => {
         if (!controller.signal.aborted) setExistingBlobs([]);
-      } finally {
+      })
+      .finally(() => {
         if (!controller.signal.aborted) setLoadingBlobs(false);
-      }
-    };
-    loadBlobs();
+      });
     return () => controller.abort();
   }, [listingId]);
 
-  // Revoke object URLs on unmount
   useEffect(() => {
     return () => {
       uploads.forEach((u) => {
@@ -137,29 +417,31 @@ export function Step2Media({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const countByType = (classifier: UploadedFile['classifier']) =>
-    uploads.filter((u) => u.classifier === classifier).length +
-    existingBlobs.filter((b) => b.classifier === classifier).length;
+  const countByType = (cls: UploadedFile['classifier']) =>
+    uploads.filter((u) => u.classifier === cls).length +
+    existingBlobs.filter((b) => blobDisplayClassifier(b) === cls).length;
 
-  const addFiles = async (files: FileList | null) => {
+  const handleAddFiles = async (
+    files: FileList | null,
+    forClassifier: UploadedFile['classifier'],
+  ) => {
     if (!files?.length) return;
-
     const validFiles: File[] = [];
     const errors: string[] = [];
 
     Array.from(files).forEach((file) => {
       const cls = fileClassifier(file);
-      const limit = SIZE_LIMITS[cls];
-      const currentCount = countByType(cls);
-
-      if (file.size > limit) {
-        errors.push(
-          `"${file.name}" exceeds the ${SIZE_LABELS[cls]} limit for ${cls.toLowerCase()}s.`,
-        );
+      // Only accept files matching the block's classifier
+      if (cls !== forClassifier) {
+        errors.push(`"${file.name}" is not a valid ${forClassifier.toLowerCase()}.`);
         return;
       }
-      if (currentCount >= MAX_PER_TYPE) {
-        errors.push(`"${file.name}" skipped — max ${MAX_PER_TYPE} ${cls.toLowerCase()}s allowed.`);
+      if (file.size > SIZE_LIMITS[cls]) {
+        errors.push(`"${file.name}" exceeds the ${SIZE_LABELS[cls]} limit.`);
+        return;
+      }
+      if (countByType(cls) >= MAX_PER_TYPE) {
+        errors.push(`Max ${MAX_PER_TYPE} ${cls.toLowerCase()}s allowed.`);
         return;
       }
       validFiles.push(file);
@@ -172,7 +454,7 @@ export function Step2Media({
       file,
       uploading: true,
       thumbnail: false,
-      classifier: fileClassifier(file),
+      classifier: forClassifier,
       previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
     }));
 
@@ -187,10 +469,7 @@ export function Step2Media({
           bucket: username,
           entityId: listingId,
           classifier: 'LISTING', //item.classifier,
-          metadata: {
-            // entityType: 'listing',
-            thumbnail: item.thumbnail ? 'true' : 'false',
-          },
+          metadata: { thumbnail: item.thumbnail ? 'true' : 'false' },
         } satisfies BlobProperties);
         current = current.map((u, j) => (j === idx ? { ...u, blob, uploading: false } : u));
         onUploadsChange(current);
@@ -203,34 +482,7 @@ export function Step2Media({
     }
   };
 
-  const clearExistingThumbnail = async () => {
-    const existingThumbnail = existingBlobs.find(
-      (b) => b.classifier === 'IMAGE' && b.metadata?.['thumbnail'] === 'true',
-    );
-    if (!existingThumbnail) return;
-
-    setExistingBlobs((prev) =>
-      prev.map((blob) =>
-        blob.id === existingThumbnail.id
-          ? { ...blob, metadata: { ...blob.metadata, thumbnail: 'false' } }
-          : blob,
-      ),
-    );
-
-    try {
-      await blobsApi.updateBlob(existingThumbnail.id, {
-        metadata: { ...existingThumbnail.metadata, thumbnail: 'false' },
-      });
-    } catch {
-      // Keep UI state optimistic, but ignore patch failures here.
-    }
-  };
-
-  const setThumbnail = async (idx: number, checked: boolean) => {
-    if (checked) {
-      await clearExistingThumbnail();
-    }
-
+  const setThumbnail = (idx: number, checked: boolean) => {
     onUploadsChange(
       uploads.map((u, i) => ({
         ...u,
@@ -246,64 +498,29 @@ export function Step2Media({
     );
   };
 
-  const setExistingBlobThumbnail = async (blobId: string, checked: boolean) => {
-    const currentBlob = existingBlobs.find((b) => b.id === blobId);
-    if (!currentBlob) return;
-
+  const setExistingBlobThumbnail = (blobId: string, checked: boolean) => {
     if (checked) {
       onUploadsChange(
-        uploads.map((u) =>
-          u.classifier === 'IMAGE'
-            ? {
-                ...u,
-                thumbnail: false,
-              }
-            : u,
-        ),
+        uploads.map((u) => ({ ...u, thumbnail: u.classifier === 'IMAGE' ? false : u.thumbnail })),
       );
     }
-
-    const updated = existingBlobs.map((blob) => {
-      if (blob.id === blobId) {
-        return { ...blob, metadata: { ...blob.metadata, thumbnail: checked ? 'true' : 'false' } };
-      }
-      if (checked && blob.classifier === 'IMAGE' && blob.metadata?.['thumbnail'] === 'true') {
-        return { ...blob, metadata: { ...blob.metadata, thumbnail: 'false' } };
-      }
-      return blob;
-    });
-
-    setExistingBlobs(updated);
-
-    const patchRequests = updated
-      .filter((blob) => {
-        const previous = existingBlobs.find((prev) => prev.id === blob.id);
-        return previous?.metadata?.['thumbnail'] !== blob.metadata?.['thumbnail'];
-      })
-      .map((blob) =>
-        blobsApi.updateBlob(blob.id, {
-          metadata: {
-            ...blob.metadata,
-            thumbnail: blob.metadata?.['thumbnail'] === 'true' ? 'true' : 'false',
-          },
-        }),
-      );
-
-    try {
-      await Promise.all(patchRequests);
-    } catch {
-      // Ignore patch failures so the user can continue; UI state remains optimistic.
-    }
+    setExistingBlobs((prev) =>
+      prev.map((b) => {
+        if (b.id === blobId)
+          return { ...b, metadata: { ...b.metadata, thumbnail: checked ? 'true' : 'false' } };
+        if (checked && b.classifier === 'IMAGE')
+          return { ...b, metadata: { ...b.metadata, thumbnail: 'false' } };
+        return b;
+      }),
+    );
   };
 
-  /** Remove new upload — no API call */
   const removeUpload = (idx: number) => {
     const u = uploads[idx];
     if (u?.previewUrl) URL.revokeObjectURL(u.previewUrl);
     onUploadsChange(uploads.filter((_, i) => i !== idx));
   };
 
-  /** Remove existing blob — local only, submitted on save */
   const removeExistingBlob = (blobId: string) => {
     setExistingBlobs((prev) => prev.filter((b) => b.id !== blobId));
   };
@@ -312,21 +529,46 @@ export function Step2Media({
     originalBlobIds.length !== existingBlobs.length ||
     originalBlobIds.some((id) => !existingBlobs.some((b) => b.id === id));
 
+  /** Build blobProperties patch — only blobs whose metadata changed */
+  const buildBlobProperties = (): Record<string, BlobPropertyPatch> => {
+    const result: Record<string, BlobPropertyPatch> = {};
+
+    // Existing blobs with changed metadata (e.g. thumbnail toggled)
+    existingBlobs.forEach((blob) => {
+      const orig = originalBlobs.find((o) => o.id === blob.id);
+      if (!orig) return;
+      const origMeta = JSON.stringify(orig.metadata ?? {});
+      const newMeta = JSON.stringify(blob.metadata ?? {});
+      if (origMeta !== newMeta) {
+        result[blob.id] = { metadata: blob.metadata as Record<string, string> };
+      }
+    });
+
+    // New uploads — include their metadata (thumbnail flag)
+    uploads.forEach((u) => {
+      if (u.blob?.id) {
+        result[u.blob.id] = {
+          metadata: { thumbnail: u.thumbnail ? 'true' : 'false' },
+        };
+      }
+    });
+
+    return result;
+  };
+
   const handleSaveAndContinue = async () => {
     setSaveError(null);
     const newBlobIds = uploads.filter((u) => u.blob?.id).map((u) => u.blob!.id);
-    const shouldSave = newBlobIds.length > 0 || hasExistingBlobChanges;
+    const blobProperties = buildBlobProperties();
+    const hasBlobPropertyChanges = Object.keys(blobProperties).length > 0;
 
-    if (!shouldSave) {
+    if (!newBlobIds.length && !hasExistingBlobChanges && !hasBlobPropertyChanges) {
       onNext();
       return;
     }
-
     setSaving(true);
     try {
-      // Include existing blob IDs so the server knows the full set
-      const existingIds = existingBlobs.map((b) => b.id);
-      await onSave([...existingIds, ...newBlobIds]);
+      await onSave([...existingBlobs.map((b) => b.id), ...newBlobIds], blobProperties);
       onNext();
     } catch {
       setSaveError('Failed to save media. Please try again.');
@@ -338,243 +580,40 @@ export function Step2Media({
   const anyUploading = uploads.some((u) => u.uploading);
   const hasNewBlobs = uploads.some((u) => u.blob?.id);
 
+  const blockProps = (cls: UploadedFile['classifier']) => ({
+    classifier: cls,
+    uploads,
+    existingBlobs,
+    onAddFiles: handleAddFiles,
+    onRemoveUpload: removeUpload,
+    onRemoveExisting: removeExistingBlob,
+    onSetThumbnail: setThumbnail,
+    onSetExistingThumbnail: setExistingBlobThumbnail,
+  });
+
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-border bg-card p-6 space-y-4">
         <div>
           <h3 className="text-sm font-semibold text-foreground">Media files</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Upload images, videos, or documents for this listing. Mark one image as the thumbnail.
+            Upload images, videos, and documents. Max {MAX_PER_TYPE} files per type.
           </p>
         </div>
 
-        {/* Limits info */}
-        <div className="rounded-lg bg-muted/40 border border-border px-4 py-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-muted-foreground">
-          <div className="space-y-0.5">
-            <p className="font-medium text-foreground flex items-center gap-1">
-              <ImageIcon className="h-3 w-3" /> Images
-            </p>
-            <p>PNG, JPG, JPEG, WEBP, GIF</p>
-            <p>
-              Max {SIZE_LABELS.IMAGE} · up to {MAX_PER_TYPE} files
-            </p>
+        {loadingBlobs ? (
+          <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading existing media...
           </div>
-          <div className="space-y-0.5">
-            <p className="font-medium text-foreground flex items-center gap-1">
-              <Film className="h-3 w-3" /> Videos
-            </p>
-            <p>MP4, MOV, AVI, WEBM</p>
-            <p>
-              Max {SIZE_LABELS.VIDEO} · up to {MAX_PER_TYPE} files
-            </p>
-          </div>
-          <div className="space-y-0.5">
-            <p className="font-medium text-foreground flex items-center gap-1">
-              <FileText className="h-3 w-3" /> Documents
-            </p>
-            <p>PDF, DOC, DOCX</p>
-            <p>
-              Max {SIZE_LABELS.DOCUMENT} · up to {MAX_PER_TYPE} files
-            </p>
-          </div>
-        </div>
-
-        {/* Drop zone */}
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragOver(true);
-          }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragOver(false);
-            addFiles(e.dataTransfer.files);
-          }}
-          onClick={() => inputRef.current?.click()}
-          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-            dragOver
-              ? 'border-primary bg-primary/5'
-              : 'border-border hover:border-primary/50 hover:bg-muted/30'
-          }`}
-        >
-          <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground">
-            Drop files here or <span className="text-primary">browse</span>
-          </p>
-          <input
-            ref={inputRef}
-            type="file"
-            multiple
-            accept="image/png,image/jpg,image/jpeg,image/webp,image/gif,video/mp4,video/quicktime,video/avi,video/webm,.pdf,.doc,.docx"
-            className="hidden"
-            onChange={(e) => addFiles(e.target.files)}
-          />
-        </div>
-
-        {/* New uploads grid */}
-        {uploads.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {uploads.map((u, i) => (
-              <div
-                key={i}
-                className={`relative rounded-lg border overflow-hidden bg-muted/20 flex flex-col ${
-                  u.thumbnail ? 'border-primary ring-2 ring-primary/30' : 'border-border'
-                }`}
-              >
-                {/* Preview */}
-                <div className="relative aspect-square bg-muted flex items-center justify-center overflow-hidden">
-                  {u.classifier === 'IMAGE' && u.previewUrl ? (
-                    <Image src={u.previewUrl} alt={u.file.name} fill className="object-cover" />
-                  ) : (
-                    <FilePreviewIcon classifier={u.classifier} />
-                  )}
-
-                  {u.uploading && (
-                    <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
-                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                    </div>
-                  )}
-
-                  {!u.uploading && u.blob && (
-                    <div className="absolute top-1.5 left-1.5">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500 drop-shadow" />
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => removeUpload(i)}
-                    className="absolute top-1.5 right-1.5 rounded-full bg-background/80 p-0.5 text-muted-foreground hover:text-destructive transition-colors"
-                    aria-label="Remove file"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-
-                {/* Info */}
-                <div className="p-2 space-y-1.5 flex-1 flex flex-col justify-between">
-                  <p className="text-xs font-medium text-foreground truncate" title={u.file.name}>
-                    {u.file.name}
-                  </p>
-                  <div className="flex items-center justify-between gap-1">
-                    <p className="text-xs text-muted-foreground">
-                      {(u.file.size / 1024).toFixed(1)} KB
-                    </p>
-                    <ClassifierBadge classifier={u.classifier} />
-                  </div>
-
-                  {/* Thumbnail toggle — images only */}
-                  {u.classifier === 'IMAGE' && (
-                    <label className="flex items-center gap-1.5 cursor-pointer text-xs select-none">
-                      <input
-                        type="checkbox"
-                        checked={u.thumbnail}
-                        onChange={(e) => setThumbnail(i, e.target.checked)}
-                        className="accent-primary h-3.5 w-3.5"
-                      />
-                      <span
-                        className={
-                          u.thumbnail ? 'text-primary font-medium' : 'text-muted-foreground'
-                        }
-                      >
-                        Thumbnail
-                      </span>
-                    </label>
-                  )}
-
-                  {u.error && <p className="text-xs text-destructive">{u.error}</p>}
-                </div>
-              </div>
-            ))}
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+            <MediaBlock {...blockProps('IMAGE')} />
+            <MediaBlock {...blockProps('VIDEO')} />
+            <MediaBlock {...blockProps('DOCUMENT')} />
           </div>
         )}
       </div>
-
-      {/* Existing blobs */}
-      {loadingBlobs && (
-        <div className="flex items-center justify-center py-4">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          <span className="ml-2 text-sm text-muted-foreground">Loading existing media...</span>
-        </div>
-      )}
-
-      {existingBlobs.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-6 space-y-3">
-          <h4 className="text-sm font-semibold text-foreground">Existing media</h4>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {existingBlobs.map((blob) => {
-              const cls = (blob.classifier as UploadedFile['classifier']) || 'DOCUMENT';
-              const isThumbnail = blob.metadata?.['thumbnail'] === 'true';
-              return (
-                <div
-                  key={blob.id}
-                  className={`relative rounded-lg border overflow-hidden bg-muted/20 flex flex-col ${
-                    isThumbnail ? 'border-primary ring-2 ring-primary/30' : 'border-border'
-                  }`}
-                >
-                  <div className="relative aspect-square bg-muted flex items-center justify-center overflow-hidden">
-                    {cls === 'IMAGE' ? (
-                      <Image
-                        src={blobsApi.getDownloadUrl(blob.id)}
-                        alt={blob.fileName || 'image'}
-                        fill
-                        className="object-cover"
-                        unoptimized
-                      />
-                    ) : (
-                      <FilePreviewIcon classifier={cls} />
-                    )}
-                    {isThumbnail && (
-                      <div className="absolute top-1.5 left-1.5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] text-primary-foreground font-medium">
-                        Thumbnail
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => removeExistingBlob(blob.id)}
-                      className="absolute top-1.5 right-1.5 rounded-full bg-background/80 p-0.5 text-muted-foreground hover:text-destructive transition-colors"
-                      aria-label="Remove file"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  <div className="p-2 space-y-1">
-                    <p
-                      className="text-xs font-medium text-foreground truncate"
-                      title={blob.fileName}
-                    >
-                      {blob.fileName}
-                    </p>
-                    <div className="flex items-center justify-between gap-1">
-                      <p className="text-xs text-muted-foreground">—</p>
-                      <ClassifierBadge classifier={cls} />
-                    </div>
-
-                    {cls === 'IMAGE' && (
-                      <label className="flex items-center gap-1.5 cursor-pointer text-xs select-none mt-2">
-                        <input
-                          type="checkbox"
-                          checked={isThumbnail}
-                          onChange={(e) => setExistingBlobThumbnail(blob.id, e.target.checked)}
-                          className="accent-primary h-3.5 w-3.5"
-                        />
-                        <span
-                          className={
-                            isThumbnail ? 'text-primary font-medium' : 'text-muted-foreground'
-                          }
-                        >
-                          Thumbnail
-                        </span>
-                      </label>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {saveError && <p className="text-xs text-destructive">{saveError}</p>}
 

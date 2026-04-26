@@ -32,12 +32,20 @@ export interface ListingCreationRQ {
   embedded?: { typeId: string; pathWiseState: Record<string, unknown> };
 }
 
+export interface BlobPropertyPatch {
+  bucket?: string;
+  classifier?: string;
+  entityId?: string;
+  metadata?: Record<string, string>;
+}
+
 export interface ListingUpdationRQ {
   name?: string;
   description?: string;
   tags?: string[];
   subCategory?: string;
   blobs?: string[];
+  blobProperties?: Record<string, BlobPropertyPatch>; // key = blobId
   embedded?: { typeId: string; pathWiseState: Record<string, unknown> };
 }
 

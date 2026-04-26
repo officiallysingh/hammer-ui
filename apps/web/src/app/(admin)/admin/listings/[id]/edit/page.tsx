@@ -240,8 +240,11 @@ export default function EditListingPage() {
           username={username}
           uploads={uploads}
           onUploadsChange={setUploads}
-          onSave={async (blobIds) => {
-            await listingsApi.updateListing(id, { blobs: blobIds });
+          onSave={async (blobIds, blobProperties) => {
+            await listingsApi.updateListing(id, {
+              blobs: blobIds,
+              ...(Object.keys(blobProperties).length ? { blobProperties } : {}),
+            });
           }}
           onNext={() => setStep(3)}
           onBack={() => setStep(1)}

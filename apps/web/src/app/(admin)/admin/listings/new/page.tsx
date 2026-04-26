@@ -196,8 +196,11 @@ export default function NewListingPage() {
           username={username}
           uploads={uploads}
           onUploadsChange={setUploads}
-          onSave={async (blobIds) => {
-            await listingsApi.updateListing(listingId, { blobs: blobIds });
+          onSave={async (blobIds, blobProperties) => {
+            await listingsApi.updateListing(listingId, {
+              blobs: blobIds,
+              ...(Object.keys(blobProperties).length ? { blobProperties } : {}),
+            });
           }}
           onNext={() => setStep(3)}
           onBack={() => setStep(1)}
