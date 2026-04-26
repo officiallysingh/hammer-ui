@@ -101,6 +101,7 @@ export function Step2Media({
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [existingBlobs, setExistingBlobs] = useState<BlobVM[]>([]);
+  const [originalBlobIds, setOriginalBlobIds] = useState<string[]>([]);
   const [loadingBlobs, setLoadingBlobs] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -112,7 +113,10 @@ export function Step2Media({
       setLoadingBlobs(true);
       try {
         const data = await blobsApi.getBlobsByEntityId(listingId);
-        if (!controller.signal.aborted) setExistingBlobs(data);
+        if (!controller.signal.aborted) {
+          setExistingBlobs(data);
+          setOriginalBlobIds(data.map((b) => b.id));
+        }
       } catch {
         if (!controller.signal.aborted) setExistingBlobs([]);
       } finally {
@@ -182,9 +186,9 @@ export function Step2Media({
         const blob = await blobsApi.upload(item.file, {
           bucket: username,
           entityId: listingId,
-          classifier: item.classifier,
+          classifier: 'LISTING', //item.classifier,
           metadata: {
-            entityType: 'listing',
+            // entityType: 'listing',
             thumbnail: item.thumbnail ? 'true' : 'false',
           },
         } satisfies BlobProperties);
@@ -199,8 +203,34 @@ export function Step2Media({
     }
   };
 
-  /** Only one image thumbnail at a time */
-  const setThumbnail = (idx: number, checked: boolean) => {
+  const clearExistingThumbnail = async () => {
+    const existingThumbnail = existingBlobs.find(
+      (b) => b.classifier === 'IMAGE' && b.metadata?.['thumbnail'] === 'true',
+    );
+    if (!existingThumbnail) return;
+
+    setExistingBlobs((prev) =>
+      prev.map((blob) =>
+        blob.id === existingThumbnail.id
+          ? { ...blob, metadata: { ...blob.metadata, thumbnail: 'false' } }
+          : blob,
+      ),
+    );
+
+    try {
+      await blobsApi.updateBlob(existingThumbnail.id, {
+        metadata: { ...existingThumbnail.metadata, thumbnail: 'false' },
+      });
+    } catch {
+      // Keep UI state optimistic, but ignore patch failures here.
+    }
+  };
+
+  const setThumbnail = async (idx: number, checked: boolean) => {
+    if (checked) {
+      await clearExistingThumbnail();
+    }
+
     onUploadsChange(
       uploads.map((u, i) => ({
         ...u,
@@ -216,6 +246,56 @@ export function Step2Media({
     );
   };
 
+  const setExistingBlobThumbnail = async (blobId: string, checked: boolean) => {
+    const currentBlob = existingBlobs.find((b) => b.id === blobId);
+    if (!currentBlob) return;
+
+    if (checked) {
+      onUploadsChange(
+        uploads.map((u) =>
+          u.classifier === 'IMAGE'
+            ? {
+                ...u,
+                thumbnail: false,
+              }
+            : u,
+        ),
+      );
+    }
+
+    const updated = existingBlobs.map((blob) => {
+      if (blob.id === blobId) {
+        return { ...blob, metadata: { ...blob.metadata, thumbnail: checked ? 'true' : 'false' } };
+      }
+      if (checked && blob.classifier === 'IMAGE' && blob.metadata?.['thumbnail'] === 'true') {
+        return { ...blob, metadata: { ...blob.metadata, thumbnail: 'false' } };
+      }
+      return blob;
+    });
+
+    setExistingBlobs(updated);
+
+    const patchRequests = updated
+      .filter((blob) => {
+        const previous = existingBlobs.find((prev) => prev.id === blob.id);
+        return previous?.metadata?.['thumbnail'] !== blob.metadata?.['thumbnail'];
+      })
+      .map((blob) =>
+        blobsApi.updateBlob(blob.id, {
+          metadata: {
+            ...blob.metadata,
+            thumbnail: blob.metadata?.['thumbnail'] === 'true' ? 'true' : 'false',
+          },
+        }),
+      );
+
+    try {
+      await Promise.all(patchRequests);
+    } catch {
+      // Ignore patch failures so the user can continue; UI state remains optimistic.
+    }
+  };
+
   /** Remove new upload — no API call */
   const removeUpload = (idx: number) => {
     const u = uploads[idx];
@@ -228,14 +308,20 @@ export function Step2Media({
     setExistingBlobs((prev) => prev.filter((b) => b.id !== blobId));
   };
 
+  const hasExistingBlobChanges =
+    originalBlobIds.length !== existingBlobs.length ||
+    originalBlobIds.some((id) => !existingBlobs.some((b) => b.id === id));
+
   const handleSaveAndContinue = async () => {
     setSaveError(null);
     const newBlobIds = uploads.filter((u) => u.blob?.id).map((u) => u.blob!.id);
-    // If no new uploads, just continue — nothing changed
-    if (newBlobIds.length === 0) {
+    const shouldSave = newBlobIds.length > 0 || hasExistingBlobChanges;
+
+    if (!shouldSave) {
       onNext();
       return;
     }
+
     setSaving(true);
     try {
       // Include existing blob IDs so the server knows the full set
@@ -464,6 +550,24 @@ export function Step2Media({
                       <p className="text-xs text-muted-foreground">—</p>
                       <ClassifierBadge classifier={cls} />
                     </div>
+
+                    {cls === 'IMAGE' && (
+                      <label className="flex items-center gap-1.5 cursor-pointer text-xs select-none mt-2">
+                        <input
+                          type="checkbox"
+                          checked={isThumbnail}
+                          onChange={(e) => setExistingBlobThumbnail(blob.id, e.target.checked)}
+                          className="accent-primary h-3.5 w-3.5"
+                        />
+                        <span
+                          className={
+                            isThumbnail ? 'text-primary font-medium' : 'text-muted-foreground'
+                          }
+                        >
+                          Thumbnail
+                        </span>
+                      </label>
+                    )}
                   </div>
                 </div>
               );

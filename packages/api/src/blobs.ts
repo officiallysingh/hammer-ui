@@ -100,4 +100,9 @@ export const blobsApi = {
   deleteBlob: async (id: string): Promise<void> => {
     await apiClient.delete(`/api/v1/blobs/${id}`);
   },
+
+  updateBlob: async (id: string, properties: Partial<BlobProperties>): Promise<BlobVM> => {
+    const response = await apiClient.patch<BlobVM>(`/api/v1/blobs/${id}`, properties);
+    return response.data;
+  },
 };

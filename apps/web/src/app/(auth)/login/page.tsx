@@ -31,9 +31,9 @@ export default function LoginPage() {
           <div className="text-center mb-8 lg:hidden">
             <Link href="/" className="inline-flex items-center gap-2 mb-6">
               <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-xl">H</span>
+                <span className="text-primary-foreground font-bold text-xl">O</span>
               </div>
-              <span className="text-xl font-bold text-foreground">Hammer</span>
+              <span className="text-xl font-bold text-foreground">Oxneer</span>
             </Link>
           </div>
 
@@ -42,9 +42,9 @@ export default function LoginPage() {
               <div className="hidden lg:flex justify-center mb-4">
                 <Link href="/" className="inline-flex items-center gap-2">
                   <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-                    <span className="text-primary-foreground font-bold text-xl">H</span>
+                    <span className="text-primary-foreground font-bold text-xl">O</span>
                   </div>
-                  <span className="text-xl font-bold text-foreground">Hammer</span>
+                  <span className="text-xl font-bold text-foreground">Oxneer</span>
                 </Link>
               </div>
               <CardTitle className="text-2xl font-bold">Sign in to your account</CardTitle>

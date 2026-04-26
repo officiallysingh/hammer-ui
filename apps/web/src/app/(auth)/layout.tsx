@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Authentication - Hammer',
+  title: 'Authentication - Oxneer',
   description: 'Sign in or create an account to get started',
 };
 

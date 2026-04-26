@@ -49,7 +49,7 @@ const SiteFooter = () => {
 
         <div className="mt-10 pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="font-body text-xs text-muted-foreground">
-            © 2026 Hammer Technologies. All rights reserved.
+            © 2026 Oxneer Technologies. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
             {['Terms', 'Privacy', 'Cookies'].map((item) => (
