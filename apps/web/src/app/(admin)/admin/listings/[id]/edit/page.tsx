@@ -98,17 +98,24 @@ export default function EditListingPage() {
         });
 
         // Load Step 3 data
-        const embedded = listing.embedded as
-          | { typeId?: string; pathWiseState?: Record<string, unknown> }
-          | undefined;
-        if (embedded?.typeId) {
-          setManagedTypeId(embedded.typeId);
-          setFieldValues(embedded.pathWiseState ?? {});
-          // Fetch full type to render fields
-          metadataApi
-            .getManagedTypeById(embedded.typeId)
-            .then(setSelectedManagedType)
-            .catch(() => {});
+        const embedded = listing.embedded as Record<string, unknown> | undefined;
+        if (embedded) {
+          const typeId = embedded.typeId as string;
+          if (typeId) {
+            setManagedTypeId(typeId);
+            const pathWiseState = embedded.pathWiseState as Record<string, unknown> | undefined;
+            if (pathWiseState) {
+              setFieldValues(pathWiseState);
+            } else {
+              const { typeId: _, ...rest } = embedded;
+              setFieldValues(rest);
+            }
+            // Fetch full type to render fields
+            metadataApi
+              .getManagedTypeById(typeId)
+              .then(setSelectedManagedType)
+              .catch(() => {});
+          }
         }
       })
       .catch(() => setStep1Error('Failed to load listing.'))

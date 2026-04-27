@@ -133,10 +133,10 @@ function MediaBlock({
         : 'border-amber-200 dark:border-amber-900';
   const headerBg =
     classifier === 'IMAGE'
-      ? 'bg-blue-50 dark:bg-blue-950/30'
+      ? 'bg-blue-10 dark:bg-blue-950/30'
       : classifier === 'VIDEO'
-        ? 'bg-purple-50 dark:bg-purple-950/30'
-        : 'bg-amber-50 dark:bg-amber-950/30';
+        ? 'bg-purple-10 dark:bg-purple-950/30'
+        : 'bg-amber-10 dark:bg-amber-950/30';
   const label = classifier === 'IMAGE' ? 'Images' : classifier === 'VIDEO' ? 'Videos' : 'Documents';
 
   return (
@@ -230,7 +230,7 @@ function MediaBlock({
                       {blob.fileName}
                     </p>
                     {classifier === 'IMAGE' && (
-                      <label className="flex items-center gap-1 cursor-pointer text-[10px] select-none">
+                      <label className="flex items-center gap-2 cursor-pointer select-none bg-muted/50 rounded px-2 py-1 hover:bg-muted/70 transition-colors">
                         <input
                           type="checkbox"
                           checked={isThumbnail}
@@ -238,11 +238,11 @@ function MediaBlock({
                           className="accent-primary h-3 w-3"
                         />
                         <span
-                          className={
-                            isThumbnail ? 'text-primary font-medium' : 'text-muted-foreground'
-                          }
+                          className={`text-[10px] font-medium ${
+                            isThumbnail ? 'text-primary' : 'text-muted-foreground'
+                          }`}
                         >
-                          Thumbnail
+                          {isThumbnail ? '✓ Thumbnail' : 'Set as thumbnail'}
                         </span>
                       </label>
                     )}
@@ -268,8 +268,9 @@ function MediaBlock({
                     <FileText className="h-8 w-8 text-amber-400" />
                   )}
                   {u.uploading && (
-                    <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
-                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center gap-1 rounded-lg">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      <span className="text-[9px] text-primary font-medium">Uploading...</span>
                     </div>
                   )}
                   {!u.uploading && u.blob && (
@@ -296,7 +297,7 @@ function MediaBlock({
                     {(u.file.size / 1024).toFixed(0)} KB
                   </p>
                   {classifier === 'IMAGE' && (
-                    <label className="flex items-center gap-1 cursor-pointer text-[10px] select-none">
+                    <label className="flex items-center gap-2 cursor-pointer select-none bg-muted/50 rounded px-2 py-1 hover:bg-muted/70 transition-colors">
                       <input
                         type="checkbox"
                         checked={u.thumbnail}
@@ -304,11 +305,11 @@ function MediaBlock({
                         className="accent-primary h-3 w-3"
                       />
                       <span
-                        className={
-                          u.thumbnail ? 'text-primary font-medium' : 'text-muted-foreground'
-                        }
+                        className={`text-[10px] font-medium ${
+                          u.thumbnail ? 'text-primary' : 'text-muted-foreground'
+                        }`}
                       >
-                        Thumbnail
+                        {u.thumbnail ? '✓ Thumbnail' : 'Set as thumbnail'}
                       </span>
                     </label>
                   )}
@@ -333,19 +334,22 @@ function MediaBlock({
               onAddFiles(e.dataTransfer.files, classifier);
             }}
             onClick={() => inputRef.current?.click()}
-            className={`border-2 border-dashed rounded-lg py-4 text-center cursor-pointer transition-colors ${
+            className={`border-2 border-dashed rounded-lg py-6 px-4 text-center cursor-pointer transition-all duration-200 ${
               dragOver
-                ? 'border-primary bg-primary/5'
+                ? 'border-primary bg-primary/5 scale-[1.02] shadow-md'
                 : 'border-border hover:border-primary/40 hover:bg-muted/20'
             }`}
           >
             <Upload className="h-5 w-5 text-muted-foreground mx-auto mb-1" />
-            <p className="text-xs text-muted-foreground">
-              Drop or <span className="text-primary">browse</span>
-              <span className="ml-1 text-muted-foreground/60">
-                ({remaining} slot{remaining !== 1 ? 's' : ''} left)
-              </span>
-            </p>
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground mb-1">
+                Drop files here or <span className="text-primary font-medium">browse</span>
+              </p>
+              <p className="text-[10px] text-muted-foreground/60">
+                {remaining} slot{remaining !== 1 ? 's' : ''} remaining • Max{' '}
+                {SIZE_LABELS[classifier]}
+              </p>
+            </div>
             <input
               ref={inputRef}
               type="file"
@@ -475,7 +479,7 @@ export function Step2Media({
         onUploadsChange(current);
       } catch {
         current = current.map((u, j) =>
-          j === idx ? { ...u, uploading: false, error: 'Upload failed' } : u,
+          j === idx ? { ...u, uploading: false, error: 'Upload failed. Please try again.' } : u,
         );
         onUploadsChange(current);
       }
@@ -508,7 +512,7 @@ export function Step2Media({
       prev.map((b) => {
         if (b.id === blobId)
           return { ...b, metadata: { ...b.metadata, thumbnail: checked ? 'true' : 'false' } };
-        if (checked && b.classifier === 'IMAGE')
+        if (checked && blobDisplayClassifier(b) === 'IMAGE')
           return { ...b, metadata: { ...b.metadata, thumbnail: 'false' } };
         return b;
       }),
@@ -561,8 +565,9 @@ export function Step2Media({
     const newBlobIds = uploads.filter((u) => u.blob?.id).map((u) => u.blob!.id);
     const blobProperties = buildBlobProperties();
     const hasBlobPropertyChanges = Object.keys(blobProperties).length > 0;
+    const hasChanges = newBlobIds.length > 0 || hasExistingBlobChanges || hasBlobPropertyChanges;
 
-    if (!newBlobIds.length && !hasExistingBlobChanges && !hasBlobPropertyChanges) {
+    if (!hasChanges) {
       onNext();
       return;
     }
@@ -578,6 +583,10 @@ export function Step2Media({
   };
 
   const anyUploading = uploads.some((u) => u.uploading);
+  const newBlobIds = uploads.filter((u) => u.blob?.id).map((u) => u.blob!.id);
+  const blobProperties = buildBlobProperties();
+  const hasBlobPropertyChanges = Object.keys(blobProperties).length > 0;
+  const hasChanges = newBlobIds.length > 0 || hasExistingBlobChanges || hasBlobPropertyChanges;
   const hasNewBlobs = uploads.some((u) => u.blob?.id);
 
   const blockProps = (cls: UploadedFile['classifier']) => ({
@@ -597,14 +606,31 @@ export function Step2Media({
         <div>
           <h3 className="text-sm font-semibold text-foreground">Media files</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Upload images, videos, and documents. Max {MAX_PER_TYPE} files per type.
+            Upload images, videos, and documents. Max {MAX_PER_TYPE} files per type.{' '}
+            <span className="text-primary font-medium">
+              Only one image can be set as thumbnail.
+            </span>
           </p>
+          {hasChanges && (
+            <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-950/30 rounded-md border border-blue-200 dark:border-blue-900">
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                {newBlobIds.length > 0 &&
+                  `${newBlobIds.length} new file${newBlobIds.length > 1 ? 's' : ''} to upload. `}
+                {hasExistingBlobChanges && 'Existing files modified. '}
+                {hasBlobPropertyChanges && 'Thumbnail settings updated. '}
+                Changes will be saved when you continue.
+              </p>
+            </div>
+          )}
         </div>
 
         {loadingBlobs ? (
-          <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading existing media...
+          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground gap-3">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            <div className="text-center">
+              <p className="text-sm font-medium">Loading existing media...</p>
+              <p className="text-xs">Please wait while we fetch your files</p>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
@@ -633,13 +659,9 @@ export function Step2Media({
               <Loader2 className="h-4 w-4 animate-spin" />
               Saving...
             </>
-          ) : hasNewBlobs ? (
-            <>
-              Save & Continue <ArrowRight className="h-4 w-4" />
-            </>
           ) : (
             <>
-              Continue <ArrowRight className="h-4 w-4" />
+              {hasChanges ? 'Save & Continue' : 'Continue'} <ArrowRight className="h-4 w-4" />
             </>
           )}
         </Button>
