@@ -27,16 +27,21 @@ interface UploadedFile {
   previewUrl?: string;
 }
 
-const SIZE_LIMITS: Record<UploadedFile['classifier'], number> = {
-  IMAGE: 1 * 1024 * 1024,
-  VIDEO: 1 * 1024 * 1024,
-  DOCUMENT: 1 * 1024 * 1024,
-};
+const SIZE_LIMIT_BYTES = 1 * 1024 * 1024;
+const SIZE_LABEL = '1 MB';
 
-const SIZE_LABELS: Record<UploadedFile['classifier'], string> = {
-  IMAGE: '1 MB',
-  VIDEO: '1 MB',
-  DOCUMENT: '1 MB',
+const ALLOWED_TYPES: Record<UploadedFile['classifier'], string[]> = {
+  IMAGE: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic'],
+  VIDEO: ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska'],
+  DOCUMENT: [
+    'text/plain',
+    'application/pdf',
+    'application/msword',
+    'application/rtf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/x-tika-msoffice',
+    'application/x-tika-ooxml',
+  ],
 };
 
 const FORMATS: Record<UploadedFile['classifier'], string> = {
@@ -46,10 +51,9 @@ const FORMATS: Record<UploadedFile['classifier'], string> = {
 };
 
 const ACCEPT: Record<UploadedFile['classifier'], string> = {
-  IMAGE: 'image/jpeg,image/png,image/gif,image/webp,image/heic',
-  VIDEO: 'video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska',
-  DOCUMENT:
-    'text/plain,application/pdf,application/msword,application/rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/x-tika-msoffice,application/x-tika-ooxml',
+  IMAGE: ALLOWED_TYPES.IMAGE.join(','),
+  VIDEO: ALLOWED_TYPES.VIDEO.join(','),
+  DOCUMENT: ALLOWED_TYPES.DOCUMENT.join(','),
 };
 
 const MAX_PER_TYPE = 5;
@@ -153,7 +157,7 @@ function MediaBlock({
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>{FORMATS[classifier]}</span>
           <span>·</span>
-          <span>Max {SIZE_LABELS[classifier]}</span>
+          <span>Max {SIZE_LABEL}</span>
           <span>·</span>
           {/* Slot indicator */}
           <span className={`font-medium ${atLimit ? 'text-destructive' : 'text-foreground'}`}>
@@ -347,8 +351,7 @@ function MediaBlock({
                 Drop files here or <span className="text-primary font-medium">browse</span>
               </p>
               <p className="text-[10px] text-muted-foreground/60">
-                {remaining} slot{remaining !== 1 ? 's' : ''} remaining • Max{' '}
-                {SIZE_LABELS[classifier]}
+                {remaining} slot{remaining !== 1 ? 's' : ''} remaining • Max {SIZE_LABEL}
               </p>
             </div>
             <input
@@ -413,13 +416,15 @@ export function Step2Media({
     return () => controller.abort();
   }, [listingId]);
 
+  const uploadsRef = useRef(uploads);
+  uploadsRef.current = uploads;
+
   useEffect(() => {
     return () => {
-      uploads.forEach((u) => {
+      uploadsRef.current.forEach((u) => {
         if (u.previewUrl) URL.revokeObjectURL(u.previewUrl);
       });
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const countByType = (cls: UploadedFile['classifier']) =>
@@ -436,13 +441,14 @@ export function Step2Media({
 
     Array.from(files).forEach((file) => {
       const cls = fileClassifier(file);
-      // Only accept files matching the block's classifier
-      if (cls !== forClassifier) {
-        errors.push(`"${file.name}" is not a valid ${forClassifier.toLowerCase()}.`);
+      if (!ALLOWED_TYPES[forClassifier].includes(file.type)) {
+        errors.push(
+          `"${file.name}" is not an allowed ${forClassifier.toLowerCase()} type (${file.type || 'unknown'}).`,
+        );
         return;
       }
-      if (file.size > SIZE_LIMITS[cls]) {
-        errors.push(`"${file.name}" exceeds the ${SIZE_LABELS[cls]} limit.`);
+      if (file.size > SIZE_LIMIT_BYTES) {
+        errors.push(`"${file.name}" exceeds the ${SIZE_LABEL} limit.`);
         return;
       }
       if (countByType(cls) >= MAX_PER_TYPE) {
@@ -575,6 +581,7 @@ export function Step2Media({
     setSaving(true);
     try {
       await onSave([...existingBlobs.map((b) => b.id), ...newBlobIds], blobProperties);
+      onUploadsChange([]);
       onNext();
     } catch {
       setSaveError('Failed to save media. Please try again.');

@@ -111,10 +111,12 @@ export default function EditListingPage() {
               setFieldValues(rest);
             }
             // Fetch full type to render fields
+            setLoadingType(true);
             metadataApi
               .getManagedTypeById(typeId)
               .then(setSelectedManagedType)
-              .catch(() => {});
+              .catch(() => {})
+              .finally(() => setLoadingType(false));
           }
         }
       })
@@ -182,8 +184,8 @@ export default function EditListingPage() {
   };
 
   const handleTypeChange = async (mid: string) => {
+    if (mid !== managedTypeId) setFieldValues({});
     setManagedTypeId(mid);
-    setFieldValues({});
     if (!mid) {
       setSelectedManagedType(null);
       return;
