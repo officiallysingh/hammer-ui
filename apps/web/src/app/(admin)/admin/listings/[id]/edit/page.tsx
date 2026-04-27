@@ -21,6 +21,24 @@ import { Step1Details, ListingDetails } from '../../_components/Step1Details';
 import { Step2Media } from '../../_components/Step2Media';
 import { Step3Catalog } from '../../_components/Step3Catalog';
 
+type EmbeddedProp = { type?: string; name?: string; value?: unknown };
+
+function propsToFieldValues(properties: EmbeddedProp[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const prop of properties) {
+    if (!prop.name) continue;
+    if (prop.type === 'COMPOSITE_PROPERTY') {
+      const children = Array.isArray(prop.value) ? (prop.value as EmbeddedProp[]) : [];
+      result[prop.name] = propsToFieldValues(children);
+    } else if (prop.type === 'LIST_PROPERTY' || prop.type === 'SET_PROPERTY') {
+      result[prop.name] = Array.isArray(prop.value) ? prop.value : [];
+    } else {
+      result[prop.name] = prop.value ?? '';
+    }
+  }
+  return result;
+}
+
 export default function EditListingPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -103,14 +121,11 @@ export default function EditListingPage() {
           const typeId = embedded.typeId as string;
           if (typeId) {
             setManagedTypeId(typeId);
-            const pathWiseState = embedded.pathWiseState as Record<string, unknown> | undefined;
-            if (pathWiseState) {
-              setFieldValues(pathWiseState);
-            } else {
-              const { typeId: _, ...rest } = embedded;
-              setFieldValues(rest);
-            }
-            // Fetch full type to render fields
+            const properties = Array.isArray(embedded.properties)
+              ? (embedded.properties as EmbeddedProp[])
+              : [];
+            setFieldValues(propsToFieldValues(properties));
+            // Fetch full type schema to render fields
             setLoadingType(true);
             metadataApi
               .getManagedTypeById(typeId)
