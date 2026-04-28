@@ -28,27 +28,28 @@ interface UploadedFile {
 }
 
 const SIZE_LIMITS: Record<UploadedFile['classifier'], number> = {
-  IMAGE: 2 * 1024 * 1024,
-  VIDEO: 10 * 1024 * 1024,
-  DOCUMENT: 5 * 1024 * 1024,
+  IMAGE: 1 * 1024 * 1024,
+  VIDEO: 1 * 1024 * 1024,
+  DOCUMENT: 1 * 1024 * 1024,
 };
 
 const SIZE_LABELS: Record<UploadedFile['classifier'], string> = {
-  IMAGE: '2 MB',
-  VIDEO: '10 MB',
-  DOCUMENT: '5 MB',
+  IMAGE: '1 MB',
+  VIDEO: '1 MB',
+  DOCUMENT: '1 MB',
 };
 
 const FORMATS: Record<UploadedFile['classifier'], string> = {
-  IMAGE: 'PNG, JPG, WEBP, GIF',
-  VIDEO: 'MP4, MOV, AVI, WEBM',
-  DOCUMENT: 'PDF, DOC, DOCX',
+  IMAGE: 'JPEG, PNG, GIF, WEBP, HEIC',
+  VIDEO: 'MP4, WEBM, QuickTime, AVI, Matroska',
+  DOCUMENT: 'Plain Text, PDF, DOC, RTF, DOCX',
 };
 
 const ACCEPT: Record<UploadedFile['classifier'], string> = {
-  IMAGE: 'image/png,image/jpg,image/jpeg,image/webp,image/gif',
-  VIDEO: 'video/mp4,video/quicktime,video/avi,video/webm',
-  DOCUMENT: '.pdf,.doc,.docx',
+  IMAGE: 'image/jpeg,image/png,image/gif,image/webp,image/heic',
+  VIDEO: 'video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska',
+  DOCUMENT:
+    'text/plain,application/pdf,application/msword,application/rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/x-tika-msoffice,application/x-tika-ooxml',
 };
 
 const MAX_PER_TYPE = 5;

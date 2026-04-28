@@ -43,7 +43,7 @@ export const blobsApi = {
    */
   upload: async (file: File, properties: BlobProperties): Promise<BlobVM> => {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', new File([file], file.name, { type: '' }));
     formData.append(
       'properties',
       new Blob([JSON.stringify(properties)], { type: 'application/json' }),
