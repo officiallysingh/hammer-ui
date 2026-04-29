@@ -14,8 +14,9 @@ import {
   ChevronUp,
   Tag,
 } from 'lucide-react';
-import { Button, Input } from '@repo/ui';
+import { Button } from '@repo/ui';
 import { SearchInput } from '@/components/common/admin/SearchInput';
+import { CategoryIcon } from '@/components/common/CategoryIcon';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
@@ -183,7 +184,7 @@ export default function CategoriesPage() {
               >
                 <div className="p-4 flex items-start gap-3">
                   <div className="flex-shrink-0 h-12 w-12 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-2xl">
-                    {cat.icon ? <span>{cat.icon}</span> : <Tag className="h-5 w-5 text-primary" />}
+                    <CategoryIcon value={cat.icon} size={22} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-foreground truncate">{cat.name}</h3>
@@ -259,7 +260,7 @@ export default function CategoriesPage() {
                             key={sub.id}
                             className="group flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-xs"
                           >
-                            {sub.icon && <span className="text-sm">{sub.icon}</span>}
+                            {sub.icon && <CategoryIcon value={sub.icon} size={14} />}
                             <span className="text-foreground font-medium">{sub.name}</span>
                             <button
                               onClick={() => handleDeleteSubCategory(sub.id, cat.id)}
