@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Trash2, Plus } from 'lucide-react';
 import { Input, Label, Button } from '@repo/ui';
 import { metadataApi } from '@repo/api';
-import type { PropertyDef, MetaType, PropertyType } from '@repo/api';
+import type { PropertyDef, ValidatorDef, MetaType, PropertyType } from '@repo/api';
 import { ValidatorRow } from './ValidatorRow';
 import { PROPERTY_TYPES, HAS_CHILDREN, emptyProperty } from './types';
 import type { KV } from './types';
@@ -67,7 +67,7 @@ export function PropertyRow({
     });
   };
 
-  const updateValidator = (vi: number, patch: Partial<{ type: string; message: string }>) =>
+  const updateValidator = (vi: number, patch: Partial<ValidatorDef>) =>
     onUpdate({
       validators: (prop.validators ?? []).map((v, i) => (i === vi ? { ...v, ...patch } : v)),
     });

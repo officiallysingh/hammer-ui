@@ -1,11 +1,30 @@
 import { apiClient } from './client';
 
+export interface ListingCategoryRef {
+  id: string;
+  name: string;
+  icon?: string;
+}
+
+export interface ListingBlobRef {
+  id: string;
+  fileName?: string;
+  mediaType?: string;
+  size?: string;
+  classifier?: string;
+  type?: string;
+  metadata?: Record<string, string>;
+}
+
 export interface ListingVM {
   id: string;
   name: string;
   description?: string;
   tags?: string[];
-  subCategory?: string;
+  /** API returns either the subcategory id (string) or a full object */
+  subCategory?: string | ListingCategoryRef;
+  category?: ListingCategoryRef;
+  blobs?: ListingBlobRef[];
   embedded?: Record<string, unknown>;
 }
 

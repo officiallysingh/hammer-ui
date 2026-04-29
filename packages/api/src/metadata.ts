@@ -41,6 +41,12 @@ export type ManagedTypeClassifier = 'CATALOG' | 'AUCTION_PROPERTIES';
 export interface ValidatorDef {
   type: string;
   message?: string;
+  /** MAX / SIZE validators */
+  max?: number | string;
+  /** MIN / SIZE validators */
+  min?: number | string;
+  /** REGEX_PATTERN validator */
+  regex?: string;
 }
 
 export interface PropertyDef {

@@ -7,6 +7,7 @@ import {
   masterApi,
   metadataApi,
   ListingVM,
+  ListingCategoryRef,
   CategoryVM,
   ManagedTypeVM,
   ManagedTypeListItem,
@@ -83,7 +84,11 @@ export default function EditListingPage() {
       details.tags.some((t: string, i: number) => t !== orig.tags?.[i])
     )
       return true;
-    if (details.subCategory !== orig.subCategory) return true;
+    const origSubCatId =
+      typeof orig.subCategory === 'object' && orig.subCategory !== null
+        ? (orig.subCategory as ListingCategoryRef).id
+        : ((orig.subCategory as string | undefined) ?? '');
+    if (details.subCategory !== origSubCatId) return true;
     return false;
   };
 
@@ -104,14 +109,17 @@ export default function EditListingPage() {
         setTypeListItems(items);
 
         // Load Step 1 details
-        const ownerCat = cats.find((c) =>
-          c.subCategories?.some((s) => s.id === listing.subCategory),
-        );
+        // API returns subCategory as an object {id,name,icon} — extract the id
+        const subCatId =
+          typeof listing.subCategory === 'object' && listing.subCategory !== null
+            ? (listing.subCategory as ListingCategoryRef).id
+            : ((listing.subCategory as string | undefined) ?? '');
+        const ownerCat = cats.find((c) => c.subCategories?.some((s) => s.id === subCatId));
         setDetails({
           name: listing.name,
           description: listing.description ?? '',
           categoryId: ownerCat?.id ?? '',
-          subCategory: listing.subCategory ?? '',
+          subCategory: subCatId,
           tags: listing.tags ?? [],
         });
 

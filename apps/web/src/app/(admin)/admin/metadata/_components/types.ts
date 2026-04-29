@@ -51,6 +51,9 @@ function sanitizeProperty(prop: PropertyDef): PropertyDef {
     .map((v) => ({
       type: extractValidatorType(v.type),
       ...(v.message && String(v.message).trim() ? { message: String(v.message).trim() } : {}),
+      ...(v.max !== undefined && v.max !== '' ? { max: v.max } : {}),
+      ...(v.min !== undefined && v.min !== '' ? { min: v.min } : {}),
+      ...(v.regex !== undefined && v.regex !== '' ? { regex: v.regex } : {}),
     }))
     .filter((v) => v.type.length > 0);
   return {

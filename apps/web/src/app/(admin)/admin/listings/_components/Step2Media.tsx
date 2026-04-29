@@ -27,9 +27,6 @@ interface UploadedFile {
   previewUrl?: string;
 }
 
-const SIZE_LIMIT_BYTES = 1 * 1024 * 1024;
-const SIZE_LABEL = '1 MB';
-
 const ALLOWED_TYPES: Record<UploadedFile['classifier'], string[]> = {
   IMAGE: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic'],
   VIDEO: ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska'],
@@ -156,8 +153,6 @@ function MediaBlock({
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>{FORMATS[classifier]}</span>
-          <span>·</span>
-          <span>Max {SIZE_LABEL}</span>
           <span>·</span>
           {/* Slot indicator */}
           <span className={`font-medium ${atLimit ? 'text-destructive' : 'text-foreground'}`}>
@@ -351,7 +346,7 @@ function MediaBlock({
                 Drop files here or <span className="text-primary font-medium">browse</span>
               </p>
               <p className="text-[10px] text-muted-foreground/60">
-                {remaining} slot{remaining !== 1 ? 's' : ''} remaining • Max {SIZE_LABEL}
+                {remaining} slot{remaining !== 1 ? 's' : ''} remaining
               </p>
             </div>
             <input
@@ -445,10 +440,6 @@ export function Step2Media({
         errors.push(
           `"${file.name}" is not an allowed ${forClassifier.toLowerCase()} type (${file.type || 'unknown'}).`,
         );
-        return;
-      }
-      if (file.size > SIZE_LIMIT_BYTES) {
-        errors.push(`"${file.name}" exceeds the ${SIZE_LABEL} limit.`);
         return;
       }
       if (countByType(cls) >= MAX_PER_TYPE) {

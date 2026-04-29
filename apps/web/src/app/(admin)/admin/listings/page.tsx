@@ -2,15 +2,190 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { listingsApi, ListingVM } from '@repo/api';
-import { Loader2, Trash2, RefreshCw, Plus, Pencil } from 'lucide-react';
+import { listingsApi, blobsApi, ListingVM, ListingBlobRef, ListingCategoryRef } from '@repo/api';
+import {
+  Loader2,
+  Trash2,
+  RefreshCw,
+  Plus,
+  Pencil,
+  ImageIcon,
+  Film,
+  FileText,
+  Download,
+  X,
+} from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
-import { Button } from '@repo/ui';
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@repo/ui';
 import { DataTable } from '@/components/common/data-table';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
+
+type MediaType = 'image' | 'video' | 'doc';
+
+interface MediaModal {
+  blobs: ListingBlobRef[];
+  mediaType: MediaType;
+}
+
+function getCategoryName(listing: ListingVM): string {
+  if (!listing.category) return '—';
+  return `${listing.category.icon ? listing.category.icon + ' ' : ''}${listing.category.name}`;
+}
+
+function getSubCategoryName(listing: ListingVM): string {
+  if (!listing.subCategory) return '—';
+  if (typeof listing.subCategory === 'object') {
+    const s = listing.subCategory as ListingCategoryRef;
+    return `${s.icon ? s.icon + ' ' : ''}${s.name}`;
+  }
+  return listing.subCategory;
+}
+
+function classifyBlob(blob: ListingBlobRef): MediaType {
+  const mt = blob.mediaType ?? '';
+  if (mt.startsWith('image/')) return 'image';
+  if (mt.startsWith('video/')) return 'video';
+  return 'doc';
+}
+
+function MediaCountBadge({
+  blobs,
+  type,
+  onClick,
+}: {
+  blobs: ListingBlobRef[];
+  type: MediaType;
+  onClick: () => void;
+}) {
+  const filtered = blobs.filter((b) => classifyBlob(b) === type);
+  if (!filtered.length) return null;
+
+  const Icon = type === 'image' ? ImageIcon : type === 'video' ? Film : FileText;
+  const label = type === 'image' ? 'Images' : type === 'video' ? 'Videos' : 'Docs';
+  const colorClass =
+    type === 'image'
+      ? 'text-blue-600 hover:text-blue-700'
+      : type === 'video'
+        ? 'text-purple-600 hover:text-purple-700'
+        : 'text-amber-600 hover:text-amber-700';
+
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1 text-xs font-medium ${colorClass} hover:underline`}
+    >
+      <Icon className="h-3 w-3" />
+      {label}: {filtered.length}
+    </button>
+  );
+}
+
+function MediaModal({ modal, onClose }: { modal: MediaModal; onClose: () => void }) {
+  const { blobs, mediaType } = modal;
+  const filtered = blobs.filter((b) => classifyBlob(b) === mediaType);
+
+  const title = mediaType === 'image' ? 'Images' : mediaType === 'video' ? 'Videos' : 'Documents';
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+
+        {mediaType === 'image' && (
+          <div className="grid grid-cols-2 gap-4">
+            {filtered.map((blob) => (
+              <div
+                key={blob.id}
+                className="rounded-lg overflow-hidden border border-border group relative"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={blobsApi.getDownloadUrl(blob.id)}
+                  alt={blob.fileName ?? blob.id}
+                  className="w-full h-48 object-cover"
+                />
+                <div className="p-2 flex items-center justify-between bg-muted/50">
+                  <span className="text-xs text-muted-foreground truncate max-w-[160px]">
+                    {blob.fileName ?? blob.id}
+                  </span>
+                  <a
+                    href={blobsApi.getDownloadUrl(blob.id)}
+                    download={blob.fileName ?? true}
+                    className="flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    <Download className="h-3 w-3" />
+                    Download
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {mediaType === 'video' && (
+          <div className="space-y-3">
+            {filtered.map((blob) => (
+              <div key={blob.id} className="rounded-lg overflow-hidden border border-border">
+                <video
+                  controls
+                  className="w-full max-h-64 bg-black"
+                  src={blobsApi.getDownloadUrl(blob.id)}
+                />
+                <div className="p-2 flex items-center justify-between bg-muted/50">
+                  <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                    {blob.fileName ?? blob.id}
+                  </span>
+                  <a
+                    href={blobsApi.getDownloadUrl(blob.id)}
+                    download={blob.fileName ?? true}
+                    className="flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    <Download className="h-3 w-3" />
+                    Download
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {mediaType === 'doc' && (
+          <div className="space-y-2">
+            {filtered.map((blob) => (
+              <div
+                key={blob.id}
+                className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-border bg-muted/30"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <FileText className="h-4 w-4 text-amber-500 shrink-0" />
+                  <span className="text-sm text-foreground truncate">
+                    {blob.fileName ?? blob.id}
+                  </span>
+                  {blob.size && (
+                    <span className="text-xs text-muted-foreground shrink-0">({blob.size})</span>
+                  )}
+                </div>
+                <a
+                  href={blobsApi.getDownloadUrl(blob.id)}
+                  download={blob.fileName ?? true}
+                  className="flex items-center gap-1 text-xs text-primary hover:underline shrink-0 ml-3"
+                >
+                  <Download className="h-3 w-3" />
+                  Download
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function ListingsPage() {
   const router = useRouter();
@@ -20,6 +195,7 @@ export default function ListingsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [mediaModal, setMediaModal] = useState<MediaModal | null>(null);
 
   const fetchListings = async (phrase?: string) => {
     setIsLoading(true);
@@ -76,6 +252,20 @@ export default function ListingsPage() {
       ),
     },
     {
+      id: 'category',
+      header: 'Category',
+      cell: ({ row }) => (
+        <span className="text-sm text-foreground">{getCategoryName(row.original)}</span>
+      ),
+    },
+    {
+      id: 'subCategory',
+      header: 'Sub-category',
+      cell: ({ row }) => (
+        <span className="text-sm text-foreground">{getSubCategoryName(row.original)}</span>
+      ),
+    },
+    {
       id: 'tags',
       header: 'Tags',
       cell: ({ row }) => {
@@ -91,6 +281,33 @@ export default function ListingsPage() {
                 {t}
               </span>
             ))}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'media',
+      header: 'Media',
+      cell: ({ row }) => {
+        const blobs = row.original.blobs ?? [];
+        if (!blobs.length) return <span className="text-xs text-muted-foreground">—</span>;
+        return (
+          <div className="flex flex-col gap-1">
+            <MediaCountBadge
+              blobs={blobs}
+              type="image"
+              onClick={() => setMediaModal({ blobs, mediaType: 'image' })}
+            />
+            <MediaCountBadge
+              blobs={blobs}
+              type="video"
+              onClick={() => setMediaModal({ blobs, mediaType: 'video' })}
+            />
+            <MediaCountBadge
+              blobs={blobs}
+              type="doc"
+              onClick={() => setMediaModal({ blobs, mediaType: 'doc' })}
+            />
           </div>
         );
       },
@@ -176,6 +393,8 @@ export default function ListingsPage() {
         }}
         onCancel={() => setConfirmId(null)}
       />
+
+      {mediaModal && <MediaModal modal={mediaModal} onClose={() => setMediaModal(null)} />}
     </div>
   );
 }
