@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   User,
@@ -13,13 +13,13 @@ import {
   KeyRound,
   Mail,
   Phone,
-  RefreshCw,
 } from 'lucide-react';
 import { Button, Input, Label, Separator, InputOTP, InputOTPGroup, InputOTPSlot } from '@repo/ui';
 import { authApi, usersApi } from '@repo/api';
 import { useAuthStore } from '@/store/authStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { parseApiError } from '@/lib/api-errors';
+import { TextCaptcha, type TextCaptchaHandle } from './TextCaptcha';
 
 const OTP_RESEND_COOLDOWN_SEC = 30;
 
@@ -37,75 +37,7 @@ function detectIdentity(value: string): IdentityType {
 }
 
 // ─── Text CAPTCHA ─────────────────────────────────────────────────────────────
-const CAPTCHA_POOL = [
-  { q: 'What is 3 + 4?', a: '7' },
-  { q: 'What is 8 - 2?', a: '6' },
-  { q: 'What is 5 × 3?', a: '15' },
-  { q: 'What is 12 ÷ 4?', a: '3' },
-  { q: 'What is 9 + 6?', a: '15' },
-  { q: 'What is 7 × 2?', a: '14' },
-  { q: 'What is 20 - 8?', a: '12' },
-  { q: 'What is 4 + 9?', a: '13' },
-  { q: 'Spell the color of the sky (5 letters)', a: 'blue' },
-  { q: 'How many days in a week?', a: '7' },
-];
-
-function randomCaptcha() {
-  return CAPTCHA_POOL[Math.floor(Math.random() * CAPTCHA_POOL.length)]!;
-}
-
-function CaptchaField({
-  value,
-  onChange,
-  error,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  error: string | null;
-}) {
-  // Use lazy initializer — runs only on client, returns null on SSR
-  const [captcha, setCaptcha] = useState<{ q: string; a: string } | null>(() =>
-    typeof window !== 'undefined' ? randomCaptcha() : null,
-  );
-
-  const refresh = () => {
-    setCaptcha(randomCaptcha());
-    onChange('');
-  };
-
-  if (!captcha) return null;
-
-  return (
-    <div className="space-y-1.5">
-      <Label className={error ? 'text-destructive' : ''}>
-        Security check <span className="text-destructive">*</span>
-      </Label>
-      <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
-        <span className="text-sm font-medium text-foreground flex-1 select-none font-mono tracking-wide">
-          {captcha.q}
-        </span>
-        <button
-          type="button"
-          onClick={refresh}
-          className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-          title="New question"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-        </button>
-      </div>
-      <Input
-        placeholder="Your answer"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={error ? 'border-destructive focus-visible:ring-destructive' : ''}
-        autoComplete="off"
-        // store expected answer as data attribute so parent can validate
-        data-captcha-answer={captcha.a.toLowerCase()}
-      />
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
-  );
-}
+// Moved to ./TextCaptcha.tsx — import TextCaptcha from there.
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type LoginStep = 'identity' | 'password' | 'otp';
@@ -226,9 +158,8 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [showSignupPassword, setShowSignupPassword] = useState(false);
 
   // ── CAPTCHA ────────────────────────────────────────────────────────────────
-  const [captchaValue, setCaptchaValue] = useState('');
-  const [captchaError, setCaptchaError] = useState<string | null>(null);
-  const captchaRef = React.useRef<HTMLDivElement>(null);
+  const loginCaptchaRef = useRef<TextCaptchaHandle>(null);
+  const signupCaptchaRef = useRef<TextCaptchaHandle>(null);
 
   // ── Shared ─────────────────────────────────────────────────────────────────
   const [isLoading, setIsLoading] = useState(false);
@@ -249,20 +180,6 @@ export function AuthForm({ mode }: AuthFormProps) {
     return () => clearInterval(t);
   }, [resendCooldown]);
 
-  // ── CAPTCHA validation helper ──────────────────────────────────────────────
-  const validateCaptcha = (): boolean => {
-    const input = captchaRef.current?.querySelector(
-      'input[data-captcha-answer]',
-    ) as HTMLInputElement | null;
-    const expected = input?.getAttribute('data-captcha-answer') ?? '';
-    if (captchaValue.trim().toLowerCase() !== expected) {
-      setCaptchaError('Incorrect answer. Please try again.');
-      return false;
-    }
-    setCaptchaError(null);
-    return true;
-  };
-
   // ─── LOGIN: Step 1 — identity ──────────────────────────────────────────────
   const handleIdentityContinue = (e: React.FormEvent) => {
     e.preventDefault();
@@ -272,7 +189,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       setIdentifierError('Please enter your username, email, or mobile number.');
       return;
     }
-    if (!validateCaptcha()) return;
+    if (!loginCaptchaRef.current?.validate()) return;
     const type = detectIdentity(loginIdentifier.trim());
     setIdentityType(type);
     setLoginStep('password');
@@ -362,6 +279,8 @@ export function AuthForm({ mode }: AuthFormProps) {
       setEmailError('Please enter your email address.');
       return;
     }
+    // Validate captcha only on first submission (e is present = form submit, not resend)
+    if (e && !signupCaptchaRef.current?.validate()) return;
     setIsLoading(true);
     try {
       const emailExists: unknown = await usersApi.checkEmailExists(email.trim());
@@ -966,9 +885,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               )}
             </div>
 
-            <div ref={captchaRef}>
-              <CaptchaField value={captchaValue} onChange={setCaptchaValue} error={captchaError} />
-            </div>
+            <TextCaptcha ref={loginCaptchaRef} />
 
             <Button
               type="submit"
@@ -1001,6 +918,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               </div>
               {emailError && <p className="text-sm font-medium text-destructive">{emailError}</p>}
             </div>
+            <TextCaptcha ref={signupCaptchaRef} />
             <Button
               type="submit"
               className="w-full h-11 text-base font-medium"
