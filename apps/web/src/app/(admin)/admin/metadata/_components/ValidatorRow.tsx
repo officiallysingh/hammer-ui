@@ -24,11 +24,10 @@ function resolveType(raw: unknown): string {
   return '';
 }
 
-const EXTRA_FIELD_TYPES = new Set(['MAX', 'MIN', 'SIZE', 'REGEX_PATTERN']);
-
-function hasExtraFields(typeKey: string): boolean {
-  return EXTRA_FIELD_TYPES.has(typeKey);
-}
+// Validators that require extra fields
+const NEEDS_MIN = new Set(['MIN', 'SIZE']);
+const NEEDS_MAX = new Set(['MAX', 'SIZE']);
+const NEEDS_REGEX = new Set(['REGEX_PATTERN']);
 
 export function ValidatorRow({
   validator,
@@ -39,12 +38,19 @@ export function ValidatorRow({
   const typeKey = resolveType(validator.type);
 
   const handleTypeChange = (newType: string) => {
-    // Clear all extra fields when switching validator type
     onChange({ type: newType, max: undefined, min: undefined, regex: undefined });
   };
 
+  const minVal = validator.min !== undefined && validator.min !== '' ? String(validator.min) : '';
+  const maxVal = validator.max !== undefined && validator.max !== '' ? String(validator.max) : '';
+  const regexVal = validator.regex ?? '';
+
+  const minMissing = NEEDS_MIN.has(typeKey) && minVal === '';
+  const maxMissing = NEEDS_MAX.has(typeKey) && maxVal === '';
+  const regexMissing = NEEDS_REGEX.has(typeKey) && regexVal === '';
+
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2 rounded-md border border-border bg-muted/10 p-2">
       {/* Type + message + delete */}
       <div className="flex items-center gap-2">
         <select
@@ -73,46 +79,57 @@ export function ValidatorRow({
         </button>
       </div>
 
-      {/* Extra fields per validator type */}
-      {hasExtraFields(typeKey) && (
-        <div className="ml-2 pl-2 border-l-2 border-border flex flex-wrap gap-2">
-          {(typeKey === 'MIN' || typeKey === 'SIZE') && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-muted-foreground w-7">Min</span>
+      {/* Extra fields — mandatory for MIN, MAX, SIZE, REGEX_PATTERN */}
+      {(NEEDS_MIN.has(typeKey) || NEEDS_MAX.has(typeKey) || NEEDS_REGEX.has(typeKey)) && (
+        <div className="flex flex-wrap gap-3 pt-1">
+          {NEEDS_MIN.has(typeKey) && (
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[10px] font-medium text-muted-foreground">
+                Min <span className="text-destructive">*</span>
+              </label>
               <Input
                 type="number"
-                value={validator.min ?? ''}
-                placeholder="0"
+                value={minVal}
+                placeholder="e.g. 1"
                 onChange={(e) =>
                   onChange({ min: e.target.value === '' ? undefined : Number(e.target.value) })
                 }
-                className="h-7 text-xs w-28"
+                className={`h-7 text-xs w-24 ${minMissing ? 'border-destructive focus-visible:ring-destructive' : ''}`}
               />
+              {minMissing && <p className="text-[10px] text-destructive">Required</p>}
             </div>
           )}
-          {(typeKey === 'MAX' || typeKey === 'SIZE') && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-muted-foreground w-7">Max</span>
+
+          {NEEDS_MAX.has(typeKey) && (
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[10px] font-medium text-muted-foreground">
+                Max <span className="text-destructive">*</span>
+              </label>
               <Input
                 type="number"
-                value={validator.max ?? ''}
-                placeholder="∞"
+                value={maxVal}
+                placeholder="e.g. 255"
                 onChange={(e) =>
                   onChange({ max: e.target.value === '' ? undefined : Number(e.target.value) })
                 }
-                className="h-7 text-xs w-28"
+                className={`h-7 text-xs w-24 ${maxMissing ? 'border-destructive focus-visible:ring-destructive' : ''}`}
               />
+              {maxMissing && <p className="text-[10px] text-destructive">Required</p>}
             </div>
           )}
-          {typeKey === 'REGEX_PATTERN' && (
-            <div className="flex items-center gap-1.5 flex-1">
-              <span className="text-xs text-muted-foreground w-12 shrink-0">Pattern</span>
+
+          {NEEDS_REGEX.has(typeKey) && (
+            <div className="flex flex-col gap-0.5 flex-1 min-w-[160px]">
+              <label className="text-[10px] font-medium text-muted-foreground">
+                Pattern <span className="text-destructive">*</span>
+              </label>
               <Input
-                value={validator.regex ?? ''}
-                placeholder="^[a-z]+$"
+                value={regexVal}
+                placeholder="e.g. ^[a-zA-Z]+$"
                 onChange={(e) => onChange({ regex: e.target.value })}
-                className="h-7 text-xs font-mono flex-1"
+                className={`h-7 text-xs font-mono ${regexMissing ? 'border-destructive focus-visible:ring-destructive' : ''}`}
               />
+              {regexMissing && <p className="text-[10px] text-destructive">Required</p>}
             </div>
           )}
         </div>

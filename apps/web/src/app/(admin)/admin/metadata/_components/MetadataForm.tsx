@@ -81,12 +81,28 @@ function StepIndicator({ step }: { step: 1 | 2 }) {
 }
 
 // ── Validation ────────────────────────────────────────────────────────────────
+const NEEDS_MIN = new Set(['MIN', 'SIZE']);
+const NEEDS_MAX = new Set(['MAX', 'SIZE']);
+const NEEDS_REGEX = new Set(['REGEX_PATTERN']);
+
 function validateProperties(properties: PropertyDef[], path = 'Property'): string | null {
   for (let i = 0; i < properties.length; i++) {
     const prop = properties[i]!;
     const label = `${path} ${i + 1}`;
     if (!prop.name?.trim()) return `${label}: name is required.`;
     if (!prop.label?.trim()) return `${label} ("${prop.name}"): label is required.`;
+
+    // Validate extra fields on validators
+    for (const v of prop.validators ?? []) {
+      const t = typeof v.type === 'string' ? v.type : String(v.type ?? '');
+      if (NEEDS_MIN.has(t) && (v.min === undefined || v.min === ''))
+        return `${label} ("${prop.name}"): validator ${t} requires a Min value.`;
+      if (NEEDS_MAX.has(t) && (v.max === undefined || v.max === ''))
+        return `${label} ("${prop.name}"): validator ${t} requires a Max value.`;
+      if (NEEDS_REGEX.has(t) && !v.regex?.trim())
+        return `${label} ("${prop.name}"): validator REGEX_PATTERN requires a Pattern.`;
+    }
+
     if (prop.value?.length) {
       const childError = validateProperties(prop.value, `${label} > child`);
       if (childError) return childError;

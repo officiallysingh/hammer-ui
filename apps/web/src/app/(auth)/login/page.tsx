@@ -58,7 +58,7 @@ export default function LoginPage() {
                   href="/signup"
                   className="font-medium text-primary hover:text-primary/90 transition-colors"
                 >
-                  Create one
+                  Register
                 </Link>
               </div>
             </CardContent>
