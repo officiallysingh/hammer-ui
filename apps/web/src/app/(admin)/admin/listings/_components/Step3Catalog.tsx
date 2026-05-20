@@ -4,6 +4,7 @@ import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button, Label, DatePicker, TimePicker, DateTimePicker, YearPicker } from '@repo/ui';
 import { ManagedTypeVM, ManagedTypeListItem, PropertyDef } from '@repo/api';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
+import { AddressField } from '@/components/common/admin/AddressField';
 
 interface Step3Props {
   typeListItems: ManagedTypeListItem[];
@@ -400,7 +401,24 @@ function ScalarField({
     'w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground/60';
 
   const strVal = typeof value === 'string' ? value : value != null ? String(value) : '';
+
+  // ── Read attributes as typed rendering hints ──────────────────────────────
   const attrs = prop.attributes ?? {};
+  const placeholder = attrs['placeholder'] ?? `Enter ${prop.label.toLowerCase()}…`;
+  const multiline = attrs['multiline'] === 'true';
+  const rows = attrs['rows'] ? Number(attrs['rows']) : 3;
+  const step = attrs['step'];
+  const attrMin = attrs['min'];
+  const attrMax = attrs['max'];
+  const pattern = attrs['pattern'];
+  // options: comma-separated "Label:value,Label:value" or just "value,value"
+  const optionsRaw = attrs['options'];
+  const options: { label: string; value: string }[] | null = optionsRaw
+    ? optionsRaw.split(',').map((o) => {
+        const [label, val] = o.trim().split(':');
+        return { label: label?.trim() ?? '', value: val?.trim() ?? label?.trim() ?? '' };
+      })
+    : null;
 
   switch (prop.metaType) {
     // ── Numeric ──────────────────────────────────────────────────────────────
@@ -413,11 +431,12 @@ function ScalarField({
         <input
           id={`prop-${prop.name}`}
           type="number"
-          step="1"
+          step={step ?? '1'}
+          min={attrMin}
+          max={attrMax}
           value={strVal}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={`Enter ${prop.label.toLowerCase()}…`}
-          {...attrs}
+          placeholder={placeholder}
           className={base}
         />
       );
@@ -429,11 +448,12 @@ function ScalarField({
         <input
           id={`prop-${prop.name}`}
           type="number"
-          step="any"
+          step={step ?? 'any'}
+          min={attrMin}
+          max={attrMax}
           value={strVal}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={`Enter ${prop.label.toLowerCase()}…`}
-          {...attrs}
+          placeholder={placeholder}
           className={base}
         />
       );
@@ -468,7 +488,7 @@ function ScalarField({
           id={`prop-${prop.name}`}
           value={strVal || undefined}
           onChange={onChange}
-          placeholder={attrs.placeholder ?? `Pick a date…`}
+          placeholder={attrs['placeholder'] ?? 'Pick a date…'}
         />
       );
 
@@ -478,7 +498,7 @@ function ScalarField({
           id={`prop-${prop.name}`}
           value={strVal || undefined}
           onChange={onChange}
-          placeholder={attrs.placeholder ?? `Pick a time…`}
+          placeholder={attrs['placeholder'] ?? 'Pick a time…'}
         />
       );
 
@@ -491,7 +511,7 @@ function ScalarField({
           id={`prop-${prop.name}`}
           value={strVal || undefined}
           onChange={onChange}
-          placeholder={attrs.placeholder ?? `Pick date & time…`}
+          placeholder={attrs['placeholder'] ?? 'Pick date & time…'}
         />
       );
 
@@ -501,7 +521,9 @@ function ScalarField({
           id={`prop-${prop.name}`}
           value={strVal || undefined}
           onChange={onChange}
-          placeholder="Pick a year…"
+          placeholder={attrs['placeholder'] ?? 'Pick a year…'}
+          minYear={attrMin ? Number(attrMin) : undefined}
+          maxYear={attrMax ? Number(attrMax) : undefined}
         />
       );
 
@@ -511,6 +533,8 @@ function ScalarField({
           id={`prop-${prop.name}`}
           type="month"
           value={strVal}
+          min={attrMin}
+          max={attrMax}
           onChange={(e) => onChange(e.target.value)}
           className={base}
         />
@@ -592,56 +616,8 @@ function ScalarField({
     }
 
     // ── Address ───────────────────────────────────────────────────────────────
-    case 'ADDRESS': {
-      const addr =
-        typeof value === 'object' && value !== null && !Array.isArray(value)
-          ? (value as Record<string, string>)
-          : {};
-      const set = (key: string, v: string) => onChange({ ...addr, [key]: v });
-      return (
-        <div className="space-y-2">
-          <input
-            type="text"
-            placeholder="Street address"
-            value={addr.street ?? ''}
-            onChange={(e) => set('street', e.target.value)}
-            className={base}
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              type="text"
-              placeholder="City"
-              value={addr.city ?? ''}
-              onChange={(e) => set('city', e.target.value)}
-              className={base}
-            />
-            <input
-              type="text"
-              placeholder="State / Province"
-              value={addr.state ?? ''}
-              onChange={(e) => set('state', e.target.value)}
-              className={base}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              type="text"
-              placeholder="Postal code"
-              value={addr.zip ?? ''}
-              onChange={(e) => set('zip', e.target.value)}
-              className={base}
-            />
-            <input
-              type="text"
-              placeholder="Country"
-              value={addr.country ?? ''}
-              onChange={(e) => set('country', e.target.value)}
-              className={base}
-            />
-          </div>
-        </div>
-      );
-    }
+    case 'ADDRESS':
+      return <AddressField value={value} onChange={onChange} />;
 
     // ── File ──────────────────────────────────────────────────────────────────
     case 'FILE':
@@ -649,6 +625,7 @@ function ScalarField({
         <input
           id={`prop-${prop.name}`}
           type="file"
+          accept={attrs['accept']}
           onChange={(e) => onChange(e.target.files?.[0]?.name ?? '')}
           className={base}
         />
@@ -657,14 +634,47 @@ function ScalarField({
     // ── String & default ──────────────────────────────────────────────────────
     case 'STRING':
     default:
+      // options attribute → render as select
+      if (options) {
+        return (
+          <select
+            id={`prop-${prop.name}`}
+            value={strVal}
+            onChange={(e) => onChange(e.target.value)}
+            className={base}
+          >
+            <option value="">{placeholder}</option>
+            {options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        );
+      }
+      // multiline attribute → render as textarea
+      if (multiline) {
+        return (
+          <textarea
+            id={`prop-${prop.name}`}
+            value={strVal}
+            rows={rows}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            className={`${base} resize-none`}
+          />
+        );
+      }
       return (
         <input
           id={`prop-${prop.name}`}
-          type="text"
+          type={attrs['type'] ?? 'text'}
           value={strVal}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={`Enter ${prop.label.toLowerCase()}…`}
-          {...attrs}
+          placeholder={placeholder}
+          pattern={pattern}
+          minLength={attrMin ? Number(attrMin) : undefined}
+          maxLength={attrMax ? Number(attrMax) : undefined}
           className={base}
         />
       );

@@ -2,6 +2,40 @@ import { apiClient } from './client';
 
 // ── View Models ──────────────────────────────────────────────────────────────
 
+// States / Cities / Areas
+export interface StateVM {
+  id: string;
+  name: string;
+  cities?: CityVM[];
+}
+
+export interface CityVM {
+  id: string;
+  name: string;
+  state?: StateVM;
+  areas?: AreaVM[];
+}
+
+export interface AreaVM {
+  id: string;
+  name: string;
+  pinCode?: string;
+  city?: CityVM;
+}
+
+// Request Models
+export interface StateCreationRQ {
+  name: string;
+}
+
+export interface CityCreationRQ {
+  name: string;
+}
+
+export interface AreaCreationRQ {
+  name: string;
+}
+
 export interface CategoryVM {
   id: string;
   code: string;
@@ -44,6 +78,56 @@ export interface SubCategoryUpdationRQ {
 // ── API ──────────────────────────────────────────────────────────────────────
 
 export const masterApi = {
+  // States
+  getStates: async (includeCities = false): Promise<StateVM[]> => {
+    const response = await apiClient.get('/api/v1/master/states', {
+      headers: includeCities ? { 'x-expand': 'cities' } : undefined,
+    });
+    return response.data;
+  },
+
+  createState: async (data: StateCreationRQ): Promise<void> => {
+    await apiClient.post('/api/v1/master/states', data);
+  },
+
+  // Cities
+  getCitiesByState: async (stateId: string, expand?: ('state' | 'areas')[]): Promise<CityVM[]> => {
+    const response = await apiClient.get(`/api/v1/master/states/${stateId}/cities`, {
+      headers: expand?.length ? { 'x-expand': expand } : undefined,
+    });
+    return response.data;
+  },
+
+  createCity: async (stateId: string, data: CityCreationRQ): Promise<void> => {
+    await apiClient.post(`/api/v1/master/states/${stateId}/cities`, data);
+  },
+
+  // Areas
+  getAreasByCity: async (cityId: string, includeCity = false): Promise<AreaVM[]> => {
+    const response = await apiClient.get(`/api/v1/master/cities/${cityId}/areas`, {
+      headers: includeCity ? { 'x-expand': 'city' } : undefined,
+    });
+    return response.data;
+  },
+
+  getAreasByPinCode: async (pinCode: string): Promise<AreaVM[]> => {
+    const response = await apiClient.get(`/api/v1/master/areas/pin-code/${pinCode}`, {
+      headers: { 'x-expand': 'city' },
+    });
+    return response.data;
+  },
+
+  getCityById: async (cityId: string, expand?: ('state' | 'areas')[]): Promise<CityVM> => {
+    const response = await apiClient.get(`/api/v1/master/cities/${cityId}`, {
+      headers: expand?.length ? { 'x-expand': expand } : undefined,
+    });
+    return response.data;
+  },
+
+  createArea: async (cityId: string, data: AreaCreationRQ): Promise<void> => {
+    await apiClient.post(`/api/v1/master/cities/${cityId}/areas`, data);
+  },
+
   // Categories
   getCategories: async (includeSubCategories = false, phrases?: string): Promise<CategoryVM[]> => {
     const response = await apiClient.get('/api/v1/master/categories', {

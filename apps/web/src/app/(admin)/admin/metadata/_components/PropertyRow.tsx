@@ -265,8 +265,8 @@ export function PropertyRow({
             {loadingValidators ? 'Loading...' : 'Add validator'}
           </button>
 
-          {/* Attributes — COMPLEX_PROPERTY only */}
-          {prop.type === 'COMPLEX_PROPERTY' && (
+          {/* Attributes — COMPLEX_PROPERTY and COMPOSITE_PROPERTY */}
+          {(prop.type === 'COMPLEX_PROPERTY' || prop.type === 'COMPOSITE_PROPERTY') && (
             <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between">
                 <Label className="text-xs text-muted-foreground">Attributes (key → value)</Label>

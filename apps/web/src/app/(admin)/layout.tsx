@@ -13,6 +13,7 @@ import {
   Menu,
   ChevronRight,
   Tag,
+  MapPin,
   ExternalLink,
   User,
   ChevronDown,
@@ -66,6 +67,12 @@ const navGroups: NavGroup[] = [
         icon: Tag,
         description: 'Item categories',
       },
+      // {
+      //   href: '/admin/master/states',
+      //   label: 'States',
+      //   icon: MapPin,
+      //   description: 'States, cities & areas',
+      // },
     ],
   },
   {
@@ -87,6 +94,11 @@ const allNavItems = navGroups.flatMap((g) => g.items);
 
 // Sub-route title overrides
 const subRouteTitles: { match: RegExp; label: string; description: string }[] = [
+  {
+    match: /\/admin\/master\/states$/,
+    label: 'States',
+    description: 'Manage states, cities & areas',
+  },
   {
     match: /\/admin\/master\/categories\/new$/,
     label: 'Add category',

@@ -111,10 +111,10 @@ export const TextCaptcha = forwardRef<TextCaptchaHandle, TextCaptchaProps>(funct
   }));
 
   return (
-    <div className={`space-y-1.5 ${className ?? ''}`}>
-      <Label className={error ? 'text-destructive' : ''}>
+    <div className={`space-y-5 ${className ?? ''}`}>
+      {/* <Label className={error ? 'text-destructive' : ''}>
         Security check <span className="text-destructive">*</span>
-      </Label>
+      </Label> */}
       <div className="flex items-center gap-2">
         <div className="rounded-md border border-border overflow-hidden select-none">
           <canvas ref={canvasRef} width={200} height={52} />
@@ -128,8 +128,11 @@ export const TextCaptcha = forwardRef<TextCaptchaHandle, TextCaptchaProps>(funct
           <RefreshCw className="h-4 w-4" />
         </button>
       </div>
+      {/* <Label className={error ? 'text-destructive' : ''}>
+        Enter Characters shown above <span className="text-destructive">*</span>
+      </Label> */}
       <Input
-        placeholder="Enter the characters above"
+        placeholder="Enter the characters shown above"
         value={value}
         onChange={(e) => {
           setValue(e.target.value);

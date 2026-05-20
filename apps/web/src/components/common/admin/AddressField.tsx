@@ -1,0 +1,300 @@
+'use client';
+
+import { useRef, useState } from 'react';
+import { Loader2, MapPin } from 'lucide-react';
+import { Label } from '@repo/ui';
+import { masterApi, AreaVM } from '@repo/api';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface AddressValue {
+  country?: string;
+  pincode?: string;
+  area?: string;
+  city?: string;
+  state?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  landmark?: string;
+  coordinates?: string; // "lat,lng"
+}
+
+interface AddressFieldProps {
+  value: unknown;
+  onChange: (value: AddressValue) => void;
+}
+
+// ── Shared input class ────────────────────────────────────────────────────────
+
+const base =
+  'w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground/60';
+
+// ── Sub-label wrapper ─────────────────────────────────────────────────────────
+
+function Field({
+  id,
+  label,
+  required,
+  children,
+}: {
+  id?: string;
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id} className="text-xs font-medium text-muted-foreground">
+        {label}
+        {required && <span className="text-destructive ml-0.5">*</span>}
+      </Label>
+      {children}
+    </div>
+  );
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export function AddressField({ value, onChange }: AddressFieldProps) {
+  const addr: AddressValue =
+    typeof value === 'object' && value !== null && !Array.isArray(value)
+      ? (value as AddressValue)
+      : {};
+
+  const set = (key: keyof AddressValue, v: string) => onChange({ ...addr, [key]: v });
+
+  // Pincode lookup state
+  const [pincodeLoading, setPincodeLoading] = useState(false);
+  const [pincodeError, setPincodeError] = useState('');
+  const [areaOptions, setAreaOptions] = useState<AreaVM[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handlePincodeChange = (pin: string) => {
+    // Update pincode immediately; clear derived fields and options
+    onChange({ ...addr, pincode: pin, area: '', city: '', state: '' });
+    setAreaOptions([]);
+    setPincodeError('');
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (pin.length === 6 && /^\d{6}$/.test(pin)) {
+      debounceRef.current = setTimeout(async () => {
+        setPincodeLoading(true);
+        try {
+          // Step 1: get areas for this pincode (with city expanded)
+          const areas = await masterApi.getAreasByPinCode(pin);
+
+          if (!areas.length) {
+            setPincodeError('No areas found for this pincode.');
+            setPincodeLoading(false);
+            return;
+          }
+
+          setAreaOptions(areas);
+
+          // Step 2: use the city from the first area to fetch state
+          const firstCityId = areas[0]?.city?.id;
+          const cityName = areas[0]?.city?.name ?? '';
+
+          let stateName = '';
+          if (firstCityId) {
+            try {
+              const cityDetail = await masterApi.getCityById(firstCityId, ['state']);
+              stateName = cityDetail.state?.name ?? '';
+            } catch {
+              // state stays empty — user can fill manually
+            }
+          }
+
+          // Pre-fill city + state; leave area blank until user picks from dropdown
+          onChange({
+            ...addr,
+            pincode: pin,
+            city: cityName,
+            state: stateName,
+            area: areas.length === 1 ? (areas[0]?.name ?? '') : '',
+          });
+        } catch {
+          setPincodeError('Failed to look up pincode. Please fill in manually.');
+        } finally {
+          setPincodeLoading(false);
+        }
+      }, 500);
+    }
+  };
+
+  // Coordinates
+  const coordStr = addr.coordinates ?? '';
+  const coordParts = coordStr.split(',').map((s) => s.trim());
+  const lat = coordParts[0] ?? '';
+  const lng = coordParts[1] ?? '';
+
+  const autoFilled = !pincodeError && !pincodeLoading && addr.pincode?.length === 6 && !!addr.city;
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/10 p-4 space-y-4">
+      {/* Country */}
+      <Field id="addr-country" label="Country">
+        <select
+          id="addr-country"
+          value={addr.country ?? 'India'}
+          onChange={(e) => set('country', e.target.value)}
+          className={base}
+        >
+          <option value="India">India</option>
+        </select>
+      </Field>
+
+      {/* Pincode */}
+      <Field id="addr-pincode" label="Pincode" required>
+        <div className="relative">
+          <input
+            id="addr-pincode"
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            value={addr.pincode ?? ''}
+            onChange={(e) => handlePincodeChange(e.target.value.replace(/\D/g, ''))}
+            placeholder="125076"
+            className={`${base} pr-8`}
+          />
+          {pincodeLoading && (
+            <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-muted-foreground" />
+          )}
+        </div>
+        {pincodeError && <p className="text-xs text-amber-500 mt-0.5">{pincodeError}</p>}
+        {autoFilled && (
+          <p className="text-xs text-emerald-500 mt-0.5">✓ City and state auto-filled</p>
+        )}
+      </Field>
+
+      {/* Area — dropdown when options available, plain text otherwise */}
+      <Field id="addr-area" label="Area" required>
+        {areaOptions.length > 1 ? (
+          <select
+            id="addr-area"
+            value={addr.area ?? ''}
+            onChange={(e) => set('area', e.target.value)}
+            className={base}
+          >
+            <option value="">Select area…</option>
+            {areaOptions.map((a) => (
+              <option key={a.id} value={a.name}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            id="addr-area"
+            type="text"
+            value={addr.area ?? ''}
+            onChange={(e) => set('area', e.target.value)}
+            placeholder="Andheri West"
+            className={base}
+          />
+        )}
+      </Field>
+
+      {/* Town / City */}
+      <Field id="addr-city" label="Town / City" required>
+        <input
+          id="addr-city"
+          type="text"
+          value={addr.city ?? ''}
+          onChange={(e) => set('city', e.target.value)}
+          placeholder="Sirsa"
+          className={base}
+        />
+      </Field>
+
+      {/* State */}
+      <Field id="addr-state" label="State" required>
+        <input
+          id="addr-state"
+          type="text"
+          value={addr.state ?? ''}
+          onChange={(e) => set('state', e.target.value)}
+          placeholder="Haryana"
+          className={base}
+        />
+      </Field>
+
+      {/* Address Line 1 */}
+      <Field id="addr-line1" label="Flat / House No. / Building / Company / Apartment">
+        <input
+          id="addr-line1"
+          type="text"
+          value={addr.addressLine1 ?? ''}
+          onChange={(e) => set('addressLine1', e.target.value)}
+          placeholder="Flat 4B, Sunrise Apartments"
+          className={base}
+        />
+      </Field>
+
+      {/* Address Line 2 */}
+      <Field id="addr-line2" label="Street / Sector / Village">
+        <input
+          id="addr-line2"
+          type="text"
+          value={addr.addressLine2 ?? ''}
+          onChange={(e) => set('addressLine2', e.target.value)}
+          placeholder="Sector 12, Link Road"
+          className={base}
+        />
+      </Field>
+
+      {/* Landmark */}
+      <Field id="addr-landmark" label="Landmark">
+        <input
+          id="addr-landmark"
+          type="text"
+          value={addr.landmark ?? ''}
+          onChange={(e) => set('landmark', e.target.value)}
+          placeholder="Near City Mall"
+          className={base}
+        />
+      </Field>
+
+      {/* Coordinates */}
+      <div className="space-y-1">
+        <div className="flex items-center gap-1.5">
+          <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+          <Label className="text-xs font-medium text-muted-foreground">Location (Lat, Long)</Label>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="relative">
+            <input
+              type="number"
+              step="any"
+              min="-90"
+              max="90"
+              placeholder="Latitude"
+              value={lat}
+              onChange={(e) => set('coordinates', `${e.target.value},${lng}`)}
+              className={`${base} pr-8`}
+            />
+            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
+              lat
+            </span>
+          </div>
+          <div className="relative">
+            <input
+              type="number"
+              step="any"
+              min="-180"
+              max="180"
+              placeholder="Longitude"
+              value={lng}
+              onChange={(e) => set('coordinates', `${lat},${e.target.value}`)}
+              className={`${base} pr-8`}
+            />
+            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
+              lng
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
