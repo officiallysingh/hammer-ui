@@ -221,7 +221,7 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
       </Field>
 
       {/* Address Line 1 */}
-      <Field id="addr-line1" label="Flat / House No. / Building / Company / Apartment">
+      <Field id="addr-line1" label="Flat / House No. / Building / Company / Apartment" required>
         <input
           id="addr-line1"
           type="text"
@@ -233,7 +233,7 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
       </Field>
 
       {/* Address Line 2 */}
-      <Field id="addr-line2" label="Street / Sector / Village">
+      <Field id="addr-line2" label="Street / Sector / Village" required>
         <input
           id="addr-line2"
           type="text"
