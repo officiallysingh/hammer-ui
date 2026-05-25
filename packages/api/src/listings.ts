@@ -24,6 +24,7 @@ export interface ListingVM {
   /** API returns either the subcategory id (string) or a full object */
   subCategory?: string | ListingCategoryRef;
   category?: ListingCategoryRef;
+  status?: string;
   blobs?: ListingBlobRef[];
   embedded?: Record<string, unknown>;
 }

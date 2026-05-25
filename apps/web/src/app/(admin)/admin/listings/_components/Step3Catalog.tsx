@@ -148,6 +148,7 @@ const META_TYPE_LABELS: Partial<Record<string, string>> = {
   ADDRESS: 'Address',
   FILE: 'File',
   LIST: 'List',
+  DURATION: 'Duration',
 };
 
 // ─── PropertyFieldGroup ───────────────────────────────────────────────────────
@@ -388,6 +389,20 @@ const DAYS_OF_WEEK = [
 
 const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+function parseISODuration(val: string) {
+  if (!val || typeof val !== 'string') {
+    return { hours: 0, minutes: 0, seconds: 0 };
+  }
+  const match = val.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+  if (!match) {
+    return { hours: 0, minutes: 0, seconds: 0 };
+  }
+  const hours = match[1] ? parseInt(match[1], 10) : 0;
+  const minutes = match[2] ? parseInt(match[2], 10) : 0;
+  const seconds = match[3] ? parseInt(match[3], 10) : 0;
+  return { hours, minutes, seconds };
+}
+
 function ScalarField({
   prop,
   value,
@@ -576,9 +591,23 @@ function ScalarField({
 
     // ── Spatial ───────────────────────────────────────────────────────────────
     case 'COORDINATES': {
-      const parts = strVal.split(',').map((s) => s.trim());
-      const lat = parts[0] ?? '';
-      const lng = parts[1] ?? '';
+      // Store as { latitude: number, longitude: number } object (not a string)
+      const coordObj =
+        typeof value === 'object' && value !== null && !Array.isArray(value)
+          ? (value as Record<string, unknown>)
+          : {};
+      const lat = coordObj['latitude'] != null ? String(coordObj['latitude']) : '';
+      const lng = coordObj['longitude'] != null ? String(coordObj['longitude']) : '';
+
+      const updateCoord = (latVal: string, lngVal: string) => {
+        const latNum = latVal !== '' ? parseFloat(latVal) : undefined;
+        const lngNum = lngVal !== '' ? parseFloat(lngVal) : undefined;
+        onChange({
+          latitude: latNum,
+          longitude: lngNum,
+        });
+      };
+
       return (
         <div className="flex gap-2">
           <div className="flex-1 relative">
@@ -589,7 +618,7 @@ function ScalarField({
               max="90"
               placeholder="Latitude"
               value={lat}
-              onChange={(e) => onChange(`${e.target.value},${lng}`)}
+              onChange={(e) => updateCoord(e.target.value, lng)}
               className={base}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
@@ -604,7 +633,7 @@ function ScalarField({
               max="180"
               placeholder="Longitude"
               value={lng}
-              onChange={(e) => onChange(`${lat},${e.target.value}`)}
+              onChange={(e) => updateCoord(lat, e.target.value)}
               className={base}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
@@ -630,6 +659,61 @@ function ScalarField({
           className={base}
         />
       );
+
+    case 'DURATION': {
+      const { hours, minutes, seconds } = parseISODuration(strVal);
+
+      const handleDurationChange = (h: number, m: number, s: number) => {
+        onChange(`PT${h}H${m}M${s}S`);
+      };
+
+      return (
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <select
+              id={`prop-${prop.name}-hours`}
+              value={hours}
+              onChange={(e) => handleDurationChange(parseInt(e.target.value, 10), minutes, seconds)}
+              className={base}
+            >
+              {Array.from({ length: 100 }, (_, i) => (
+                <option key={i} value={i}>
+                  {i} hr{i !== 1 ? 's' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1">
+            <select
+              id={`prop-${prop.name}-minutes`}
+              value={minutes}
+              onChange={(e) => handleDurationChange(hours, parseInt(e.target.value, 10), seconds)}
+              className={base}
+            >
+              {Array.from({ length: 60 }, (_, i) => (
+                <option key={i} value={i}>
+                  {i} min{i !== 1 ? 's' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1">
+            <select
+              id={`prop-${prop.name}-seconds`}
+              value={seconds}
+              onChange={(e) => handleDurationChange(hours, minutes, parseInt(e.target.value, 10))}
+              className={base}
+            >
+              {Array.from({ length: 60 }, (_, i) => (
+                <option key={i} value={i}>
+                  {i} sec{i !== 1 ? 's' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      );
+    }
 
     // ── String & default ──────────────────────────────────────────────────────
     case 'STRING':

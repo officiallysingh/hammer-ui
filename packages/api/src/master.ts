@@ -117,6 +117,13 @@ export const masterApi = {
     return response.data;
   },
 
+  getCityByPinCode: async (pinCode: string): Promise<CityVM> => {
+    const response = await apiClient.get(`/api/v1/master/cities/pin-code/${pinCode}`, {
+      headers: { 'x-expand': 'state,areas' },
+    });
+    return response.data;
+  },
+
   getCityById: async (cityId: string, expand?: ('state' | 'areas')[]): Promise<CityVM> => {
     const response = await apiClient.get(`/api/v1/master/cities/${cityId}`, {
       headers: expand?.length ? { 'x-expand': expand } : undefined,

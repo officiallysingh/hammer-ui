@@ -16,7 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@repo/ui';
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Badge } from '@repo/ui';
 import { DataTable } from '@/components/common/data-table';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
@@ -187,6 +187,34 @@ function MediaModal({ modal, onClose }: { modal: MediaModal; onClose: () => void
   );
 }
 
+function StatusBadge({ status }: { status?: string }) {
+  if (!status) return <span className="text-xs text-muted-foreground">—</span>;
+
+  const formattedStatus = status.toUpperCase();
+
+  let className = '';
+  switch (formattedStatus) {
+    case 'AVAILABLE':
+      className =
+        'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10 font-semibold';
+      break;
+    case 'DRAFT':
+      className =
+        'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 hover:bg-amber-500/10 font-semibold';
+      break;
+    default:
+      className =
+        'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20 hover:bg-blue-500/10 font-semibold';
+      break;
+  }
+
+  return (
+    <Badge variant="outline" className={className}>
+      {status}
+    </Badge>
+  );
+}
+
 export default function ListingsPage() {
   const router = useRouter();
   const [listings, setListings] = useState<ListingVM[]>([]);
@@ -250,6 +278,11 @@ export default function ListingsPage() {
           {row.original.description ?? '—'}
         </span>
       ),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => <StatusBadge status={row.original.status} />,
     },
     {
       id: 'category',

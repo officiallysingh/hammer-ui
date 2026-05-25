@@ -26,7 +26,8 @@ export type MetaType =
   | 'SET'
   | 'COORDINATES'
   | 'ADDRESS'
-  | 'FILE';
+  | 'FILE'
+  | 'DURATION';
 
 export type PropertyType =
   | 'SIMPLE_PROPERTY'

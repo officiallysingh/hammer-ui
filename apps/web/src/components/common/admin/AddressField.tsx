@@ -16,7 +16,7 @@ export interface AddressValue {
   addressLine1?: string;
   addressLine2?: string;
   landmark?: string;
-  coordinates?: string; // "lat,lng"
+  coordinates?: { latitude?: number; longitude?: number };
 }
 
 interface AddressFieldProps {
@@ -67,12 +67,14 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
   const [pincodeLoading, setPincodeLoading] = useState(false);
   const [pincodeError, setPincodeError] = useState('');
   const [areaOptions, setAreaOptions] = useState<AreaVM[]>([]);
+  const [fetchedCity, setFetchedCity] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handlePincodeChange = (pin: string) => {
     // Update pincode immediately; clear derived fields and options
     onChange({ ...addr, pincode: pin, area: '', city: '', state: '' });
     setAreaOptions([]);
+    setFetchedCity('');
     setPincodeError('');
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -81,40 +83,41 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
       debounceRef.current = setTimeout(async () => {
         setPincodeLoading(true);
         try {
-          // Step 1: get areas for this pincode (with city expanded)
-          const areas = await masterApi.getAreasByPinCode(pin);
+          // Call the new API to get the city by pincode
+          const cityData = await masterApi.getCityByPinCode(pin);
 
-          if (!areas.length) {
-            setPincodeError('No areas found for this pincode.');
+          if (!cityData) {
+            setPincodeError('No city found for this pincode.');
             setPincodeLoading(false);
             return;
           }
 
+          const areas = cityData.areas ?? [];
           setAreaOptions(areas);
 
-          // Step 2: use the city from the first area to fetch state
-          const firstCityId = areas[0]?.city?.id;
-          const cityName = areas[0]?.city?.name ?? '';
+          const cityName = cityData.name ?? '';
+          const stateName = cityData.state?.name ?? '';
+          setFetchedCity(cityName);
 
-          let stateName = '';
-          if (firstCityId) {
-            try {
-              const cityDetail = await masterApi.getCityById(firstCityId, ['state']);
-              stateName = cityDetail.state?.name ?? '';
-            } catch {
-              // state stays empty — user can fill manually
-            }
+          // Pre-fill state; leave area and city blank (unless only 1 area exists)
+          if (areas.length === 1) {
+            onChange({
+              ...addr,
+              pincode: pin,
+              state: stateName,
+              area: areas[0]?.name ?? '',
+              city: cityName,
+            });
+          } else {
+            onChange({
+              ...addr,
+              pincode: pin,
+              state: stateName,
+              area: '',
+              city: '',
+            });
           }
-
-          // Pre-fill city + state; leave area blank until user picks from dropdown
-          onChange({
-            ...addr,
-            pincode: pin,
-            city: cityName,
-            state: stateName,
-            area: areas.length === 1 ? (areas[0]?.name ?? '') : '',
-          });
-        } catch {
+        } catch (err) {
           setPincodeError('Failed to look up pincode. Please fill in manually.');
         } finally {
           setPincodeLoading(false);
@@ -123,11 +126,31 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
     }
   };
 
-  // Coordinates
-  const coordStr = addr.coordinates ?? '';
-  const coordParts = coordStr.split(',').map((s) => s.trim());
-  const lat = coordParts[0] ?? '';
-  const lng = coordParts[1] ?? '';
+  const handleAreaChange = (areaName: string) => {
+    const selectedArea = areaOptions.find((a) => a.name === areaName);
+    const cityName = selectedArea?.city?.name || fetchedCity || '';
+    onChange({
+      ...addr,
+      area: areaName,
+      city: cityName,
+    });
+  };
+
+  // Coordinates — stored as { latitude, longitude } object
+  const coordObj =
+    typeof addr.coordinates === 'object' && addr.coordinates !== null ? addr.coordinates : {};
+  const lat = coordObj.latitude != null ? String(coordObj.latitude) : '';
+  const lng = coordObj.longitude != null ? String(coordObj.longitude) : '';
+
+  const setCoord = (latVal: string, lngVal: string) => {
+    onChange({
+      ...addr,
+      coordinates: {
+        latitude: latVal !== '' ? parseFloat(latVal) : undefined,
+        longitude: lngVal !== '' ? parseFloat(lngVal) : undefined,
+      },
+    });
+  };
 
   const autoFilled = !pincodeError && !pincodeLoading && addr.pincode?.length === 6 && !!addr.city;
 
@@ -170,11 +193,11 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
 
       {/* Area — dropdown when options available, plain text otherwise */}
       <Field id="addr-area" label="Area" required>
-        {areaOptions.length > 1 ? (
+        {areaOptions.length > 0 ? (
           <select
             id="addr-area"
             value={addr.area ?? ''}
-            onChange={(e) => set('area', e.target.value)}
+            onChange={(e) => handleAreaChange(e.target.value)}
             className={base}
           >
             <option value="">Select area…</option>
@@ -271,7 +294,7 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
               max="90"
               placeholder="Latitude"
               value={lat}
-              onChange={(e) => set('coordinates', `${e.target.value},${lng}`)}
+              onChange={(e) => setCoord(e.target.value, lng)}
               className={`${base} pr-8`}
             />
             <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
@@ -286,7 +309,7 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
               max="180"
               placeholder="Longitude"
               value={lng}
-              onChange={(e) => set('coordinates', `${lat},${e.target.value}`)}
+              onChange={(e) => setCoord(lat, e.target.value)}
               className={`${base} pr-8`}
             />
             <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
