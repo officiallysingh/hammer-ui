@@ -417,22 +417,31 @@ function ScalarField({
 
   const strVal = typeof value === 'string' ? value : value != null ? String(value) : '';
 
-  // ── Read attributes as typed rendering hints ──────────────────────────────
+  // ── Read attributes as typed rendering hints (namespaced protocol) ────────
   const attrs = prop.attributes ?? {};
-  const placeholder = attrs['placeholder'] ?? `Enter ${prop.label.toLowerCase()}…`;
-  const multiline = attrs['multiline'] === 'true';
-  const rows = attrs['rows'] ? Number(attrs['rows']) : 3;
-  const step = attrs['step'];
-  const attrMin = attrs['min'];
-  const attrMax = attrs['max'];
-  const pattern = attrs['pattern'];
-  // options: comma-separated "Label:value,Label:value" or just "value,value"
-  const optionsRaw = attrs['options'];
+  const uiComponent = attrs['ui:component'];
+  const placeholder = attrs['html:placeholder'] ?? `Enter ${prop.label.toLowerCase()}…`;
+  const multiline = attrs['ui:multiline'] === 'true' || uiComponent === 'textarea';
+  const rows = attrs['ui:rows'] ? Number(attrs['ui:rows']) : 3;
+  const step = attrs['html:step'];
+  const attrMin = attrs['html:min'];
+  const attrMax = attrs['html:max'];
+  const pattern = attrs['html:pattern'];
+  // style:options — comma-separated "Label:value" or "value"
+  const optionsRaw = attrs['style:options'];
   const options: { label: string; value: string }[] | null = optionsRaw
     ? optionsRaw.split(',').map((o) => {
         const [label, val] = o.trim().split(':');
         return { label: label?.trim() ?? '', value: val?.trim() ?? label?.trim() ?? '' };
       })
+    : null;
+  // style:color-options — comma-separated color names or hex values
+  const colorOptionsRaw = attrs['style:color-options'];
+  const colorOptions: string[] | null = colorOptionsRaw
+    ? colorOptionsRaw
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean)
     : null;
 
   switch (prop.metaType) {
@@ -475,6 +484,19 @@ function ScalarField({
 
     // ── Boolean ──────────────────────────────────────────────────────────────
     case 'BOOLEAN':
+      if (uiComponent === 'checkbox') {
+        return (
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none w-fit">
+            <input
+              type="checkbox"
+              checked={strVal === 'true'}
+              onChange={(e) => onChange(e.target.checked ? 'true' : 'false')}
+              className="h-4 w-4 accent-primary"
+            />
+            <span className="text-muted-foreground">{strVal === 'true' ? 'Yes' : 'No'}</span>
+          </label>
+        );
+      }
       return (
         <div className="flex gap-4 pt-0.5">
           {[
@@ -503,7 +525,7 @@ function ScalarField({
           id={`prop-${prop.name}`}
           value={strVal || undefined}
           onChange={onChange}
-          placeholder={attrs['placeholder'] ?? 'Pick a date…'}
+          placeholder={placeholder}
         />
       );
 
@@ -513,7 +535,7 @@ function ScalarField({
           id={`prop-${prop.name}`}
           value={strVal || undefined}
           onChange={onChange}
-          placeholder={attrs['placeholder'] ?? 'Pick a time…'}
+          placeholder={placeholder}
         />
       );
 
@@ -526,7 +548,7 @@ function ScalarField({
           id={`prop-${prop.name}`}
           value={strVal || undefined}
           onChange={onChange}
-          placeholder={attrs['placeholder'] ?? 'Pick date & time…'}
+          placeholder={placeholder}
         />
       );
 
@@ -536,7 +558,7 @@ function ScalarField({
           id={`prop-${prop.name}`}
           value={strVal || undefined}
           onChange={onChange}
-          placeholder={attrs['placeholder'] ?? 'Pick a year…'}
+          placeholder={placeholder}
           minYear={attrMin ? Number(attrMin) : undefined}
           maxYear={attrMax ? Number(attrMax) : undefined}
         />
@@ -654,7 +676,7 @@ function ScalarField({
         <input
           id={`prop-${prop.name}`}
           type="file"
-          accept={attrs['accept']}
+          accept={attrs['html:accept']}
           onChange={(e) => onChange(e.target.files?.[0]?.name ?? '')}
           className={base}
         />
@@ -718,6 +740,34 @@ function ScalarField({
     // ── String & default ──────────────────────────────────────────────────────
     case 'STRING':
     default:
+      // color swatches → clickable color picker
+      if (colorOptions) {
+        return (
+          <div className="flex flex-wrap gap-2 pt-0.5">
+            {colorOptions.map((color) => (
+              <button
+                key={color}
+                type="button"
+                title={color}
+                onClick={() => onChange(strVal === color ? '' : color)}
+                className={`flex flex-col items-center gap-1 p-1.5 rounded-lg border-2 transition-all ${
+                  strVal === color
+                    ? 'border-primary scale-105'
+                    : 'border-transparent hover:border-border'
+                }`}
+              >
+                <span
+                  className="w-6 h-6 rounded-full border border-border/40 block"
+                  style={{ backgroundColor: color }}
+                />
+                <span className="text-[10px] text-muted-foreground capitalize leading-none">
+                  {color}
+                </span>
+              </button>
+            ))}
+          </div>
+        );
+      }
       // options attribute → render as select
       if (options) {
         return (
@@ -752,7 +802,7 @@ function ScalarField({
       return (
         <input
           id={`prop-${prop.name}`}
-          type={attrs['type'] ?? 'text'}
+          type={attrs['html:type'] ?? 'text'}
           value={strVal}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}

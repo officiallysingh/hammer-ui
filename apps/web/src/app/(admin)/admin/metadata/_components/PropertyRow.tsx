@@ -6,6 +6,7 @@ import { Input, Label, Button } from '@repo/ui';
 import { metadataApi } from '@repo/api';
 import type { PropertyDef, ValidatorDef, MetaType, PropertyType } from '@repo/api';
 import { ValidatorRow } from './ValidatorRow';
+import { AttributeEditor } from './AttributeEditor';
 import { PROPERTY_TYPES, HAS_CHILDREN, emptyProperty } from './types';
 import type { KV } from './types';
 
@@ -265,16 +266,19 @@ export function PropertyRow({
             {loadingValidators ? 'Loading...' : 'Add validator'}
           </button>
 
-          {/* Attributes — COMPLEX_PROPERTY and COMPOSITE_PROPERTY */}
-          {(prop.type === 'COMPLEX_PROPERTY' || prop.type === 'COMPOSITE_PROPERTY') && (
+          {/* Attributes — COMPLEX_PROPERTY, COMPOSITE_PROPERTY, LIST_PROPERTY */}
+          {(prop.type === 'COMPLEX_PROPERTY' ||
+            prop.type === 'COMPOSITE_PROPERTY' ||
+            prop.type === 'LIST_PROPERTY') && (
             <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between">
                 <Label className="text-xs text-muted-foreground">Attributes (key → value)</Label>
                 <button
                   type="button"
                   onClick={() => {
-                    const attrs = { ...(prop.attributes ?? {}), '': '' };
-                    onUpdate({ attributes: attrs });
+                    const entries = Object.entries(prop.attributes ?? {});
+                    entries.push(['', '']);
+                    onUpdate({ attributes: Object.fromEntries(entries) });
                   }}
                   className="text-xs text-primary hover:underline flex items-center gap-1"
                 >
@@ -283,40 +287,27 @@ export function PropertyRow({
                 </button>
               </div>
               {Object.entries(prop.attributes ?? {}).map(([k, v], ai) => (
-                <div key={ai} className="flex items-center gap-2">
-                  <Input
-                    value={k}
-                    placeholder="key"
-                    onChange={(e) => {
-                      const entries = Object.entries(prop.attributes ?? {});
-                      entries[ai] = [e.target.value, v];
-                      onUpdate({ attributes: Object.fromEntries(entries) });
-                    }}
-                    className="h-7 text-xs flex-1"
-                  />
-                  <span className="text-muted-foreground text-xs">→</span>
-                  <Input
-                    value={v}
-                    placeholder="value"
-                    onChange={(e) => {
-                      const attrs = { ...(prop.attributes ?? {}), [k]: e.target.value };
-                      onUpdate({ attributes: attrs });
-                    }}
-                    className="h-7 text-xs flex-1"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const entries = Object.entries(prop.attributes ?? {}).filter(
-                        (_, i) => i !== ai,
-                      );
-                      onUpdate({ attributes: Object.fromEntries(entries) });
-                    }}
-                    className="text-destructive hover:text-destructive/80 transition-colors shrink-0"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                <AttributeEditor
+                  key={ai}
+                  attrKey={k}
+                  attrValue={v}
+                  onKeyChange={(newKey) => {
+                    const entries = Object.entries(prop.attributes ?? {});
+                    entries[ai] = [newKey, v];
+                    onUpdate({ attributes: Object.fromEntries(entries) });
+                  }}
+                  onValueChange={(newVal) => {
+                    const entries = Object.entries(prop.attributes ?? {});
+                    entries[ai] = [k, newVal];
+                    onUpdate({ attributes: Object.fromEntries(entries) });
+                  }}
+                  onRemove={() => {
+                    const entries = Object.entries(prop.attributes ?? {}).filter(
+                      (_, i) => i !== ai,
+                    );
+                    onUpdate({ attributes: Object.fromEntries(entries) });
+                  }}
+                />
               ))}
             </div>
           )}
