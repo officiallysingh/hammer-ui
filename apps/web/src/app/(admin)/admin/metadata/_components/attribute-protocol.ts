@@ -69,7 +69,16 @@ export const ATTRIBUTE_PROTOCOL: AttrKeyDef[] = [
     label: 'Component',
     description: 'Override the default UI widget for this field',
     valueType: 'select',
-    options: ['checkbox', 'textarea', 'slider', 'toggle'],
+    options: [
+      'checkbox',
+      'toggle',
+      'slider',
+      'stepper',
+      'rating',
+      'textarea',
+      'tag-input',
+      'option-pills',
+    ],
   },
   {
     key: 'ui:display',

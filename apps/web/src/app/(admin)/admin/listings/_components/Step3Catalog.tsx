@@ -1,6 +1,7 @@
 'use client';
 
-import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { ArrowLeft, Loader2, Plus, Trash2, Upload } from 'lucide-react';
 import { Button, Label, DatePicker, TimePicker, DateTimePicker, YearPicker } from '@repo/ui';
 import { ManagedTypeVM, ManagedTypeListItem, PropertyDef } from '@repo/api';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
@@ -403,6 +404,218 @@ function parseISODuration(val: string) {
   return { hours, minutes, seconds };
 }
 
+// ─── SliderField ──────────────────────────────────────────────────────────────
+
+function SliderField({
+  name,
+  value,
+  onChange,
+  min,
+  max,
+  step,
+}: {
+  name: string;
+  value: string;
+  onChange: (v: unknown) => void;
+  min?: string;
+  max?: string;
+  step?: string;
+}) {
+  const minNum = min ? Number(min) : 0;
+  const maxNum = max ? Number(max) : 100;
+  const stepNum = step ? Number(step) : 1;
+  const numVal = value !== '' ? Number(value) : minNum;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-3">
+        <input
+          id={`prop-${name}`}
+          type="range"
+          min={minNum}
+          max={maxNum}
+          step={stepNum}
+          value={numVal}
+          onChange={(e) => onChange(e.target.value)}
+          className="flex-1 accent-primary cursor-pointer"
+        />
+        <span className="text-sm font-mono w-10 text-right tabular-nums text-foreground shrink-0">
+          {numVal}
+        </span>
+      </div>
+      <div className="flex justify-between text-[10px] text-muted-foreground/60 px-0.5">
+        <span>{minNum}</span>
+        <span>{maxNum}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── TagInputField ─────────────────────────────────────────────────────────────
+
+function TagInputField({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: unknown) => void;
+  placeholder: string;
+}) {
+  const [input, setInput] = useState('');
+  const tags = value
+    ? value
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean)
+    : [];
+
+  const addTag = (raw: string) => {
+    const tag = raw.trim();
+    if (!tag || tags.includes(tag)) {
+      setInput('');
+      return;
+    }
+    onChange([...tags, tag].join(','));
+    setInput('');
+  };
+
+  const removeTag = (idx: number) => onChange(tags.filter((_, i) => i !== idx).join(','));
+
+  return (
+    <div
+      className="min-h-[2.25rem] w-full rounded-md border border-input bg-background px-2 py-1.5 flex flex-wrap gap-1.5 focus-within:ring-2 focus-within:ring-ring cursor-text"
+      onClick={(e) => (e.currentTarget.querySelector('input') as HTMLInputElement)?.focus()}
+    >
+      {tags.map((tag, i) => (
+        <span
+          key={i}
+          className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-sm font-medium"
+        >
+          {tag}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              removeTag(i);
+            }}
+            className="leading-none hover:text-primary/60 transition-colors"
+          >
+            ×
+          </button>
+        </span>
+      ))}
+      <input
+        type="text"
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            addTag(input);
+          } else if (e.key === 'Backspace' && !input && tags.length > 0) removeTag(tags.length - 1);
+        }}
+        onBlur={() => {
+          if (input.trim()) addTag(input);
+        }}
+        placeholder={tags.length === 0 ? placeholder : 'Add more…'}
+        className="flex-1 min-w-[8rem] bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+      />
+    </div>
+  );
+}
+
+// ─── FileField ────────────────────────────────────────────────────────────────
+
+function FileField({
+  name,
+  value,
+  onChange,
+  accept,
+}: {
+  name: string;
+  value: string;
+  onChange: (v: unknown) => void;
+  accept?: string;
+}) {
+  const [preview, setPreview] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isImage = !!accept?.includes('image');
+
+  const handleFile = (file: File) => {
+    onChange(file.name);
+    if (isImage) {
+      const reader = new FileReader();
+      reader.onload = (e) => setPreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  return (
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault();
+        setDragging(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        const file = e.dataTransfer.files[0];
+        if (file) handleFile(file);
+      }}
+      onClick={() => inputRef.current?.click()}
+      className={`relative cursor-pointer rounded-lg border-2 border-dashed transition-colors ${
+        dragging
+          ? 'border-primary bg-primary/5'
+          : 'border-border hover:border-primary/40 hover:bg-muted/20'
+      }`}
+    >
+      <input
+        ref={inputRef}
+        id={`prop-${name}`}
+        type="file"
+        accept={accept}
+        className="sr-only"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFile(file);
+        }}
+      />
+      {preview ? (
+        <div className="p-3 flex items-center gap-3">
+          <img
+            src={preview}
+            alt="preview"
+            className="h-16 w-16 object-cover rounded-md border border-border shrink-0"
+          />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-foreground truncate">{value}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Click or drop to replace</p>
+          </div>
+        </div>
+      ) : (
+        <div className="py-8 px-4 flex flex-col items-center gap-2 text-center">
+          <Upload className="h-7 w-7 text-muted-foreground/40" />
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              {dragging ? 'Drop file here' : 'Drag & drop or click to browse'}
+            </p>
+            {value && <p className="text-xs text-primary mt-0.5 truncate max-w-xs">{value}</p>}
+            {accept && <p className="text-[10px] text-muted-foreground/50 mt-1">{accept}</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── ScalarField ──────────────────────────────────────────────────────────────
+
 function ScalarField({
   prop,
   value,
@@ -451,6 +664,68 @@ function ScalarField({
     case 'INTEGER':
     case 'LONG':
     case 'BIG_INTEGER':
+      if (uiComponent === 'slider')
+        return (
+          <SliderField
+            name={prop.name}
+            value={strVal}
+            onChange={onChange}
+            min={attrMin}
+            max={attrMax}
+            step={step}
+          />
+        );
+      if (uiComponent === 'stepper') {
+        const stepN = step ? Number(step) : 1;
+        const numV = strVal !== '' ? Number(strVal) : 0;
+        return (
+          <div className="flex items-center w-fit rounded-md border border-input overflow-hidden">
+            <button
+              type="button"
+              onClick={() => onChange(String(numV - stepN))}
+              className="h-9 w-9 flex items-center justify-center bg-muted hover:bg-muted/80 text-lg font-medium transition-colors border-r border-input"
+            >
+              −
+            </button>
+            <input
+              type="number"
+              value={strVal}
+              onChange={(e) => onChange(e.target.value)}
+              className="h-9 w-16 text-center text-sm bg-background focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            />
+            <button
+              type="button"
+              onClick={() => onChange(String(numV + stepN))}
+              className="h-9 w-9 flex items-center justify-center bg-muted hover:bg-muted/80 text-lg font-medium transition-colors border-l border-input"
+            >
+              +
+            </button>
+          </div>
+        );
+      }
+      if (uiComponent === 'rating') {
+        return (
+          <div className="flex gap-0.5 pt-0.5">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button
+                key={star}
+                type="button"
+                onClick={() => onChange(String(strVal === String(star) ? 0 : star))}
+                className={`text-2xl leading-none transition-colors ${
+                  Number(strVal) >= star
+                    ? 'text-yellow-400'
+                    : 'text-muted-foreground/25 hover:text-yellow-300'
+                }`}
+              >
+                ★
+              </button>
+            ))}
+            {strVal && Number(strVal) > 0 && (
+              <span className="text-xs text-muted-foreground self-center ml-1.5">{strVal}/5</span>
+            )}
+          </div>
+        );
+      }
       return (
         <input
           id={`prop-${prop.name}`}
@@ -468,6 +743,17 @@ function ScalarField({
     case 'FLOAT':
     case 'DOUBLE':
     case 'BIG_DECIMAL':
+      if (uiComponent === 'slider')
+        return (
+          <SliderField
+            name={prop.name}
+            value={strVal}
+            onChange={onChange}
+            min={attrMin}
+            max={attrMax}
+            step={step}
+          />
+        );
       return (
         <input
           id={`prop-${prop.name}`}
@@ -484,6 +770,26 @@ function ScalarField({
 
     // ── Boolean ──────────────────────────────────────────────────────────────
     case 'BOOLEAN':
+      if (uiComponent === 'toggle') {
+        const on = strVal === 'true';
+        return (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={on}
+            onClick={() => onChange(on ? 'false' : 'true')}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
+              on ? 'bg-primary' : 'bg-muted'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition-transform ${
+                on ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        );
+      }
       if (uiComponent === 'checkbox') {
         return (
           <label className="flex items-center gap-2 text-sm cursor-pointer select-none w-fit">
@@ -673,12 +979,11 @@ function ScalarField({
     // ── File ──────────────────────────────────────────────────────────────────
     case 'FILE':
       return (
-        <input
-          id={`prop-${prop.name}`}
-          type="file"
+        <FileField
+          name={prop.name}
+          value={strVal}
+          onChange={onChange}
           accept={attrs['html:accept']}
-          onChange={(e) => onChange(e.target.files?.[0]?.name ?? '')}
-          className={base}
         />
       );
 
@@ -763,6 +1068,30 @@ function ScalarField({
                 <span className="text-[10px] text-muted-foreground capitalize leading-none">
                   {color}
                 </span>
+              </button>
+            ))}
+          </div>
+        );
+      }
+      // tag-input → chip input, value stored as comma-separated
+      if (uiComponent === 'tag-input')
+        return <TagInputField value={strVal} onChange={onChange} placeholder={placeholder} />;
+      // option-pills → pill button group
+      if (uiComponent === 'option-pills' && options) {
+        return (
+          <div className="flex flex-wrap gap-2 pt-0.5">
+            {options.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => onChange(strVal === o.value ? '' : o.value)}
+                className={`px-3.5 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                  strVal === o.value
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-background text-foreground hover:border-primary/50 hover:bg-muted/40'
+                }`}
+              >
+                {o.label}
               </button>
             ))}
           </div>
