@@ -10,9 +10,6 @@ export default function NewMetadataPage() {
       name: values.name.trim(),
       description: values.description.trim(),
       type: values.type as Parameters<typeof metadataApi.createManagedType>[0]['type'],
-      classifier: values.classifier as Parameters<
-        typeof metadataApi.createManagedType
-      >[0]['classifier'],
       properties: sanitizeProperties(values.properties),
       tags: values.tags.length ? values.tags : undefined,
     });

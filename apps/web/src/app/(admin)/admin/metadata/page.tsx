@@ -14,10 +14,10 @@ import Tip from '@/components/common/admin/Tip';
 import { TagList } from '@/components/common/admin/TagList';
 
 const TYPE_COLORS: Record<ManagedTypeType, string> = {
-  EMBEDDABLE: 'bg-primary/10 text-primary border-primary/20',
   ENTITY: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-  FORM: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-  WORKFLOW: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
+  LISTING_PROPERTIES: 'bg-primary/10 text-primary border-primary/20',
+  AUCTION_PROPERTIES: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+  WORKFLOW_STEP_FORM: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
 };
 
 export default function MetadataPage() {
@@ -92,13 +92,6 @@ export default function MetadataPage() {
         >
           {row.original.type}
         </span>
-      ),
-    },
-    {
-      accessorKey: 'classifier',
-      header: 'Classifier',
-      cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground font-mono">{row.original.classifier}</span>
       ),
     },
     {

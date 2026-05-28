@@ -24,7 +24,6 @@ export default function EditMetadataPage() {
           name: mt.name,
           description: mt.description ?? '',
           type: mt.type,
-          classifier: mt.classifier,
           properties: mt.properties ?? [],
           tags: mt.tags ?? [],
         });
@@ -43,9 +42,6 @@ export default function EditMetadataPage() {
     if (values.name.trim() !== orig.name) patch.name = values.name.trim();
     if ((values.description.trim() || '') !== (orig.description ?? ''))
       patch.description = values.description.trim() || undefined;
-    if (values.classifier !== orig.classifier)
-      patch.classifier = values.classifier as typeof patch.classifier;
-
     const propsChanged =
       JSON.stringify(values.properties) !== JSON.stringify(orig.properties ?? []);
     if (propsChanged) patch.properties = sanitizeProperties(values.properties);

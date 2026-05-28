@@ -16,7 +16,6 @@ export interface MetadataFormValues {
   name: string;
   description: string;
   type: string;
-  classifier: string;
   properties: PropertyDef[];
   tags: string[];
 }
@@ -25,7 +24,6 @@ const EMPTY: MetadataFormValues = {
   name: '',
   description: '',
   type: '',
-  classifier: '',
   properties: [],
   tags: [],
 };
@@ -130,7 +128,6 @@ export function MetadataForm({
   const [step, setStep] = useState<1 | 2>(1);
   const [form, setForm] = useState<MetadataFormValues>({ ...EMPTY, ...initialValues });
   const [typeOptions, setTypeOptions] = useState<KV[]>([]);
-  const [classifierOptions, setClassifierOptions] = useState<KV[]>([]);
   const [metaTypeOptions, setMetaTypeOptions] = useState<KV[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -144,14 +141,6 @@ export function MetadataForm({
       .then((types) => {
         setTypeOptions(types);
         setForm((prev) => ({ ...prev, type: prev.type || types[0]?.key || '' }));
-      })
-      .catch(() => {});
-
-    metadataApi
-      .getClassifierTypes()
-      .then((classifiers) => {
-        setClassifierOptions(classifiers);
-        setForm((prev) => ({ ...prev, classifier: prev.classifier || classifiers[0]?.key || '' }));
       })
       .catch(() => {});
 
@@ -215,7 +204,7 @@ export function MetadataForm({
       if (Object.keys(parsed.fieldErrors).length > 0) {
         setFieldErrors(parsed.fieldErrors);
         // If any field errors belong to step 1 fields, flag it so we can show a banner
-        const step1Fields = ['name', 'description', 'type', 'classifier'];
+        const step1Fields = ['name', 'description', 'type'];
         const hasStep1Errors = Object.keys(parsed.fieldErrors).some((k) => step1Fields.includes(k));
         if (hasStep1Errors) {
           setError(
@@ -304,35 +293,19 @@ export function MetadataForm({
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Type</Label>
-                <select
-                  value={form.type}
-                  onChange={(e) => set('type', e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  {typeOptions.map((t) => (
-                    <option key={t.key} value={t.key}>
-                      {t.value}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Classifier</Label>
-                <select
-                  value={form.classifier}
-                  onChange={(e) => set('classifier', e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  {classifierOptions.map((c) => (
-                    <option key={c.key} value={c.key}>
-                      {c.value}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="space-y-1.5">
+              <Label>Type</Label>
+              <select
+                value={form.type}
+                onChange={(e) => set('type', e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {typeOptions.map((t) => (
+                  <option key={t.key} value={t.key}>
+                    {t.value}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-1.5">
@@ -368,7 +341,7 @@ export function MetadataForm({
               ))}
               {/* If any errors are from step 1 fields, offer a quick way back */}
               {Object.keys(fieldErrors).some((k) =>
-                ['name', 'description', 'type', 'classifier'].includes(k),
+                ['name', 'description', 'type'].includes(k),
               ) && (
                 <button
                   type="button"
@@ -388,7 +361,7 @@ export function MetadataForm({
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-foreground">Properties</h3>
               <span className="text-xs text-muted-foreground">
-                {form.name} · {form.type} · {form.classifier}
+                {form.name} · {form.type}
               </span>
             </div>
             <PropertyBuilder

@@ -36,8 +36,11 @@ export type PropertyType =
   | 'LIST_PROPERTY'
   | 'SET_PROPERTY';
 
-export type ManagedTypeType = 'EMBEDDABLE' | 'ENTITY' | 'FORM' | 'WORKFLOW';
-export type ManagedTypeClassifier = 'CATALOG' | 'AUCTION_PROPERTIES';
+export type ManagedTypeType =
+  | 'ENTITY'
+  | 'LISTING_PROPERTIES'
+  | 'AUCTION_PROPERTIES'
+  | 'WORKFLOW_STEP_FORM';
 
 export interface ValidatorDef {
   type: string;
@@ -67,7 +70,6 @@ export interface ManagedTypeVM {
   name: string;
   description?: string;
   type: ManagedTypeType;
-  classifier: ManagedTypeClassifier;
   properties?: PropertyDef[];
   tags?: string[];
 }
@@ -89,7 +91,6 @@ export interface ManagedTypeCreationReq {
   name: string;
   description: string;
   type: ManagedTypeType;
-  classifier: ManagedTypeClassifier;
   properties: PropertyDef[];
   tags?: string[];
 }
@@ -99,7 +100,6 @@ export interface ManagedTypeUpdationReq {
   name?: string;
   description?: string;
   type: ManagedTypeType;
-  classifier?: ManagedTypeClassifier;
   properties?: PropertyDef[];
   tags?: string[];
 }
@@ -171,13 +171,6 @@ export const metadataApi = {
   getManagedTypeTypes: async (): Promise<{ key: string; value: string }[]> => {
     const response = await apiClient.get<Record<string, string>[]>(
       '/api/v1/meta-data/model/managed-types/types',
-    );
-    return normalizePairs(response.data);
-  },
-
-  getClassifierTypes: async (): Promise<{ key: string; value: string }[]> => {
-    const response = await apiClient.get<Record<string, string>[]>(
-      '/api/v1/meta-data/model/classifier-types',
     );
     return normalizePairs(response.data);
   },
