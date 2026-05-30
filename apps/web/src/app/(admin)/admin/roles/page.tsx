@@ -6,8 +6,10 @@ import { adminApi, AuthorityGroupVM, AuthorityVM } from '@repo/api';
 import { Loader2, Trash2, RefreshCw, Plus, Pencil } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@repo/ui';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/common/data-table';
 import PageHeader from '@/components/common/admin/PageHeader';
+import { PhraseSearchBar } from '@/components/common/admin/PhraseSearchBar';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
@@ -18,6 +20,8 @@ import { RoleFormDialog, EditRoleDialog } from './_components/RoleFormDialog';
 type RoleRow = AuthorityGroupVM & { _perms?: AuthorityVM[] };
 
 export default function RolesPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [groups, setGroups] = useState<RoleRow[]>([]);
   const [allPermissions, setAllPermissions] = useState<AuthorityVM[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -26,17 +30,16 @@ export default function RolesPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editRole, setEditRole] = useState<AuthorityGroupVM | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
+  const [phrases, setPhrases] = useState<string[]>(() => searchParams.getAll('phrases'));
 
-  const fetchGroups = async (phrases?: string) => {
+  const fetchGroups = async (ph?: string[]) => {
     setIsLoading(true);
     setError(null);
     try {
       const [data, perms] = await Promise.all([
-        adminApi.getAuthorityGroups(true, phrases), // x-expand: true → authorities included
+        adminApi.getAuthorityGroups(true, ph?.length ? ph : undefined),
         adminApi.getAuthorities(),
       ]);
-      // Map authorities from the expanded response directly
       setGroups(data.map((g) => ({ ...g, _perms: g.authorities ?? [] })));
       setAllPermissions(perms);
     } catch {
@@ -47,12 +50,20 @@ export default function RolesPage() {
   };
 
   useEffect(() => {
-    fetchGroups();
-  }, []);
+    fetchGroups(searchParams.getAll('phrases'));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    fetchGroups(value.trim() || undefined);
+  const handleSearch = () => {
+    const params = new URLSearchParams();
+    phrases.forEach((p) => params.append('phrases', p));
+    router.replace(params.toString() ? `?${params.toString()}` : '', { scroll: false });
+    fetchGroups(phrases.length ? phrases : undefined);
+  };
+
+  const handleReset = () => {
+    setPhrases([]);
+    router.replace('', { scroll: false });
+    fetchGroups([]);
   };
 
   const handleDelete = async (id: string) => {
@@ -148,7 +159,7 @@ export default function RolesPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => fetchGroups(search.trim() || undefined)}
+              onClick={() => fetchGroups(phrases.length ? phrases : undefined)}
               disabled={isLoading}
             >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
@@ -160,28 +171,34 @@ export default function RolesPage() {
 
       {error && <ErrorAlert message={error} />}
 
+      <PhraseSearchBar
+        phrases={phrases}
+        onPhrasesChange={setPhrases}
+        onSearch={handleSearch}
+        onReset={handleReset}
+        placeholder="Search roles..."
+      />
+
       <DataTable
         data={groups}
         columns={columns}
         isLoading={isLoading}
         emptyMessage="No roles found."
-        searchPlaceholder="Search roles..."
-        onSearch={handleSearch}
-        searchValue={search}
+        hideSearch
       />
 
       <RoleFormDialog
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
         allPermissions={allPermissions}
-        onCreated={() => fetchGroups(search.trim() || undefined)}
+        onCreated={() => fetchGroups(phrases.length ? phrases : undefined)}
       />
 
       <EditRoleDialog
         role={editRole}
         allPermissions={allPermissions}
         onClose={() => setEditRole(null)}
-        onUpdated={() => fetchGroups(search.trim() || undefined)}
+        onUpdated={() => fetchGroups(phrases.length ? phrases : undefined)}
       />
 
       <ConfirmDialog

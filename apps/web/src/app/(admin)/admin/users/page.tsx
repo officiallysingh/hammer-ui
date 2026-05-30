@@ -17,13 +17,14 @@ import {
 } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@repo/ui';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/common/data-table';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
 import { TagList } from '@/components/common/admin/TagList';
+import { PhraseSearchBar } from '@/components/common/admin/PhraseSearchBar';
 
 function VerifiedBadge({ verified }: { verified: boolean }) {
   return verified ? (
@@ -57,17 +58,19 @@ function ColumnToggle({
 
 export default function UsersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [users, setUsers] = useState<UserDetailVM[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
+  const [phrases, setPhrases] = useState<string[]>(() => searchParams.getAll('phrases'));
+  const phrasesRef = useRef<string[]>(searchParams.getAll('phrases'));
   const [showRoles, setShowRoles] = useState(false);
   const [showPermissions, setShowPermissions] = useState(false);
 
-  const fetchUsers = async (phrases?: string, roles = showRoles, perms = showPermissions) => {
+  const fetchUsers = async (ph?: string[], roles = showRoles, perms = showPermissions) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -77,7 +80,7 @@ export default function UsersPage() {
       const result = await usersApi.getUsers(
         0,
         20,
-        phrases || undefined,
+        ph?.length ? ph : undefined,
         expand.length ? expand : undefined,
       );
       setUsers(result.content ?? []);
@@ -89,7 +92,7 @@ export default function UsersPage() {
   };
 
   useEffect(() => {
-    fetchUsers();
+    fetchUsers(phrasesRef.current.length ? phrasesRef.current : undefined);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-fetch when column visibility changes (need different x-expand)
@@ -99,13 +102,31 @@ export default function UsersPage() {
     if (prevRoles.current !== showRoles || prevPerms.current !== showPermissions) {
       prevRoles.current = showRoles;
       prevPerms.current = showPermissions;
-      fetchUsers(search.trim() || undefined, showRoles, showPermissions);
+      fetchUsers(
+        phrasesRef.current.length ? phrasesRef.current : undefined,
+        showRoles,
+        showPermissions,
+      );
     }
   }, [showRoles, showPermissions]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    fetchUsers(value.trim() || undefined, showRoles, showPermissions);
+  const handleSearch = () => {
+    const params = new URLSearchParams();
+    phrases.forEach((p) => params.append('phrases', p));
+    router.replace(params.toString() ? `?${params.toString()}` : '', { scroll: false });
+    fetchUsers(phrases.length ? phrases : undefined);
+  };
+
+  const handleReset = () => {
+    setPhrases([]);
+    phrasesRef.current = [];
+    router.replace('', { scroll: false });
+    fetchUsers([]);
+  };
+
+  const handlePhrasesChange = (newPhrases: string[]) => {
+    phrasesRef.current = newPhrases;
+    setPhrases(newPhrases);
   };
 
   const handleDelete = async (id: string) => {
@@ -331,7 +352,13 @@ export default function UsersPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => fetchUsers(search.trim() || undefined, showRoles, showPermissions)}
+              onClick={() =>
+                fetchUsers(
+                  phrasesRef.current.length ? phrasesRef.current : undefined,
+                  showRoles,
+                  showPermissions,
+                )
+              }
               disabled={isLoading}
             >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
@@ -343,25 +370,30 @@ export default function UsersPage() {
 
       {error && <ErrorAlert message={error} />}
 
+      <PhraseSearchBar
+        phrases={phrases}
+        onPhrasesChange={handlePhrasesChange}
+        onSearch={handleSearch}
+        onReset={handleReset}
+        placeholder="Search users..."
+      >
+        <div className="flex items-center gap-3 border-l border-border pl-3">
+          <span className="text-xs text-muted-foreground font-medium">Show:</span>
+          <ColumnToggle label="Roles" checked={showRoles} onChange={setShowRoles} />
+          <ColumnToggle
+            label="Permissions"
+            checked={showPermissions}
+            onChange={setShowPermissions}
+          />
+        </div>
+      </PhraseSearchBar>
+
       <DataTable
         data={users}
         columns={columns}
         isLoading={isLoading}
         emptyMessage="No users found."
-        searchPlaceholder="Search users..."
-        onSearch={handleSearch}
-        searchValue={search}
-        toolbar={
-          <div className="flex items-center gap-3 border-l border-border pl-3">
-            <span className="text-xs text-muted-foreground font-medium">Show:</span>
-            <ColumnToggle label="Roles" checked={showRoles} onChange={setShowRoles} />
-            <ColumnToggle
-              label="Permissions"
-              checked={showPermissions}
-              onChange={setShowPermissions}
-            />
-          </div>
-        }
+        hideSearch
       />
 
       <ConfirmDialog

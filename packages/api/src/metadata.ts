@@ -110,6 +110,14 @@ export interface ManagedTypeListItem {
   value: string; // name
 }
 
+// Full list-item response when using type/phrases filters
+export interface ManagedTypeListItemFull {
+  id: string;
+  name: string;
+  description?: string;
+  type: ManagedTypeType;
+}
+
 // Normalize [{"BOOLEAN": "Boolean"}, ...] → [{key, value}]
 function normalizePairs(data: Record<string, string>[]): { key: string; value: string }[] {
   return data.map((item) => {
@@ -149,6 +157,23 @@ export const metadataApi = {
       '/api/v1/meta-data/managed-types/list-items',
     );
     return normalizePairs(response.data);
+  },
+
+  // GET /api/v1/meta-data/managed-types/list-items with type/phrases — returns full objects
+  searchManagedTypeListItems: async (params?: {
+    phrases?: string[];
+    type?: ManagedTypeType;
+  }): Promise<ManagedTypeListItemFull[]> => {
+    const response = await apiClient.get<ManagedTypeListItemFull[]>(
+      '/api/v1/meta-data/managed-types/list-items',
+      {
+        params: {
+          ...(params?.phrases?.length ? { phrases: params.phrases } : {}),
+          ...(params?.type ? { type: params.type } : {}),
+        },
+      },
+    );
+    return response.data;
   },
 
   // POST /api/v1/meta-data/managed-types

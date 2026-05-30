@@ -1,8 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { listingsApi, blobsApi, ListingVM, ListingBlobRef, ListingCategoryRef } from '@repo/api';
+import { useRouter, useSearchParams } from 'next/navigation';
+import {
+  listingsApi,
+  masterApi,
+  blobsApi,
+  ListingVM,
+  ListingBlobRef,
+  ListingCategoryRef,
+  CategoryVM,
+} from '@repo/api';
 import {
   Loader2,
   Trash2,
@@ -13,35 +21,33 @@ import {
   Film,
   FileText,
   Download,
+  CheckCircle2,
+  XCircle,
+  Search,
   X,
 } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Badge } from '@repo/ui';
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Badge, Label } from '@repo/ui';
+import Select from 'react-select';
+import type { MultiValue } from 'react-select';
 import { DataTable } from '@/components/common/data-table';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
+import { PhrasesInput } from '@/components/common/admin/PhrasesInput';
+import { ICON_REGISTRY } from '@/components/common/iconRegistry';
 
 type MediaType = 'image' | 'video' | 'doc';
 
-interface MediaModal {
+interface MediaModalState {
   blobs: ListingBlobRef[];
   mediaType: MediaType;
 }
 
-function getCategoryName(listing: ListingVM): string {
-  if (!listing.category) return '—';
-  return `${listing.category.icon ? listing.category.icon + ' ' : ''}${listing.category.name}`;
-}
-
-function getSubCategoryName(listing: ListingVM): string {
-  if (!listing.subCategory) return '—';
-  if (typeof listing.subCategory === 'object') {
-    const s = listing.subCategory as ListingCategoryRef;
-    return `${s.icon ? s.icon + ' ' : ''}${s.name}`;
-  }
-  return listing.subCategory;
+interface SelectOption {
+  label: string;
+  value: string;
 }
 
 function classifyBlob(blob: ListingBlobRef): MediaType {
@@ -49,6 +55,16 @@ function classifyBlob(blob: ListingBlobRef): MediaType {
   if (mt.startsWith('image/')) return 'image';
   if (mt.startsWith('video/')) return 'video';
   return 'doc';
+}
+
+function CategoryCell({ icon, name }: { icon?: string; name: string }) {
+  const IconComp = icon ? ICON_REGISTRY[icon] : null;
+  return (
+    <div className="flex items-center gap-1.5 text-sm text-foreground">
+      {IconComp && <IconComp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+      {name}
+    </div>
+  );
 }
 
 function MediaCountBadge({
@@ -83,10 +99,9 @@ function MediaCountBadge({
   );
 }
 
-function MediaModal({ modal, onClose }: { modal: MediaModal; onClose: () => void }) {
+function MediaModal({ modal, onClose }: { modal: MediaModalState; onClose: () => void }) {
   const { blobs, mediaType } = modal;
   const filtered = blobs.filter((b) => classifyBlob(b) === mediaType);
-
   const title = mediaType === 'image' ? 'Images' : mediaType === 'video' ? 'Videos' : 'Documents';
 
   return (
@@ -187,50 +202,136 @@ function MediaModal({ modal, onClose }: { modal: MediaModal; onClose: () => void
   );
 }
 
-function StatusBadge({ status }: { status?: string }) {
-  if (!status) return <span className="text-xs text-muted-foreground">—</span>;
-
-  const formattedStatus = status.toUpperCase();
-
-  let className = '';
-  switch (formattedStatus) {
-    case 'AVAILABLE':
-      className =
-        'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10 font-semibold';
-      break;
-    case 'DRAFT':
-      className =
-        'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 hover:bg-amber-500/10 font-semibold';
-      break;
-    default:
-      className =
-        'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20 hover:bg-blue-500/10 font-semibold';
-      break;
-  }
-
-  return (
-    <Badge variant="outline" className={className}>
-      {status}
-    </Badge>
-  );
-}
+const reactSelectStyles = {
+  control: (base: Record<string, unknown>, state: { isFocused: boolean }) => ({
+    ...base,
+    backgroundColor: 'hsl(var(--background))',
+    borderColor: state.isFocused ? 'hsl(var(--primary))' : 'hsl(var(--input))',
+    boxShadow: state.isFocused ? '0 0 0 2px hsl(var(--primary) / 0.2)' : 'none',
+    borderRadius: '0.375rem',
+    minHeight: '2.25rem',
+    fontSize: '0.875rem',
+    '&:hover': { borderColor: 'hsl(var(--primary) / 0.5)' },
+  }),
+  option: (base: Record<string, unknown>, state: { isSelected: boolean; isFocused: boolean }) => ({
+    ...base,
+    backgroundColor: state.isSelected
+      ? 'hsl(var(--primary))'
+      : state.isFocused
+        ? 'hsl(var(--muted))'
+        : 'hsl(var(--background))',
+    color: state.isSelected ? 'hsl(var(--primary-foreground))' : 'hsl(var(--foreground))',
+    fontSize: '0.875rem',
+  }),
+  multiValue: (base: Record<string, unknown>) => ({
+    ...base,
+    backgroundColor: 'hsl(var(--secondary))',
+    borderRadius: '0.25rem',
+  }),
+  multiValueLabel: (base: Record<string, unknown>) => ({
+    ...base,
+    color: 'hsl(var(--secondary-foreground))',
+    fontSize: '0.75rem',
+  }),
+  multiValueRemove: (base: Record<string, unknown>) => ({
+    ...base,
+    color: 'hsl(var(--muted-foreground))',
+    '&:hover': { backgroundColor: 'hsl(var(--destructive)/0.1)', color: 'hsl(var(--destructive))' },
+  }),
+  menu: (base: Record<string, unknown>) => ({
+    ...base,
+    backgroundColor: 'hsl(var(--background))',
+    border: '1px solid hsl(var(--border))',
+    boxShadow: '0 4px 16px hsl(var(--foreground)/0.08)',
+    zIndex: 50,
+  }),
+  input: (base: Record<string, unknown>) => ({
+    ...base,
+    color: 'hsl(var(--foreground))',
+    fontSize: '0.875rem',
+  }),
+  placeholder: (base: Record<string, unknown>) => ({
+    ...base,
+    color: 'hsl(var(--muted-foreground))',
+    fontSize: '0.875rem',
+  }),
+  singleValue: (base: Record<string, unknown>) => ({
+    ...base,
+    color: 'hsl(var(--foreground))',
+  }),
+};
 
 export default function ListingsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [listings, setListings] = useState<ListingVM[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [mediaModal, setMediaModal] = useState<MediaModal | null>(null);
+  const [mediaModal, setMediaModal] = useState<MediaModalState | null>(null);
 
-  const fetchListings = async (phrase?: string) => {
+  // Filter state — initialised from URL params
+  const [phrases, setPhrases] = useState<string[]>(() => searchParams.getAll('phrases'));
+  const [availableFilter, setAvailableFilter] = useState<'all' | 'true' | 'false'>(
+    () => (searchParams.get('available') as 'all' | 'true' | 'false') ?? 'all',
+  );
+  const [selectedCategories, setSelectedCategories] = useState<SelectOption[]>([]);
+  const [selectedSubCategories, setSelectedSubCategories] = useState<SelectOption[]>([]);
+  const [categories, setCategories] = useState<CategoryVM[]>([]);
+
+  useEffect(() => {
+    const catIds = searchParams.getAll('categories');
+    const subCatIds = searchParams.getAll('subCategories');
+    masterApi
+      .getCategories(true)
+      .then((cats) => {
+        setCategories(cats);
+        if (catIds.length) {
+          setSelectedCategories(
+            cats.filter((c) => catIds.includes(c.id)).map((c) => ({ label: c.name, value: c.id })),
+          );
+        }
+        if (subCatIds.length) {
+          const allSubs = cats.flatMap((c) => c.subCategories ?? []);
+          setSelectedSubCategories(
+            allSubs
+              .filter((s) => subCatIds.includes(s.id))
+              .map((s) => ({ label: s.name, value: s.id })),
+          );
+        }
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const categoryOptions: SelectOption[] = categories.map((c) => ({
+    label: c.name,
+    value: c.id,
+  }));
+
+  const subCategoryOptions: SelectOption[] = selectedCategories.length
+    ? selectedCategories.flatMap((opt) => {
+        const cat = categories.find((c) => c.id === opt.value);
+        return (cat?.subCategories ?? []).map((s) => ({ label: s.name, value: s.id }));
+      })
+    : categories.flatMap((c) =>
+        (c.subCategories ?? []).map((s) => ({ label: s.name, value: s.id })),
+      );
+
+  const fetchListings = async (opts?: {
+    phrases?: string[];
+    available?: boolean;
+    categories?: string[];
+    subCategories?: string[];
+  }) => {
     setIsLoading(true);
     setError(null);
     try {
       const result = await listingsApi.getListings({
-        phrases: phrase ? [phrase] : undefined,
+        phrases: opts?.phrases?.length ? opts.phrases : undefined,
+        available: opts?.available,
+        categories: opts?.categories?.length ? opts.categories : undefined,
+        subCategories: opts?.subCategories?.length ? opts.subCategories : undefined,
       });
       setListings(result.content ?? []);
     } catch {
@@ -241,12 +342,52 @@ export default function ListingsPage() {
   };
 
   useEffect(() => {
-    fetchListings();
-  }, []);
+    // Fetch on mount using any pre-existing URL params
+    fetchListings({
+      phrases: searchParams.getAll('phrases'),
+      available: (() => {
+        const av = searchParams.get('available');
+        return av === 'true' ? true : av === 'false' ? false : undefined;
+      })(),
+      categories: searchParams.getAll('categories'),
+      subCategories: searchParams.getAll('subCategories'),
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    fetchListings(value.trim() || undefined);
+  const buildFilterUrl = (
+    ph: string[],
+    avail: 'all' | 'true' | 'false',
+    cats: SelectOption[],
+    subs: SelectOption[],
+  ) => {
+    const params = new URLSearchParams();
+    ph.forEach((p) => params.append('phrases', p));
+    if (avail !== 'all') params.set('available', avail);
+    cats.forEach((c) => params.append('categories', c.value));
+    subs.forEach((s) => params.append('subCategories', s.value));
+    return params.toString() ? `?${params.toString()}` : '';
+  };
+
+  const handleSearch = () => {
+    router.replace(
+      buildFilterUrl(phrases, availableFilter, selectedCategories, selectedSubCategories),
+      { scroll: false },
+    );
+    fetchListings({
+      phrases,
+      available: availableFilter === 'all' ? undefined : availableFilter === 'true',
+      categories: selectedCategories.map((o) => o.value),
+      subCategories: selectedSubCategories.map((o) => o.value),
+    });
+  };
+
+  const handleReset = () => {
+    setPhrases([]);
+    setAvailableFilter('all');
+    setSelectedCategories([]);
+    setSelectedSubCategories([]);
+    router.replace('', { scroll: false });
+    fetchListings();
   };
 
   const handleDelete = async (id: string) => {
@@ -280,23 +421,40 @@ export default function ListingsPage() {
       ),
     },
     {
-      accessorKey: 'status',
-      header: 'Status',
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      id: 'available',
+      header: 'Available',
+      cell: ({ row }) => {
+        const { available } = row.original;
+        if (available === undefined || available === null)
+          return <span className="text-xs text-muted-foreground">—</span>;
+        return available ? (
+          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+        ) : (
+          <XCircle className="h-4 w-4 text-red-500" />
+        );
+      },
     },
     {
       id: 'category',
       header: 'Category',
-      cell: ({ row }) => (
-        <span className="text-sm text-foreground">{getCategoryName(row.original)}</span>
-      ),
+      cell: ({ row }) => {
+        const cat = row.original.category;
+        if (!cat) return <span className="text-xs text-muted-foreground">—</span>;
+        return <CategoryCell icon={cat.icon} name={cat.name} />;
+      },
     },
     {
       id: 'subCategory',
       header: 'Sub-category',
-      cell: ({ row }) => (
-        <span className="text-sm text-foreground">{getSubCategoryName(row.original)}</span>
-      ),
+      cell: ({ row }) => {
+        const sub = row.original.subCategory;
+        if (!sub) return <span className="text-xs text-muted-foreground">—</span>;
+        if (typeof sub === 'object') {
+          const s = sub as ListingCategoryRef;
+          return <CategoryCell icon={s.icon} name={s.name} />;
+        }
+        return <span className="text-sm text-foreground">{sub}</span>;
+      },
     },
     {
       id: 'tags',
@@ -394,7 +552,14 @@ export default function ListingsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => fetchListings(search.trim() || undefined)}
+              onClick={() =>
+                fetchListings({
+                  phrases,
+                  available: availableFilter === 'all' ? undefined : availableFilter === 'true',
+                  categories: selectedCategories.map((o) => o.value),
+                  subCategories: selectedSubCategories.map((o) => o.value),
+                })
+              }
               disabled={isLoading}
             >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
@@ -406,14 +571,91 @@ export default function ListingsPage() {
 
       {error && <ErrorAlert message={error} />}
 
+      {/* Filter panel */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          {/* Phrases search */}
+          <div className="flex-1 min-w-[220px] space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Search phrases</Label>
+            <PhrasesInput
+              value={phrases}
+              onChange={setPhrases}
+              placeholder="Type phrase and press Enter..."
+            />
+          </div>
+
+          {/* Available */}
+          <div className="min-w-[130px] space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Available</Label>
+            <select
+              value={availableFilter}
+              onChange={(e) => setAvailableFilter(e.target.value as 'all' | 'true' | 'false')}
+              className="w-full rounded-md border border-input bg-background px-3 py-[7px] text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="all">All</option>
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+
+          {/* Categories */}
+          <div className="min-w-[240px] space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Categories</Label>
+            <Select<SelectOption, true>
+              isMulti
+              options={categoryOptions}
+              value={selectedCategories}
+              onChange={(vals: MultiValue<SelectOption>) => {
+                setSelectedCategories([...vals]);
+                // Clear subcategories that no longer belong to selected cats
+                const catIds = new Set(vals.map((v) => v.value));
+                setSelectedSubCategories((prev) =>
+                  prev.filter((s) => {
+                    const ownerCat = categories.find((c) =>
+                      c.subCategories?.some((sc) => sc.id === s.value),
+                    );
+                    return ownerCat && catIds.has(ownerCat.id);
+                  }),
+                );
+              }}
+              placeholder="All categories"
+              styles={reactSelectStyles as never}
+            />
+          </div>
+
+          {/* Subcategories */}
+          <div className="min-w-[240px] space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Sub-categories</Label>
+            <Select<SelectOption, true>
+              isMulti
+              options={subCategoryOptions}
+              value={selectedSubCategories}
+              onChange={(vals: MultiValue<SelectOption>) => setSelectedSubCategories([...vals])}
+              placeholder="All sub-categories"
+              styles={reactSelectStyles as never}
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2 pb-0.5">
+            <Button size="sm" onClick={handleSearch} className="gap-1.5">
+              <Search className="h-3.5 w-3.5" />
+              Search
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleReset} className="gap-1.5">
+              <X className="h-3.5 w-3.5" />
+              Reset
+            </Button>
+          </div>
+        </div>
+      </div>
+
       <DataTable
         data={listings}
         columns={columns}
         isLoading={isLoading}
         emptyMessage="No listings found."
-        searchPlaceholder="Search listings..."
-        onSearch={handleSearch}
-        searchValue={search}
+        hideSearch
       />
 
       <ConfirmDialog

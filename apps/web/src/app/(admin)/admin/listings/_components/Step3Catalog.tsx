@@ -1,14 +1,22 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { ArrowLeft, Loader2, Plus, Trash2, Upload } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { ArrowLeft, Loader2, Plus, Search, Trash2, Upload } from 'lucide-react';
 import { Button, Label, DatePicker, TimePicker, DateTimePicker, YearPicker } from '@repo/ui';
-import { ManagedTypeVM, ManagedTypeListItem, PropertyDef } from '@repo/api';
+import { ManagedTypeVM, ManagedTypeListItemFull, PropertyDef, metadataApi } from '@repo/api';
+import ReactSelect from 'react-select';
+import type { SingleValue } from 'react-select';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { AddressField } from '@/components/common/admin/AddressField';
+import { PhrasesInput } from '@/components/common/admin/PhrasesInput';
+
+interface TypeOption {
+  id: string;
+  name: string;
+  description?: string;
+}
 
 interface Step3Props {
-  typeListItems: ManagedTypeListItem[];
   managedTypeId: string;
   selectedManagedType: ManagedTypeVM | null;
   loadingType: boolean;
@@ -23,7 +31,6 @@ interface Step3Props {
 }
 
 export function Step3Catalog({
-  typeListItems,
   managedTypeId,
   selectedManagedType,
   loadingType,
@@ -36,31 +43,157 @@ export function Step3Catalog({
   saving,
   error,
 }: Step3Props) {
+  const [searchPhrases, setSearchPhrases] = useState<string[]>([]);
+  const [searchResults, setSearchResults] = useState<ManagedTypeListItemFull[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  const doSearch = useCallback(async (phrases: string[]) => {
+    setSearching(true);
+    try {
+      const results = await metadataApi.searchManagedTypeListItems({
+        phrases,
+        type: 'LISTING_PROPERTIES',
+      });
+      setSearchResults(results);
+    } catch {
+      // silently ignore search errors
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  // Auto-load all LISTING_PROPERTIES types on mount
+  useEffect(() => {
+    doSearch([]);
+  }, [doSearch]);
+
+  // Options for react-select: search results + ensure selected type is always visible
+  const options: TypeOption[] = (() => {
+    const list = searchResults.map((r) => ({
+      id: r.id,
+      name: r.name,
+      description: r.description,
+    }));
+    // Ensure currently selected type is in the list (important for edit flow)
+    if (selectedManagedType && !list.some((o) => o.id === selectedManagedType.id)) {
+      list.unshift({
+        id: selectedManagedType.id,
+        name: selectedManagedType.name,
+        description: selectedManagedType.description,
+      });
+    }
+    return list;
+  })();
+
+  const selectValue: TypeOption | null =
+    managedTypeId && selectedManagedType
+      ? {
+          id: selectedManagedType.id,
+          name: selectedManagedType.name,
+          description: selectedManagedType.description,
+        }
+      : null;
+
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       <div className="rounded-xl border border-border bg-card p-6 space-y-4">
         <div>
           <h3 className="text-sm font-semibold text-foreground">Catalog type</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Select the type definition and fill in its fields
+            Search and select a type definition, then fill in its fields
           </p>
         </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="mtype">Type definition</Label>
-          <select
-            id="mtype"
-            value={managedTypeId}
-            onChange={(e) => onTypeChange(e.target.value)}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        {/* Search bar */}
+        <div className="flex gap-2 items-end">
+          <div className="flex-1 space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Search type definitions</Label>
+            <PhrasesInput
+              value={searchPhrases}
+              onChange={setSearchPhrases}
+              placeholder="Type name or tag and press Enter..."
+            />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5 h-9"
+            onClick={() => doSearch(searchPhrases)}
+            disabled={searching}
           >
-            <option value="">Select type...</option>
-            {typeListItems.map((m) => (
-              <option key={m.key} value={m.key}>
-                {m.value}
-              </option>
-            ))}
-          </select>
+            {searching ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Search className="h-3.5 w-3.5" />
+            )}
+            Search
+          </Button>
+        </div>
+
+        {/* Type dropdown */}
+        <div className="space-y-1.5">
+          <Label>Type definition</Label>
+          <ReactSelect<TypeOption>
+            options={options}
+            value={selectValue}
+            onChange={(opt: SingleValue<TypeOption>) => {
+              if (opt) onTypeChange(opt.id);
+            }}
+            getOptionValue={(o) => o.id}
+            getOptionLabel={(o) => o.name}
+            formatOptionLabel={(o) => (
+              <div className="py-0.5">
+                <div className="text-sm font-medium leading-tight">{o.name}</div>
+                {o.description && (
+                  <div className="text-xs text-muted-foreground mt-0.5 leading-snug line-clamp-2">
+                    {o.description}
+                  </div>
+                )}
+              </div>
+            )}
+            placeholder={searching ? 'Loading...' : 'Select type definition...'}
+            isLoading={searching}
+            noOptionsMessage={() => 'No types found. Try a different search.'}
+            styles={{
+              control: (base, state) => ({
+                ...base,
+                backgroundColor: 'hsl(var(--background))',
+                borderColor: state.isFocused ? 'hsl(var(--primary))' : 'hsl(var(--input))',
+                boxShadow: state.isFocused ? '0 0 0 2px hsl(var(--primary) / 0.2)' : 'none',
+                borderRadius: '0.375rem',
+                minHeight: '2.25rem',
+                fontSize: '0.875rem',
+                '&:hover': { borderColor: 'hsl(var(--primary) / 0.5)' },
+              }),
+              option: (base, state) => ({
+                ...base,
+                backgroundColor: state.isSelected
+                  ? 'hsl(var(--primary))'
+                  : state.isFocused
+                    ? 'hsl(var(--muted))'
+                    : 'hsl(var(--background))',
+                color: state.isSelected
+                  ? 'hsl(var(--primary-foreground))'
+                  : 'hsl(var(--foreground))',
+                cursor: 'pointer',
+              }),
+              menu: (base) => ({
+                ...base,
+                backgroundColor: 'hsl(var(--background))',
+                border: '1px solid hsl(var(--border))',
+                boxShadow: '0 4px 16px hsl(var(--foreground)/0.08)',
+                zIndex: 50,
+              }),
+              singleValue: (base) => ({ ...base, color: 'hsl(var(--foreground))' }),
+              input: (base) => ({ ...base, color: 'hsl(var(--foreground))' }),
+              placeholder: (base) => ({
+                ...base,
+                color: 'hsl(var(--muted-foreground))',
+                fontSize: '0.875rem',
+              }),
+            }}
+          />
         </div>
 
         {loadingType && (

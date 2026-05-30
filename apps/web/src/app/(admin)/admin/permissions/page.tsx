@@ -6,14 +6,18 @@ import { adminApi, AuthorityVM } from '@repo/api';
 import { Loader2, Trash2, RefreshCw, Plus, Pencil } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@repo/ui';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/common/data-table';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
 import { CreatePermissionDialog, EditPermissionDialog } from './_components/PermissionFormDialog';
+import { PhraseSearchBar } from '@/components/common/admin/PhraseSearchBar';
 
 export default function PermissionsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [authorities, setAuthorities] = useState<AuthorityVM[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,13 +25,13 @@ export default function PermissionsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editPerm, setEditPerm] = useState<AuthorityVM | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
+  const [phrases, setPhrases] = useState<string[]>(() => searchParams.getAll('phrases'));
 
-  const fetchAuthorities = async (phrases?: string) => {
+  const fetchAuthorities = async (ph?: string[]) => {
     setIsLoading(true);
     setError(null);
     try {
-      setAuthorities(await adminApi.getAuthorities(phrases));
+      setAuthorities(await adminApi.getAuthorities(ph?.length ? ph : undefined));
     } catch {
       setError('Failed to load permissions.');
     } finally {
@@ -36,12 +40,20 @@ export default function PermissionsPage() {
   };
 
   useEffect(() => {
-    fetchAuthorities();
-  }, []);
+    fetchAuthorities(searchParams.getAll('phrases'));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    fetchAuthorities(value.trim() || undefined);
+  const handleSearch = () => {
+    const params = new URLSearchParams();
+    phrases.forEach((p) => params.append('phrases', p));
+    router.replace(params.toString() ? `?${params.toString()}` : '', { scroll: false });
+    fetchAuthorities(phrases.length ? phrases : undefined);
+  };
+
+  const handleReset = () => {
+    setPhrases([]);
+    router.replace('', { scroll: false });
+    fetchAuthorities([]);
   };
 
   const handleDelete = async (id: string) => {
@@ -126,7 +138,7 @@ export default function PermissionsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => fetchAuthorities(search.trim() || undefined)}
+              onClick={() => fetchAuthorities(phrases.length ? phrases : undefined)}
               disabled={isLoading}
             >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
@@ -138,20 +150,26 @@ export default function PermissionsPage() {
 
       {error && <ErrorAlert message={error} />}
 
+      <PhraseSearchBar
+        phrases={phrases}
+        onPhrasesChange={setPhrases}
+        onSearch={handleSearch}
+        onReset={handleReset}
+        placeholder="Search permissions..."
+      />
+
       <DataTable
         data={authorities}
         columns={columns}
         isLoading={isLoading}
         emptyMessage="No permissions found."
-        searchPlaceholder="Search permissions..."
-        onSearch={handleSearch}
-        searchValue={search}
+        hideSearch
       />
 
       <CreatePermissionDialog
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
-        onCreated={fetchAuthorities}
+        onCreated={() => fetchAuthorities(phrases.length ? phrases : undefined)}
       />
 
       <EditPermissionDialog

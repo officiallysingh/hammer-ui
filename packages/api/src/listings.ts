@@ -25,6 +25,8 @@ export interface ListingVM {
   subCategory?: string | ListingCategoryRef;
   category?: ListingCategoryRef;
   status?: string;
+  available?: boolean;
+  quantity?: number;
   blobs?: ListingBlobRef[];
   embedded?: Record<string, unknown>;
 }
@@ -49,6 +51,7 @@ export interface ListingCreationRQ {
   description?: string;
   tags?: string[];
   subCategory: string;
+  quantity?: number;
   embedded?: { typeId: string; pathWiseState: Record<string, unknown> };
 }
 
@@ -64,6 +67,7 @@ export interface ListingUpdationRQ {
   description?: string;
   tags?: string[];
   subCategory?: string;
+  quantity?: number;
   blobs?: string[];
   blobProperties?: Record<string, BlobPropertyPatch>; // key = blobId
   embedded?: { typeId: string; pathWiseState: Record<string, unknown> };
@@ -71,6 +75,7 @@ export interface ListingUpdationRQ {
 
 export interface ListingsFilter {
   phrases?: string[];
+  available?: boolean;
   categories?: string[];
   subCategories?: string[];
   page?: number;
@@ -79,10 +84,11 @@ export interface ListingsFilter {
 
 export const listingsApi = {
   getListings: async (filter: ListingsFilter = {}): Promise<PaginatedListings> => {
-    const { phrases, categories, subCategories, page = 0, size = 16 } = filter;
+    const { phrases, available, categories, subCategories, page = 0, size = 16 } = filter;
     const response = await apiClient.get<PaginatedListings>('/api/v1/listings', {
       params: {
         ...(phrases?.length ? { phrases } : {}),
+        ...(available !== undefined ? { available } : {}),
         ...(categories?.length ? { categories } : {}),
         ...(subCategories?.length ? { subCategories } : {}),
         page,

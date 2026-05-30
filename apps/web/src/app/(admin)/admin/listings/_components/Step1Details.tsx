@@ -11,6 +11,7 @@ export interface ListingDetails {
   categoryId: string;
   subCategory: string;
   tags: string[];
+  quantity: number;
 }
 
 interface Step1Props {
@@ -122,6 +123,21 @@ export function Step1Details({
             Tags <span className="text-muted-foreground font-normal">(optional, max 5)</span>
           </Label>
           <TagInput value={values.tags} onChange={(tags) => onChange({ tags })} max={5} />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="ls-qty">
+            Quantity <span className="text-muted-foreground font-normal">(optional)</span>
+          </Label>
+          <Input
+            id="ls-qty"
+            type="number"
+            min={0}
+            value={values.quantity === 0 ? '' : values.quantity}
+            onChange={(e) => onChange({ quantity: parseInt(e.target.value) || 0 })}
+            placeholder="0"
+            className="w-40"
+          />
         </div>
       </div>
 

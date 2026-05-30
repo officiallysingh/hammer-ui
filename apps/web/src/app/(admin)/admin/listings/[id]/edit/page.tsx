@@ -10,7 +10,6 @@ import {
   ListingCategoryRef,
   CategoryVM,
   ManagedTypeVM,
-  ManagedTypeListItem,
 } from '@repo/api';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@repo/ui';
@@ -58,6 +57,7 @@ export default function EditListingPage() {
     categoryId: '',
     subCategory: '',
     tags: [],
+    quantity: 0,
   });
   const [categories, setCategories] = useState<CategoryVM[]>([]);
   const [step1Errors, setStep1Errors] = useState<Record<string, string>>({});
@@ -67,7 +67,6 @@ export default function EditListingPage() {
   const [uploads, setUploads] = useState<Parameters<typeof Step2Media>[0]['uploads']>([]);
 
   // Step 3 state
-  const [typeListItems, setTypeListItems] = useState<ManagedTypeListItem[]>([]);
   const [managedTypeId, setManagedTypeId] = useState('');
   const [selectedManagedType, setSelectedManagedType] = useState<ManagedTypeVM | null>(null);
   const [loadingType, setLoadingType] = useState(false);
@@ -90,6 +89,7 @@ export default function EditListingPage() {
         ? (orig.subCategory as ListingCategoryRef).id
         : ((orig.subCategory as string | undefined) ?? '');
     if (details.subCategory !== origSubCatId) return true;
+    if (details.quantity !== (orig.quantity ?? 0)) return true;
     return false;
   };
 
@@ -99,15 +99,10 @@ export default function EditListingPage() {
   };
 
   useEffect(() => {
-    Promise.all([
-      listingsApi.getListingById(id),
-      masterApi.getCategories(true),
-      metadataApi.getManagedTypeListItems(),
-    ])
-      .then(([listing, cats, items]) => {
+    Promise.all([listingsApi.getListingById(id), masterApi.getCategories(true)])
+      .then(([listing, cats]) => {
         origRef.current = listing;
         setCategories(cats);
-        setTypeListItems(items);
 
         // Load Step 1 details
         // API returns subCategory as an object {id,name,icon} — extract the id
@@ -122,6 +117,7 @@ export default function EditListingPage() {
           categoryId: ownerCat?.id ?? '',
           subCategory: subCatId,
           tags: listing.tags ?? [],
+          quantity: listing.quantity ?? 0,
         });
 
         // Load Step 3 data
@@ -172,6 +168,7 @@ export default function EditListingPage() {
         details.tags.length !== (orig.tags?.length ?? 0) ||
         details.tags.some((t: string, i: number) => t !== orig.tags?.[i]);
       if (tagsChanged) patch.tags = details.tags;
+      if (details.quantity !== (orig.quantity ?? 0)) patch.quantity = details.quantity || undefined;
 
       if (Object.keys(patch).length > 0) {
         await listingsApi.updateListing(id, patch as never);
@@ -247,7 +244,7 @@ export default function EditListingPage() {
         }
       />
 
-      <StepIndicator current={step} />
+      <StepIndicator current={step} onStepClick={(s) => s < step && setStep(s)} />
 
       {step === 1 && (
         <>
@@ -288,7 +285,6 @@ export default function EditListingPage() {
 
       {step === 3 && (
         <Step3Catalog
-          typeListItems={typeListItems}
           managedTypeId={managedTypeId}
           selectedManagedType={selectedManagedType}
           loadingType={loadingType}

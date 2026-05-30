@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { metadataApi, ManagedTypeVM, ManagedTypeType } from '@repo/api';
 import { Loader2, Trash2, RefreshCw, Plus, Pencil } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
@@ -12,6 +12,7 @@ import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
 import { TagList } from '@/components/common/admin/TagList';
+import { PhraseSearchBar } from '@/components/common/admin/PhraseSearchBar';
 
 const TYPE_COLORS: Record<ManagedTypeType, string> = {
   ENTITY: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
@@ -22,19 +23,20 @@ const TYPE_COLORS: Record<ManagedTypeType, string> = {
 
 export default function MetadataPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [types, setTypes] = useState<ManagedTypeVM[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
+  const [phrases, setPhrases] = useState<string[]>(() => searchParams.getAll('phrases'));
 
-  const fetchTypes = async (phrase?: string) => {
+  const fetchTypes = async (ph?: string[]) => {
     setIsLoading(true);
     setError(null);
     try {
       const result = await metadataApi.getManagedTypes({
-        phrases: phrase ? [phrase] : undefined,
+        phrases: ph?.length ? ph : undefined,
       });
       setTypes(result.content ?? []);
     } catch {
@@ -45,12 +47,20 @@ export default function MetadataPage() {
   };
 
   useEffect(() => {
-    fetchTypes();
-  }, []);
+    fetchTypes(searchParams.getAll('phrases'));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    fetchTypes(value.trim() || undefined);
+  const handleSearch = () => {
+    const params = new URLSearchParams();
+    phrases.forEach((p) => params.append('phrases', p));
+    router.replace(params.toString() ? `?${params.toString()}` : '', { scroll: false });
+    fetchTypes(phrases.length ? phrases : undefined);
+  };
+
+  const handleReset = () => {
+    setPhrases([]);
+    router.replace('', { scroll: false });
+    fetchTypes([]);
   };
 
   const handleDelete = async (id: string) => {
@@ -157,7 +167,7 @@ export default function MetadataPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => fetchTypes(search.trim() || undefined)}
+              onClick={() => fetchTypes(phrases.length ? phrases : undefined)}
               disabled={isLoading}
             >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
@@ -169,14 +179,20 @@ export default function MetadataPage() {
 
       {error && <ErrorAlert message={error} />}
 
+      <PhraseSearchBar
+        phrases={phrases}
+        onPhrasesChange={setPhrases}
+        onSearch={handleSearch}
+        onReset={handleReset}
+        placeholder="Search types..."
+      />
+
       <DataTable
         data={types}
         columns={columns}
         isLoading={isLoading}
         emptyMessage="No managed types found."
-        searchPlaceholder="Search types..."
-        onSearch={handleSearch}
-        searchValue={search}
+        hideSearch
       />
 
       <ConfirmDialog

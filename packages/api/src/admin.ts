@@ -45,10 +45,10 @@ export interface AuthorityUpdateReq {
 
 export const adminApi = {
   // ── Authority Groups (Roles) ─────────────────────────────────────────────
-  getAuthorityGroups: async (expand = false, phrases?: string): Promise<AuthorityGroupVM[]> => {
+  getAuthorityGroups: async (expand = false, phrases?: string[]): Promise<AuthorityGroupVM[]> => {
     const response = await apiClient.get('/api/v1/authority-groups', {
       headers: { 'x-expand': String(expand) },
-      params: phrases ? { phrases } : undefined,
+      params: phrases?.length ? { phrases } : undefined,
     });
     return response.data;
   },
@@ -66,9 +66,9 @@ export const adminApi = {
   },
 
   // ── Authorities (Permissions) ─────────────────────────────────────────────
-  getAuthorities: async (phrases?: string): Promise<AuthorityVM[]> => {
+  getAuthorities: async (phrases?: string[]): Promise<AuthorityVM[]> => {
     const response = await apiClient.get('/api/v1/authorities', {
-      params: phrases ? { phrases } : undefined,
+      params: phrases?.length ? { phrases } : undefined,
     });
     return response.data;
   },

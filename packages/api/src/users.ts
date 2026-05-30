@@ -131,11 +131,11 @@ export const usersApi = {
   getUsers: async (
     page = 0,
     size = 20,
-    phrases?: string,
+    phrases?: string[],
     expand?: ('authorities' | 'authority-groups')[],
   ): Promise<PaginatedUsers> => {
     const response = await apiClient.get<PaginatedUsers>('/api/v1/users', {
-      params: { page, size, ...(phrases ? { phrases } : {}) },
+      params: { page, size, ...(phrases?.length ? { phrases } : {}) },
       headers: expand?.length ? { 'x-expand': expand.join(',') } : undefined,
     });
     return response.data;

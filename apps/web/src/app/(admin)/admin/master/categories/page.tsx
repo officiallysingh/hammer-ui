@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { masterApi, CategoryVM, SubCategoryVM } from '@repo/api';
 import {
   Loader2,
@@ -15,7 +15,7 @@ import {
   Tag,
 } from 'lucide-react';
 import { Button } from '@repo/ui';
-import { SearchInput } from '@/components/common/admin/SearchInput';
+import { PhraseSearchBar } from '@/components/common/admin/PhraseSearchBar';
 import { CategoryIcon } from '@/components/common/CategoryIcon';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
@@ -24,13 +24,14 @@ import Tip from '@/components/common/admin/Tip';
 
 export default function CategoriesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [categories, setCategories] = useState<CategoryVM[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [subCatMap, setSubCatMap] = useState<Record<string, SubCategoryVM[]>>({});
   const [subCatLoading, setSubCatLoading] = useState<Record<string, boolean>>({});
-  const [search, setSearch] = useState('');
+  const [phrases, setPhrases] = useState<string[]>(() => searchParams.getAll('phrases'));
 
   const confirm_state = {
     open: false,
@@ -49,11 +50,11 @@ export default function CategoriesPage() {
     setConfirm({ open: true, title, description, onConfirm });
   const closeConfirm = () => setConfirm((prev) => ({ ...prev, open: false }));
 
-  const fetchCategories = async (phrases?: string) => {
+  const fetchCategories = async (ph?: string[]) => {
     setIsLoading(true);
     setError(null);
     try {
-      setCategories(await masterApi.getCategories(false, phrases));
+      setCategories(await masterApi.getCategories(false, ph?.length ? ph : undefined));
     } catch {
       setError('Failed to load categories.');
     } finally {
@@ -62,12 +63,20 @@ export default function CategoriesPage() {
   };
 
   useEffect(() => {
-    fetchCategories();
-  }, []);
+    fetchCategories(searchParams.getAll('phrases'));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    fetchCategories(value.trim() || undefined);
+  const handleSearch = () => {
+    const params = new URLSearchParams();
+    phrases.forEach((p) => params.append('phrases', p));
+    router.replace(params.toString() ? `?${params.toString()}` : '', { scroll: false });
+    fetchCategories(phrases.length ? phrases : undefined);
+  };
+
+  const handleReset = () => {
+    setPhrases([]);
+    router.replace('', { scroll: false });
+    fetchCategories([]);
   };
 
   const toggleExpand = async (id: string) => {
@@ -140,7 +149,7 @@ export default function CategoriesPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => fetchCategories(search.trim() || undefined)}
+              onClick={() => fetchCategories(phrases.length ? phrases : undefined)}
               disabled={isLoading}
             >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
@@ -152,12 +161,12 @@ export default function CategoriesPage() {
 
       {error && <ErrorAlert message={error} />}
 
-      {/* Search */}
-      <SearchInput
-        value={search}
-        onChange={handleSearch}
+      <PhraseSearchBar
+        phrases={phrases}
+        onPhrasesChange={setPhrases}
+        onSearch={handleSearch}
+        onReset={handleReset}
         placeholder="Search categories..."
-        className="max-w-sm"
       />
 
       {isLoading ? (

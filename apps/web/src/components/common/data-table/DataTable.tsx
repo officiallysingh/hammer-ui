@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   useReactTable,
@@ -29,6 +29,7 @@ interface DataTableProps<TData> {
   onSearch?: (value: string) => void;
   searchValue?: string;
   toolbar?: React.ReactNode;
+  hideSearch?: boolean;
 }
 
 export function DataTable<TData>({
@@ -42,6 +43,7 @@ export function DataTable<TData>({
   onSearch,
   searchValue = '',
   toolbar,
+  hideSearch = false,
 }: DataTableProps<TData>) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -78,34 +80,41 @@ export function DataTable<TData>({
     };
   });
 
-  // Update URL when state changes
+  // Keep a ref to searchParams so URL effect can read current external params
+  // without adding searchParams to its dependency array (which would cause loops)
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
+
+  // Update URL when DataTable-owned state changes.
+  // We preserve external params (phrases, available, etc.) by merging them in.
   useEffect(() => {
     if (!enableUrlState) return;
 
+    // Start from existing params to preserve external filter keys
     const params = new URLSearchParams();
+    searchParamsRef.current.forEach((value, key) => {
+      // Skip keys owned by DataTable; we'll re-add them below
+      if (!['page', 'pageSize', 'sort', 'search'].includes(key)) {
+        params.append(key, value);
+      }
+    });
 
-    // Update pagination
     if (pagination.pageIndex > 0) {
       params.set('page', (pagination.pageIndex + 1).toString());
     }
-
     if (pagination.pageSize !== pageSize) {
       params.set('pageSize', pagination.pageSize.toString());
     }
-
-    // Update sorting
     if (sorting.length > 0) {
       params.set('sort', JSON.stringify(sorting));
     }
-
-    // Update search
-    if (globalFilter) {
+    if (!onSearch && globalFilter) {
       params.set('search', globalFilter);
     }
 
     const newUrl = params.toString() ? `?${params.toString()}` : '';
     router.replace(newUrl, { scroll: false });
-  }, [pagination, sorting, globalFilter, enableUrlState, router, pageSize]);
+  }, [pagination, sorting, globalFilter, enableUrlState, router, pageSize, onSearch]);
 
   // Reset to first page when search changes
   useEffect(() => {
@@ -137,27 +146,30 @@ export function DataTable<TData>({
   return (
     <div className="space-y-4">
       {/* Search + toolbar */}
-      <div className="flex items-center gap-3">
-        {onSearch ? (
-          <SearchInput
-            value={searchValue}
-            onChange={onSearch}
-            placeholder={searchPlaceholder}
-            className="flex-1 max-w-sm"
-          />
-        ) : (
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
+      {!hideSearch && (
+        <div className="flex items-center gap-3">
+          {onSearch ? (
+            <SearchInput
+              value={searchValue}
+              onChange={onSearch}
               placeholder={searchPlaceholder}
-              value={globalFilter ?? ''}
-              onChange={(event) => setGlobalFilter(String(event.target.value))}
-              className="pl-9"
+              className="flex-1 max-w-sm"
             />
-          </div>
-        )}
-        {toolbar && <div className="flex items-center gap-3 ml-auto">{toolbar}</div>}
-      </div>
+          ) : (
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder={searchPlaceholder}
+                value={globalFilter ?? ''}
+                onChange={(event) => setGlobalFilter(String(event.target.value))}
+                className="pl-9"
+              />
+            </div>
+          )}
+          {toolbar && <div className="flex items-center gap-3 ml-auto">{toolbar}</div>}
+        </div>
+      )}
+      {hideSearch && toolbar && <div className="flex items-center gap-3">{toolbar}</div>}
 
       {/* Table */}
       <div className="rounded-lg border bg-card overflow-hidden">

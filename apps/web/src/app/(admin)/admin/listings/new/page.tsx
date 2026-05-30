@@ -2,14 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  listingsApi,
-  masterApi,
-  metadataApi,
-  CategoryVM,
-  ManagedTypeVM,
-  ManagedTypeListItem,
-} from '@repo/api';
+import { listingsApi, masterApi, metadataApi, CategoryVM, ManagedTypeVM } from '@repo/api';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
@@ -37,6 +30,7 @@ export default function NewListingPage() {
     categoryId: '',
     subCategory: '',
     tags: [],
+    quantity: 0,
   });
   const [categories, setCategories] = useState<CategoryVM[]>([]);
   const [step1Errors, setStep1Errors] = useState<Record<string, string>>({});
@@ -46,7 +40,6 @@ export default function NewListingPage() {
   const [uploads, setUploads] = useState<Parameters<typeof Step2Media>[0]['uploads']>([]);
 
   // Step 3 state
-  const [typeListItems, setTypeListItems] = useState<ManagedTypeListItem[]>([]);
   const [managedTypeId, setManagedTypeId] = useState('');
   const [selectedManagedType, setSelectedManagedType] = useState<ManagedTypeVM | null>(null);
   const [loadingType, setLoadingType] = useState(false);
@@ -55,11 +48,9 @@ export default function NewListingPage() {
   const [step3Error, setStep3Error] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([masterApi.getCategories(true), metadataApi.getManagedTypeListItems()])
-      .then(([cats, items]) => {
-        setCategories(cats);
-        setTypeListItems(items);
-      })
+    masterApi
+      .getCategories(true)
+      .then(setCategories)
       .catch(() => {});
   }, []);
 
@@ -84,6 +75,7 @@ export default function NewListingPage() {
           description?: string;
           tags?: string[];
           subCategory?: string;
+          quantity?: number;
         } = {};
         if (!orig || details.name.trim() !== orig.name) patch.name = details.name.trim();
         if (!orig || (details.description.trim() || '') !== (orig.description || ''))
@@ -95,6 +87,8 @@ export default function NewListingPage() {
         if (tagsChanged) patch.tags = details.tags;
         if (!orig || details.subCategory !== orig.subCategory)
           patch.subCategory = details.subCategory;
+        if (!orig || details.quantity !== orig.quantity)
+          patch.quantity = details.quantity || undefined;
         if (Object.keys(patch).length > 0) {
           await listingsApi.updateListing(listingId, patch);
         }
@@ -106,6 +100,7 @@ export default function NewListingPage() {
           description: details.description.trim() || undefined,
           tags: details.tags.length ? details.tags : undefined,
           subCategory: details.subCategory,
+          quantity: details.quantity || undefined,
         });
         setListingId(res);
         origRef.current = { ...details };
@@ -171,7 +166,7 @@ export default function NewListingPage() {
         }
       />
 
-      <StepIndicator current={step} />
+      <StepIndicator current={step} onStepClick={(s) => s < step && setStep(s)} />
 
       {step === 1 && (
         <>
@@ -212,7 +207,6 @@ export default function NewListingPage() {
 
       {step === 3 && (
         <Step3Catalog
-          typeListItems={typeListItems}
           managedTypeId={managedTypeId}
           selectedManagedType={selectedManagedType}
           loadingType={loadingType}
