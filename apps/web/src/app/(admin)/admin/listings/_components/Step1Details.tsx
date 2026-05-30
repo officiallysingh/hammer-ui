@@ -120,9 +120,9 @@ export function Step1Details({
 
         <div className="space-y-1.5">
           <Label>
-            Tags <span className="text-muted-foreground font-normal">(optional, max 5)</span>
+            Tags <span className="text-muted-foreground font-normal">(optional, max 3)</span>
           </Label>
-          <TagInput value={values.tags} onChange={(tags) => onChange({ tags })} max={5} />
+          <TagInput value={values.tags} onChange={(tags) => onChange({ tags })} max={3} />
         </div>
 
         <div className="space-y-1.5">
