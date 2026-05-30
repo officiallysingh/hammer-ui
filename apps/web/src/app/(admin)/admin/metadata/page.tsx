@@ -14,7 +14,7 @@ import Tip from '@/components/common/admin/Tip';
 import { TagList } from '@/components/common/admin/TagList';
 import { PhraseSearchBar } from '@/components/common/admin/PhraseSearchBar';
 
-const TYPE_COLORS: Record<ManagedTypeType, string> = {
+const TYPE_COLORS: Record<string, string> = {
   ENTITY: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
   LISTING_PROPERTIES: 'bg-primary/10 text-primary border-primary/20',
   AUCTION_PROPERTIES: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
@@ -24,19 +24,40 @@ const TYPE_COLORS: Record<ManagedTypeType, string> = {
 export default function MetadataPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
   const [types, setTypes] = useState<ManagedTypeVM[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [phrases, setPhrases] = useState<string[]>(() => searchParams.getAll('phrases'));
 
-  const fetchTypes = async (ph?: string[]) => {
+  // Filter state — initialised from URL
+  const [phrases, setPhrases] = useState<string[]>(() => searchParams.getAll('phrases'));
+  const [selectedType, setSelectedType] = useState<string>(() => searchParams.get('type') ?? '');
+
+  // Type options fetched from API
+  const [typeOptions, setTypeOptions] = useState<{ key: string; label: string }[]>([]);
+  // Map key → human-readable label for the table column
+  const [typeLabels, setTypeLabels] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    metadataApi
+      .getManagedTypeTypes()
+      .then((pairs) => {
+        setTypeOptions(pairs.map((p) => ({ key: p.key, label: p.value })));
+        setTypeLabels(Object.fromEntries(pairs.map((p) => [p.key, p.value])));
+      })
+      .catch(() => {});
+  }, []);
+
+  const fetchTypes = async (ph?: string[], type?: string) => {
     setIsLoading(true);
     setError(null);
     try {
       const result = await metadataApi.getManagedTypes({
         phrases: ph?.length ? ph : undefined,
+        type: (type || undefined) as ManagedTypeType | undefined,
+        expand: true,
       });
       setTypes(result.content ?? []);
     } catch {
@@ -47,20 +68,26 @@ export default function MetadataPage() {
   };
 
   useEffect(() => {
-    fetchTypes(searchParams.getAll('phrases'));
+    fetchTypes(searchParams.getAll('phrases'), searchParams.get('type') ?? undefined);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSearch = () => {
+  const buildUrl = (ph: string[], type: string) => {
     const params = new URLSearchParams();
-    phrases.forEach((p) => params.append('phrases', p));
-    router.replace(params.toString() ? `?${params.toString()}` : '', { scroll: false });
-    fetchTypes(phrases.length ? phrases : undefined);
+    ph.forEach((p) => params.append('phrases', p));
+    if (type) params.set('type', type);
+    return params.toString() ? `?${params.toString()}` : '';
+  };
+
+  const handleSearch = () => {
+    router.replace(buildUrl(phrases, selectedType), { scroll: false });
+    fetchTypes(phrases.length ? phrases : undefined, selectedType || undefined);
   };
 
   const handleReset = () => {
     setPhrases([]);
+    setSelectedType('');
     router.replace('', { scroll: false });
-    fetchTypes([]);
+    fetchTypes([], undefined);
   };
 
   const handleDelete = async (id: string) => {
@@ -96,13 +123,18 @@ export default function MetadataPage() {
     {
       id: 'type',
       header: 'Type',
-      cell: ({ row }) => (
-        <span
-          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${TYPE_COLORS[row.original.type]}`}
-        >
-          {row.original.type}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const key = row.original.type as string;
+        const label = typeLabels[key] ?? key;
+        const colorClass = TYPE_COLORS[key] ?? 'bg-muted text-muted-foreground border-border';
+        return (
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${colorClass}`}
+          >
+            {label}
+          </span>
+        );
+      },
     },
     {
       id: 'properties',
@@ -167,7 +199,9 @@ export default function MetadataPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => fetchTypes(phrases.length ? phrases : undefined)}
+              onClick={() =>
+                fetchTypes(phrases.length ? phrases : undefined, selectedType || undefined)
+              }
               disabled={isLoading}
             >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
@@ -185,6 +219,20 @@ export default function MetadataPage() {
         onSearch={handleSearch}
         onReset={handleReset}
         placeholder="Search types..."
+        extraFilters={
+          <select
+            value={selectedType}
+            onChange={(e) => setSelectedType(e.target.value)}
+            className="rounded-md border border-input bg-background px-3 py-[7px] text-sm focus:outline-none focus:ring-2 focus:ring-ring min-w-[180px]"
+          >
+            <option value="">All types</option>
+            {typeOptions.map((opt) => (
+              <option key={opt.key} value={opt.key}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        }
       />
 
       <DataTable

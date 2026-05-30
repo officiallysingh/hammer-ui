@@ -10,6 +10,8 @@ interface PhraseSearchBarProps {
   onSearch: () => void;
   onReset: () => void;
   placeholder?: string;
+  /** Extra filter controls rendered between the phrases input and the Search button */
+  extraFilters?: React.ReactNode;
   /** Extra controls rendered after the Reset button (e.g. column toggles) */
   children?: React.ReactNode;
 }
@@ -20,6 +22,7 @@ export function PhraseSearchBar({
   onSearch,
   onReset,
   placeholder = 'Type phrase and press Enter...',
+  extraFilters,
   children,
 }: PhraseSearchBarProps) {
   return (
@@ -27,6 +30,7 @@ export function PhraseSearchBar({
       <div className="flex-1 min-w-[240px]">
         <PhrasesInput value={phrases} onChange={onPhrasesChange} placeholder={placeholder} />
       </div>
+      {extraFilters}
       <Button size="sm" onClick={onSearch} className="gap-1.5">
         <Search className="h-3.5 w-3.5" />
         Search

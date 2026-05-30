@@ -133,6 +133,7 @@ export const metadataApi = {
     type?: ManagedTypeType;
     page?: number;
     size?: number;
+    expand?: boolean;
   }): Promise<PaginatedManagedTypes> => {
     const response = await apiClient.get<PaginatedManagedTypes>('/api/v1/meta-data/managed-types', {
       params: {
@@ -141,6 +142,7 @@ export const metadataApi = {
         page: params?.page ?? 0,
         size: params?.size ?? 16,
       },
+      headers: params?.expand ? { 'x-expand': true } : undefined,
     });
     return response.data;
   },
