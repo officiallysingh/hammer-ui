@@ -12,6 +12,10 @@ import {
   FileText,
   Film,
   ImageIcon,
+  Tag,
+  ChevronDown,
+  ChevronUp,
+  Plus,
 } from 'lucide-react';
 import { Button } from '@repo/ui';
 import { blobsApi, BlobVM, BlobProperties } from '@repo/api';
@@ -23,6 +27,7 @@ interface UploadedFile {
   uploading: boolean;
   error?: string;
   thumbnail: boolean;
+  blobMeta: Record<string, string>;
   classifier: 'IMAGE' | 'VIDEO' | 'DOCUMENT';
   previewUrl?: string;
 }
@@ -86,6 +91,108 @@ function fileClassifier(file: File): UploadedFile['classifier'] {
   return 'DOCUMENT';
 }
 
+// ─── BlobMetaEditor ──────────────────────────────────────────────────────────
+
+function BlobMetaEditor({
+  meta,
+  onChange,
+}: {
+  meta: Record<string, string>;
+  onChange: (meta: Record<string, string>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [newKey, setNewKey] = useState('');
+  const [newVal, setNewVal] = useState('');
+
+  const entries = Object.entries(meta).filter(([k]) => k !== 'thumbnail');
+
+  const update = (k: string, v: string) => onChange({ ...meta, [k]: v });
+  const remove = (k: string) => {
+    const next = { ...meta };
+    delete next[k];
+    onChange(next);
+  };
+  const add = () => {
+    const k = newKey.trim();
+    if (!k) return;
+    onChange({ ...meta, [k]: newVal.trim() });
+    setNewKey('');
+    setNewVal('');
+  };
+
+  return (
+    <div className="border-t border-border/50 pt-1 mt-0.5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 w-full text-[10px] text-muted-foreground hover:text-foreground transition-colors py-0.5"
+      >
+        <Tag className="h-2.5 w-2.5 shrink-0" />
+        <span>Labels{entries.length > 0 ? ` (${entries.length})` : ''}</span>
+        {open ? (
+          <ChevronUp className="h-2.5 w-2.5 ml-auto shrink-0" />
+        ) : (
+          <ChevronDown className="h-2.5 w-2.5 ml-auto shrink-0" />
+        )}
+      </button>
+
+      {open && (
+        <div className="space-y-0.5 mt-0.5">
+          {entries.map(([k, v]) => (
+            <div key={k} className="flex items-center gap-0.5">
+              <input
+                className="w-16 shrink-0 text-[9px] bg-muted/80 rounded px-1 py-px border border-border focus:outline-none focus:border-primary font-medium text-muted-foreground"
+                value={k}
+                readOnly
+                title={k}
+              />
+              <span className="text-[9px] text-muted-foreground shrink-0">:</span>
+              <input
+                className="flex-1 min-w-0 text-[9px] bg-muted/80 rounded px-1 py-px border border-border focus:outline-none focus:border-primary"
+                value={v}
+                onChange={(e) => update(k, e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => remove(k)}
+                className="shrink-0 ml-0.5 text-muted-foreground/60 hover:text-destructive transition-colors"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            </div>
+          ))}
+
+          {/* Add new key-value row */}
+          <div className="flex items-center gap-0.5 pt-0.5 border-t border-border/40">
+            <input
+              placeholder="key"
+              className="w-16 shrink-0 text-[9px] bg-muted/80 rounded px-1 py-px border border-border focus:outline-none focus:border-primary"
+              value={newKey}
+              onChange={(e) => setNewKey(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && add()}
+            />
+            <input
+              placeholder="value"
+              className="flex-1 min-w-0 text-[9px] bg-muted/80 rounded px-1 py-px border border-border focus:outline-none focus:border-primary"
+              value={newVal}
+              onChange={(e) => setNewVal(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && add()}
+            />
+            <button
+              type="button"
+              onClick={add}
+              disabled={!newKey.trim()}
+              className="shrink-0 text-primary hover:opacity-80 disabled:opacity-30 transition-opacity"
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── MediaBlock ───────────────────────────────────────────────────────────────
 
 interface MediaBlockProps {
@@ -97,6 +204,8 @@ interface MediaBlockProps {
   onRemoveExisting: (id: string) => void;
   onSetThumbnail: (idx: number, checked: boolean) => void;
   onSetExistingThumbnail: (id: string, checked: boolean) => void;
+  onSetUploadMeta: (idx: number, meta: Record<string, string>) => void;
+  onSetExistingMeta: (id: string, meta: Record<string, string>) => void;
 }
 
 function MediaBlock({
@@ -108,6 +217,8 @@ function MediaBlock({
   onRemoveExisting,
   onSetThumbnail,
   onSetExistingThumbnail,
+  onSetUploadMeta,
+  onSetExistingMeta,
 }: MediaBlockProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -246,6 +357,12 @@ function MediaBlock({
                         </span>
                       </label>
                     )}
+                    <BlobMetaEditor
+                      meta={Object.fromEntries(
+                        Object.entries(blob.metadata ?? {}).filter(([k]) => k !== 'thumbnail'),
+                      )}
+                      onChange={(m) => onSetExistingMeta(blob.id, m)}
+                    />
                   </div>
                 </div>
               );
@@ -314,6 +431,10 @@ function MediaBlock({
                     </label>
                   )}
                   {u.error && <p className="text-[10px] text-destructive">{u.error}</p>}
+                  <BlobMetaEditor
+                    meta={u.blobMeta}
+                    onChange={(m) => onSetUploadMeta(u.originalIdx, m)}
+                  />
                 </div>
               </div>
             ))}
@@ -456,6 +577,7 @@ export function Step2Media({
       file,
       uploading: true,
       thumbnail: false,
+      blobMeta: {},
       classifier: forClassifier,
       previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
     }));
@@ -497,6 +619,20 @@ export function Step2Media({
                 : u.thumbnail
             : u.thumbnail,
       })),
+    );
+  };
+
+  const handleSetUploadMeta = (idx: number, meta: Record<string, string>) => {
+    onUploadsChange(uploads.map((u, i) => (i === idx ? { ...u, blobMeta: meta } : u)));
+  };
+
+  const handleSetExistingMeta = (id: string, nonThumbnailMeta: Record<string, string>) => {
+    setExistingBlobs((prev) =>
+      prev.map((b) => {
+        if (b.id !== id) return b;
+        const thumbnail = b.metadata?.['thumbnail'] ?? 'false';
+        return { ...b, metadata: { thumbnail, ...nonThumbnailMeta } };
+      }),
     );
   };
 
@@ -546,11 +682,14 @@ export function Step2Media({
       }
     });
 
-    // New uploads — include their metadata (thumbnail flag)
+    // New uploads — merge custom metadata with thumbnail flag
     uploads.forEach((u) => {
       if (u.blob?.id) {
         result[u.blob.id] = {
-          metadata: { thumbnail: u.thumbnail ? 'true' : 'false' },
+          metadata: {
+            ...u.blobMeta,
+            thumbnail: u.thumbnail ? 'true' : 'false', // always overrides any blobMeta.thumbnail
+          },
         };
       }
     });
@@ -597,6 +736,8 @@ export function Step2Media({
     onRemoveExisting: removeExistingBlob,
     onSetThumbnail: setThumbnail,
     onSetExistingThumbnail: setExistingBlobThumbnail,
+    onSetUploadMeta: handleSetUploadMeta,
+    onSetExistingMeta: handleSetExistingMeta,
   });
 
   return (

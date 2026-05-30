@@ -87,8 +87,7 @@ export default function NewListingPage() {
         if (tagsChanged) patch.tags = details.tags;
         if (!orig || details.subCategory !== orig.subCategory)
           patch.subCategory = details.subCategory;
-        if (!orig || details.quantity !== orig.quantity)
-          patch.quantity = details.quantity || undefined;
+        if (!orig || details.quantity !== orig.quantity) patch.quantity = details.quantity;
         if (Object.keys(patch).length > 0) {
           await listingsApi.updateListing(listingId, patch);
         }
@@ -100,7 +99,7 @@ export default function NewListingPage() {
           description: details.description.trim() || undefined,
           tags: details.tags.length ? details.tags : undefined,
           subCategory: details.subCategory,
-          quantity: details.quantity || undefined,
+          quantity: details.quantity,
         });
         setListingId(res);
         origRef.current = { ...details };

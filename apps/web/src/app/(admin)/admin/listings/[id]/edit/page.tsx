@@ -168,7 +168,7 @@ export default function EditListingPage() {
         details.tags.length !== (orig.tags?.length ?? 0) ||
         details.tags.some((t: string, i: number) => t !== orig.tags?.[i]);
       if (tagsChanged) patch.tags = details.tags;
-      if (details.quantity !== (orig.quantity ?? 0)) patch.quantity = details.quantity || undefined;
+      if (details.quantity !== (orig.quantity ?? 0)) patch.quantity = details.quantity;
 
       if (Object.keys(patch).length > 0) {
         await listingsApi.updateListing(id, patch as never);
