@@ -106,7 +106,9 @@ export const listingsApi = {
   },
 
   getListingById: async (id: string): Promise<ListingVM> => {
-    const response = await apiClient.get<ListingVM>(`/api/v1/listings/${id}`);
+    const response = await apiClient.get<ListingVM>(`/api/v1/listings/${id}`, {
+      headers: { 'x-expand': 'true' },
+    });
     return response.data;
   },
 
