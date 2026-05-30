@@ -133,7 +133,7 @@ export function Step1Details({
             id="ls-qty"
             type="number"
             min={0}
-            value={values.quantity === 0 ? '' : values.quantity}
+            value={values.quantity}
             onChange={(e) => onChange({ quantity: parseInt(e.target.value) || 0 })}
             placeholder="0"
             className="w-40"
