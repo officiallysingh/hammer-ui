@@ -89,7 +89,7 @@ export default function EditListingPage() {
         ? (orig.subCategory as ListingCategoryRef).id
         : ((orig.subCategory as string | undefined) ?? '');
     if (details.subCategory !== origSubCatId) return true;
-    if (details.quantity !== (orig.quantity ?? 0)) return true;
+    if (details.quantity !== (orig.quantity?.available ?? 0)) return true;
     return false;
   };
 
@@ -117,7 +117,7 @@ export default function EditListingPage() {
           categoryId: ownerCat?.id ?? '',
           subCategory: subCatId,
           tags: listing.tags ?? [],
-          quantity: listing.quantity ?? 0,
+          quantity: listing.quantity?.available ?? 0,
         });
 
         // Load Step 3 data
@@ -168,12 +168,18 @@ export default function EditListingPage() {
         details.tags.length !== (orig.tags?.length ?? 0) ||
         details.tags.some((t: string, i: number) => t !== orig.tags?.[i]);
       if (tagsChanged) patch.tags = details.tags;
-      if (details.quantity !== (orig.quantity ?? 0)) patch.quantity = details.quantity;
+      if (details.quantity !== (orig.quantity?.available ?? 0)) patch.quantity = details.quantity;
 
       if (Object.keys(patch).length > 0) {
         await listingsApi.updateListing(id, patch as never);
       }
-      origRef.current = { ...orig, ...patch } as ListingVM;
+      origRef.current = {
+        ...orig,
+        ...patch,
+        ...(patch.quantity !== undefined
+          ? { quantity: { ...(orig.quantity ?? {}), available: patch.quantity as number } }
+          : {}),
+      } as ListingVM;
       setStep(2);
     } catch (err) {
       const parsed = parseApiError(err);

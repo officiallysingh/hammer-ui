@@ -21,8 +21,6 @@ import {
   Film,
   FileText,
   Download,
-  CheckCircle2,
-  XCircle,
   Search,
   X,
 } from 'lucide-react';
@@ -424,13 +422,17 @@ export default function ListingsPage() {
       id: 'available',
       header: 'Available',
       cell: ({ row }) => {
-        const { available } = row.original;
+        const { available, quantity } = row.original;
         if (available === undefined || available === null)
           return <span className="text-xs text-muted-foreground">—</span>;
-        return available ? (
-          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-        ) : (
-          <XCircle className="h-4 w-4 text-red-500" />
+        if (!available) return <span className="text-sm font-medium text-red-500">No</span>;
+        return (
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-emerald-500">Yes</span>
+            {quantity?.available != null && (
+              <span className="text-xs text-muted-foreground">({quantity.available})</span>
+            )}
+          </div>
         );
       },
     },

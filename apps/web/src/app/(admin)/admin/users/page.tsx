@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { usersApi, adminApi, UserDetailVM, AuthorityGroupVM } from '@repo/api';
+import { usersApi, adminApi, UserDetailVM, AuthorityGroupVM, AuthorityVM } from '@repo/api';
 import {
   Loader2,
   Trash2,
@@ -117,6 +117,7 @@ export default function UsersPage() {
   const [selectedRoles, setSelectedRoles] = useState<SelectOption[]>([]);
   const [selectedPermissions, setSelectedPermissions] = useState<SelectOption[]>([]);
   const [allRoles, setAllRoles] = useState<AuthorityGroupVM[]>([]);
+  const [allPermissions, setAllPermissions] = useState<AuthorityVM[]>([]);
 
   // Column visibility
   const [showRoles, setShowRoles] = useState(false);
@@ -124,14 +125,14 @@ export default function UsersPage() {
 
   const phrasesRef = useRef<string[]>(searchParams.getAll('phrases'));
 
-  // Load all roles (with their permissions) once on mount
+  // Load roles and permissions independently on mount
   useEffect(() => {
     const roleIds = searchParams.getAll('roles');
     const permIds = searchParams.getAll('permissions');
-    adminApi
-      .getAuthorityGroups(true)
-      .then((groups) => {
+    Promise.all([adminApi.getAuthorityGroups(), adminApi.getAuthorities()])
+      .then(([groups, perms]) => {
         setAllRoles(groups);
+        setAllPermissions(perms);
         if (roleIds.length) {
           setSelectedRoles(
             groups
@@ -140,9 +141,8 @@ export default function UsersPage() {
           );
         }
         if (permIds.length) {
-          const allPerms = groups.flatMap((g) => g.authorities ?? []);
           setSelectedPermissions(
-            allPerms
+            perms
               .filter((a) => permIds.includes(a.id))
               .map((a) => ({ label: a.label, value: a.id })),
           );
@@ -153,12 +153,10 @@ export default function UsersPage() {
 
   const roleOptions: SelectOption[] = allRoles.map((g) => ({ label: g.label, value: g.id }));
 
-  const permissionOptions: SelectOption[] = selectedRoles.length
-    ? selectedRoles.flatMap((opt) => {
-        const group = allRoles.find((g) => g.id === opt.value);
-        return (group?.authorities ?? []).map((a) => ({ label: a.label, value: a.id }));
-      })
-    : allRoles.flatMap((g) => (g.authorities ?? []).map((a) => ({ label: a.label, value: a.id })));
+  const permissionOptions: SelectOption[] = allPermissions.map((a) => ({
+    label: a.label,
+    value: a.id,
+  }));
 
   const fetchUsers = async (opts?: {
     phrases?: string[];
@@ -509,19 +507,7 @@ export default function UsersPage() {
               isMulti
               options={roleOptions}
               value={selectedRoles}
-              onChange={(vals: MultiValue<SelectOption>) => {
-                setSelectedRoles([...vals]);
-                // Clear permissions that no longer belong to selected roles
-                const roleIds = new Set(vals.map((v) => v.value));
-                setSelectedPermissions((prev) =>
-                  prev.filter((p) => {
-                    const ownerGroup = allRoles.find((g) =>
-                      g.authorities?.some((a) => a.id === p.value),
-                    );
-                    return ownerGroup && roleIds.has(ownerGroup.id);
-                  }),
-                );
-              }}
+              onChange={(vals: MultiValue<SelectOption>) => setSelectedRoles([...vals])}
               placeholder="All roles"
               styles={reactSelectStyles as never}
             />

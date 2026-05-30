@@ -16,6 +16,13 @@ export interface ListingBlobRef {
   metadata?: Record<string, string>;
 }
 
+export interface ListingQuantity {
+  allocated?: number | null;
+  available?: number | null;
+  inAuction?: number | null;
+  sold?: number | null;
+}
+
 export interface ListingVM {
   id: string;
   name: string;
@@ -26,7 +33,7 @@ export interface ListingVM {
   category?: ListingCategoryRef;
   status?: string;
   available?: boolean;
-  quantity?: number;
+  quantity?: ListingQuantity;
   blobs?: ListingBlobRef[];
   embedded?: Record<string, unknown>;
 }
