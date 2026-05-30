@@ -21,6 +21,7 @@ import { StepIndicator } from '../../_components/StepIndicator';
 import { Step1Details, ListingDetails } from '../../_components/Step1Details';
 import { Step2Media } from '../../_components/Step2Media';
 import { Step3Catalog } from '../../_components/Step3Catalog';
+import { buildPathWiseState } from '@/lib/pathWiseState';
 
 type EmbeddedProp = { type?: string; name?: string; value?: unknown };
 
@@ -194,8 +195,9 @@ export default function EditListingPage() {
     }
     setStep3Saving(true);
     try {
+      const pathWiseState = buildPathWiseState(fieldValues, selectedManagedType);
       await listingsApi.updateListing(id, {
-        embedded: { typeId: managedTypeId, pathWiseState: fieldValues },
+        embedded: { typeId: managedTypeId, pathWiseState },
       });
       router.push('/admin/listings');
     } catch (err) {

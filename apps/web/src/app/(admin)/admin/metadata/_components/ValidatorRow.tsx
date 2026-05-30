@@ -29,6 +29,18 @@ const NEEDS_MIN = new Set(['MIN', 'SIZE']);
 const NEEDS_MAX = new Set(['MAX', 'SIZE']);
 const NEEDS_REGEX = new Set(['REGEX_PATTERN']);
 
+const REGEX_PRESETS = [
+  { key: 'aadhaar', label: 'Aadhaar (12 digits)', regex: '^[1-9][0-9]{11}$' },
+  {
+    key: 'credit-card',
+    label: 'Credit card',
+    regex: '^(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})$',
+  },
+  { key: 'alphanumeric', label: 'Alphanumeric', regex: '^[A-Za-z0-9]+$' },
+  { key: 'numbers-only', label: 'Numbers only', regex: '^[0-9]+$' },
+  { key: 'letters-only', label: 'Letters only', regex: '^[A-Za-z]+$' },
+] as const;
+
 export function ValidatorRow({
   validator,
   validatorOptions,
@@ -44,10 +56,17 @@ export function ValidatorRow({
   const minVal = validator.min !== undefined && validator.min !== '' ? String(validator.min) : '';
   const maxVal = validator.max !== undefined && validator.max !== '' ? String(validator.max) : '';
   const regexVal = validator.regex ?? '';
+  const selectedPreset = REGEX_PRESETS.find((preset) => preset.regex === regexVal)?.key ?? 'custom';
 
   const minMissing = NEEDS_MIN.has(typeKey) && minVal === '';
   const maxMissing = NEEDS_MAX.has(typeKey) && maxVal === '';
   const regexMissing = NEEDS_REGEX.has(typeKey) && regexVal === '';
+
+  const handleRegexPresetChange = (presetKey: string) => {
+    if (presetKey === 'custom') return;
+    const preset = REGEX_PRESETS.find((item) => item.key === presetKey);
+    if (preset) onChange({ regex: preset.regex });
+  };
 
   return (
     <div className="space-y-2 rounded-md border border-border bg-muted/10 p-2">
@@ -119,16 +138,30 @@ export function ValidatorRow({
           )}
 
           {NEEDS_REGEX.has(typeKey) && (
-            <div className="flex flex-col gap-0.5 flex-1 min-w-[160px]">
+            <div className="flex flex-col gap-0.5 flex-1 min-w-[220px]">
               <label className="text-[10px] font-medium text-muted-foreground">
                 Pattern <span className="text-destructive">*</span>
               </label>
-              <Input
-                value={regexVal}
-                placeholder="e.g. ^[a-zA-Z]+$"
-                onChange={(e) => onChange({ regex: e.target.value })}
-                className={`h-7 text-xs font-mono ${regexMissing ? 'border-destructive focus-visible:ring-destructive' : ''}`}
-              />
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedPreset}
+                  onChange={(e) => handleRegexPresetChange(e.target.value)}
+                  className="rounded-md border border-input bg-background px-2 py-1 text-[10px] focus:outline-none focus:ring-1 focus:ring-ring shrink-0"
+                >
+                  <option value="custom">Custom</option>
+                  {REGEX_PRESETS.map((preset) => (
+                    <option key={preset.key} value={preset.key}>
+                      {preset.label}
+                    </option>
+                  ))}
+                </select>
+                <Input
+                  value={regexVal}
+                  placeholder="e.g. ^[a-zA-Z]+$"
+                  onChange={(e) => onChange({ regex: e.target.value })}
+                  className={`h-7 text-xs font-mono flex-1 ${regexMissing ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                />
+              </div>
               {regexMissing && <p className="text-[10px] text-destructive">Required</p>}
             </div>
           )}

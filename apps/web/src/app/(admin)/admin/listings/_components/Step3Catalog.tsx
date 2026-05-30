@@ -127,6 +127,41 @@ function isRequired(prop: PropertyDef): boolean {
   });
 }
 
+const INTEGER_META_TYPES = new Set(['BYTE', 'SHORT', 'INTEGER', 'LONG', 'BIG_INTEGER']);
+
+const DECIMAL_META_TYPES = new Set(['FLOAT', 'DOUBLE', 'BIG_DECIMAL']);
+const BOOLEAN_META_TYPES = new Set(['BOOLEAN']);
+
+function coerceValue(prop: PropertyDef, value: unknown): unknown {
+  if (value === undefined || value === null) return value;
+
+  if (BOOLEAN_META_TYPES.has(prop.metaType)) {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') return value === 'true';
+    if (typeof value === 'number') return value !== 0;
+  }
+
+  if (INTEGER_META_TYPES.has(prop.metaType)) {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      if (value === '') return value;
+      const parsed = Number.parseInt(value, 10);
+      return Number.isFinite(parsed) ? parsed : value;
+    }
+  }
+
+  if (DECIMAL_META_TYPES.has(prop.metaType)) {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      if (value === '') return value;
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : value;
+    }
+  }
+
+  return value;
+}
+
 const META_TYPE_LABELS: Partial<Record<string, string>> = {
   BOOLEAN: 'Boolean',
   BYTE: 'Byte',
@@ -164,6 +199,7 @@ interface FieldGroupProps {
 function PropertyFieldGroup({ prop, value, onChange, depth = 0 }: FieldGroupProps) {
   const indent = depth > 0 ? 'ml-4 pl-3 border-l border-border' : '';
   const required = isRequired(prop);
+  const handleChange = (nextValue: unknown) => onChange(coerceValue(prop, nextValue));
 
   // COMPOSITE_PROPERTY → labeled card with child fields inside
   if (prop.type === 'COMPOSITE_PROPERTY') {
@@ -226,7 +262,7 @@ function PropertyFieldGroup({ prop, value, onChange, depth = 0 }: FieldGroupProp
           </span>
         )}
       </div>
-      <ScalarField prop={prop} value={value} onChange={onChange} />
+      <ScalarField prop={prop} value={value} onChange={handleChange} />
     </div>
   );
 }
