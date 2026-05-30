@@ -133,9 +133,17 @@ export const usersApi = {
     size = 20,
     phrases?: string[],
     expand?: ('authorities' | 'authority-groups')[],
+    authorityGroups?: string[],
+    authorities?: string[],
   ): Promise<PaginatedUsers> => {
     const response = await apiClient.get<PaginatedUsers>('/api/v1/users', {
-      params: { page, size, ...(phrases?.length ? { phrases } : {}) },
+      params: {
+        page,
+        size,
+        ...(phrases?.length ? { phrases } : {}),
+        ...(authorityGroups?.length ? { authorityGroups } : {}),
+        ...(authorities?.length ? { authorities } : {}),
+      },
       headers: expand?.length ? { 'x-expand': expand.join(',') } : undefined,
     });
     return response.data;

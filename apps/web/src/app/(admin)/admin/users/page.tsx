@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { usersApi, UserDetailVM } from '@repo/api';
+import { usersApi, adminApi, UserDetailVM, AuthorityGroupVM } from '@repo/api';
 import {
   Loader2,
   Trash2,
@@ -14,9 +14,13 @@ import {
   LockOpen,
   CheckCircle2,
   Circle,
+  Search,
+  X,
 } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
-import { Button } from '@repo/ui';
+import { Button, Label } from '@repo/ui';
+import Select from 'react-select';
+import type { MultiValue } from 'react-select';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/common/data-table';
 import PageHeader from '@/components/common/admin/PageHeader';
@@ -24,35 +28,77 @@ import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
 import { TagList } from '@/components/common/admin/TagList';
-import { PhraseSearchBar } from '@/components/common/admin/PhraseSearchBar';
+import { PhrasesInput } from '@/components/common/admin/PhrasesInput';
+
+interface SelectOption {
+  label: string;
+  value: string;
+}
+
+const reactSelectStyles = {
+  control: (base: Record<string, unknown>, state: { isFocused: boolean }) => ({
+    ...base,
+    backgroundColor: 'hsl(var(--background))',
+    borderColor: state.isFocused ? 'hsl(var(--primary))' : 'hsl(var(--input))',
+    boxShadow: state.isFocused ? '0 0 0 2px hsl(var(--primary) / 0.2)' : 'none',
+    borderRadius: '0.375rem',
+    minHeight: '2.25rem',
+    fontSize: '0.875rem',
+    '&:hover': { borderColor: 'hsl(var(--primary) / 0.5)' },
+  }),
+  option: (base: Record<string, unknown>, state: { isSelected: boolean; isFocused: boolean }) => ({
+    ...base,
+    backgroundColor: state.isSelected
+      ? 'hsl(var(--primary))'
+      : state.isFocused
+        ? 'hsl(var(--muted))'
+        : 'hsl(var(--background))',
+    color: state.isSelected ? 'hsl(var(--primary-foreground))' : 'hsl(var(--foreground))',
+    fontSize: '0.875rem',
+  }),
+  multiValue: (base: Record<string, unknown>) => ({
+    ...base,
+    backgroundColor: 'hsl(var(--secondary))',
+    borderRadius: '0.25rem',
+  }),
+  multiValueLabel: (base: Record<string, unknown>) => ({
+    ...base,
+    color: 'hsl(var(--secondary-foreground))',
+    fontSize: '0.75rem',
+  }),
+  multiValueRemove: (base: Record<string, unknown>) => ({
+    ...base,
+    color: 'hsl(var(--muted-foreground))',
+    '&:hover': { backgroundColor: 'hsl(var(--destructive)/0.1)', color: 'hsl(var(--destructive))' },
+  }),
+  menu: (base: Record<string, unknown>) => ({
+    ...base,
+    backgroundColor: 'hsl(var(--background))',
+    border: '1px solid hsl(var(--border))',
+    boxShadow: '0 4px 16px hsl(var(--foreground)/0.08)',
+    zIndex: 50,
+  }),
+  input: (base: Record<string, unknown>) => ({
+    ...base,
+    color: 'hsl(var(--foreground))',
+    fontSize: '0.875rem',
+  }),
+  placeholder: (base: Record<string, unknown>) => ({
+    ...base,
+    color: 'hsl(var(--muted-foreground))',
+    fontSize: '0.875rem',
+  }),
+  singleValue: (base: Record<string, unknown>) => ({
+    ...base,
+    color: 'hsl(var(--foreground))',
+  }),
+};
 
 function VerifiedBadge({ verified }: { verified: boolean }) {
   return verified ? (
     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
   ) : (
     <Circle className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />
-  );
-}
-
-function ColumnToggle({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="flex items-center gap-1.5 cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground transition-colors">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="accent-primary h-3.5 w-3.5"
-      />
-      {label}
-    </label>
   );
 }
 
@@ -65,23 +111,75 @@ export default function UsersPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  // Filter state
   const [phrases, setPhrases] = useState<string[]>(() => searchParams.getAll('phrases'));
-  const phrasesRef = useRef<string[]>(searchParams.getAll('phrases'));
+  const [selectedRoles, setSelectedRoles] = useState<SelectOption[]>([]);
+  const [selectedPermissions, setSelectedPermissions] = useState<SelectOption[]>([]);
+  const [allRoles, setAllRoles] = useState<AuthorityGroupVM[]>([]);
+
+  // Column visibility
   const [showRoles, setShowRoles] = useState(false);
   const [showPermissions, setShowPermissions] = useState(false);
 
-  const fetchUsers = async (ph?: string[], roles = showRoles, perms = showPermissions) => {
+  const phrasesRef = useRef<string[]>(searchParams.getAll('phrases'));
+
+  // Load all roles (with their permissions) once on mount
+  useEffect(() => {
+    const roleIds = searchParams.getAll('roles');
+    const permIds = searchParams.getAll('permissions');
+    adminApi
+      .getAuthorityGroups(true)
+      .then((groups) => {
+        setAllRoles(groups);
+        if (roleIds.length) {
+          setSelectedRoles(
+            groups
+              .filter((g) => roleIds.includes(g.id))
+              .map((g) => ({ label: g.label, value: g.id })),
+          );
+        }
+        if (permIds.length) {
+          const allPerms = groups.flatMap((g) => g.authorities ?? []);
+          setSelectedPermissions(
+            allPerms
+              .filter((a) => permIds.includes(a.id))
+              .map((a) => ({ label: a.label, value: a.id })),
+          );
+        }
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const roleOptions: SelectOption[] = allRoles.map((g) => ({ label: g.label, value: g.id }));
+
+  const permissionOptions: SelectOption[] = selectedRoles.length
+    ? selectedRoles.flatMap((opt) => {
+        const group = allRoles.find((g) => g.id === opt.value);
+        return (group?.authorities ?? []).map((a) => ({ label: a.label, value: a.id }));
+      })
+    : allRoles.flatMap((g) => (g.authorities ?? []).map((a) => ({ label: a.label, value: a.id })));
+
+  const fetchUsers = async (opts?: {
+    phrases?: string[];
+    roles?: string[];
+    permissions?: string[];
+    showRolesCol?: boolean;
+    showPermsCol?: boolean;
+  }) => {
     setIsLoading(true);
     setError(null);
     try {
       const expand: ('authorities' | 'authority-groups')[] = [];
-      if (perms) expand.push('authorities');
-      if (roles) expand.push('authority-groups');
+      if (opts?.showPermsCol ?? showPermissions) expand.push('authorities');
+      if (opts?.showRolesCol ?? showRoles) expand.push('authority-groups');
       const result = await usersApi.getUsers(
         0,
         20,
-        ph?.length ? ph : undefined,
+        opts?.phrases?.length ? opts.phrases : undefined,
         expand.length ? expand : undefined,
+        opts?.roles?.length ? opts.roles : undefined,
+        opts?.permissions?.length ? opts.permissions : undefined,
       );
       setUsers(result.content ?? []);
     } catch {
@@ -91,42 +189,60 @@ export default function UsersPage() {
     }
   };
 
+  // Initial fetch
   useEffect(() => {
-    fetchUsers(phrasesRef.current.length ? phrasesRef.current : undefined);
+    const initPhrases = phrasesRef.current.length ? phrasesRef.current : undefined;
+    const initRoles = searchParams.getAll('roles');
+    const initPerms = searchParams.getAll('permissions');
+    fetchUsers({
+      phrases: initPhrases,
+      roles: initRoles,
+      permissions: initPerms,
+    });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-fetch when column visibility changes (need different x-expand)
+  // Re-fetch when column visibility changes
   const prevRoles = useRef(showRoles);
   const prevPerms = useRef(showPermissions);
   useEffect(() => {
     if (prevRoles.current !== showRoles || prevPerms.current !== showPermissions) {
       prevRoles.current = showRoles;
       prevPerms.current = showPermissions;
-      fetchUsers(
-        phrasesRef.current.length ? phrasesRef.current : undefined,
-        showRoles,
-        showPermissions,
-      );
+      fetchUsers({
+        phrases: phrasesRef.current.length ? phrasesRef.current : undefined,
+        roles: selectedRoles.map((o) => o.value),
+        permissions: selectedPermissions.map((o) => o.value),
+        showRolesCol: showRoles,
+        showPermsCol: showPermissions,
+      });
     }
   }, [showRoles, showPermissions]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSearch = () => {
+  const buildFilterUrl = (ph: string[], roles: SelectOption[], perms: SelectOption[]) => {
     const params = new URLSearchParams();
-    phrases.forEach((p) => params.append('phrases', p));
-    router.replace(params.toString() ? `?${params.toString()}` : '', { scroll: false });
-    fetchUsers(phrases.length ? phrases : undefined);
+    ph.forEach((p) => params.append('phrases', p));
+    roles.forEach((r) => params.append('roles', r.value));
+    perms.forEach((p) => params.append('permissions', p.value));
+    return params.toString() ? `?${params.toString()}` : '';
+  };
+
+  const handleSearch = () => {
+    phrasesRef.current = phrases;
+    router.replace(buildFilterUrl(phrases, selectedRoles, selectedPermissions), { scroll: false });
+    fetchUsers({
+      phrases,
+      roles: selectedRoles.map((o) => o.value),
+      permissions: selectedPermissions.map((o) => o.value),
+    });
   };
 
   const handleReset = () => {
     setPhrases([]);
+    setSelectedRoles([]);
+    setSelectedPermissions([]);
     phrasesRef.current = [];
     router.replace('', { scroll: false });
-    fetchUsers([]);
-  };
-
-  const handlePhrasesChange = (newPhrases: string[]) => {
-    phrasesRef.current = newPhrases;
-    setPhrases(newPhrases);
+    fetchUsers({});
   };
 
   const handleDelete = async (id: string) => {
@@ -353,11 +469,11 @@ export default function UsersPage() {
               variant="outline"
               size="sm"
               onClick={() =>
-                fetchUsers(
-                  phrasesRef.current.length ? phrasesRef.current : undefined,
-                  showRoles,
-                  showPermissions,
-                )
+                fetchUsers({
+                  phrases: phrasesRef.current.length ? phrasesRef.current : undefined,
+                  roles: selectedRoles.map((o) => o.value),
+                  permissions: selectedPermissions.map((o) => o.value),
+                })
               }
               disabled={isLoading}
             >
@@ -370,23 +486,98 @@ export default function UsersPage() {
 
       {error && <ErrorAlert message={error} />}
 
-      <PhraseSearchBar
-        phrases={phrases}
-        onPhrasesChange={handlePhrasesChange}
-        onSearch={handleSearch}
-        onReset={handleReset}
-        placeholder="Search users..."
-      >
-        <div className="flex items-center gap-3 border-l border-border pl-3">
-          <span className="text-xs text-muted-foreground font-medium">Show:</span>
-          <ColumnToggle label="Roles" checked={showRoles} onChange={setShowRoles} />
-          <ColumnToggle
-            label="Permissions"
-            checked={showPermissions}
-            onChange={setShowPermissions}
-          />
+      {/* Filter panel */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          {/* Phrases */}
+          <div className="flex-1 min-w-[220px] space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Search phrases</Label>
+            <PhrasesInput
+              value={phrases}
+              onChange={(v) => {
+                phrasesRef.current = v;
+                setPhrases(v);
+              }}
+              placeholder="Search users..."
+            />
+          </div>
+
+          {/* Roles */}
+          <div className="min-w-[240px] space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Roles</Label>
+            <Select<SelectOption, true>
+              isMulti
+              options={roleOptions}
+              value={selectedRoles}
+              onChange={(vals: MultiValue<SelectOption>) => {
+                setSelectedRoles([...vals]);
+                // Clear permissions that no longer belong to selected roles
+                const roleIds = new Set(vals.map((v) => v.value));
+                setSelectedPermissions((prev) =>
+                  prev.filter((p) => {
+                    const ownerGroup = allRoles.find((g) =>
+                      g.authorities?.some((a) => a.id === p.value),
+                    );
+                    return ownerGroup && roleIds.has(ownerGroup.id);
+                  }),
+                );
+              }}
+              placeholder="All roles"
+              styles={reactSelectStyles as never}
+            />
+          </div>
+
+          {/* Permissions */}
+          <div className="min-w-[240px] space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Permissions</Label>
+            <Select<SelectOption, true>
+              isMulti
+              options={permissionOptions}
+              value={selectedPermissions}
+              onChange={(vals: MultiValue<SelectOption>) => setSelectedPermissions([...vals])}
+              placeholder="All permissions"
+              styles={reactSelectStyles as never}
+            />
+          </div>
+
+          {/* Column toggles */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Show columns</Label>
+            <div className="flex items-center gap-3 h-9 px-2 rounded-md border border-input bg-background">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <input
+                  type="checkbox"
+                  checked={showRoles}
+                  onChange={(e) => setShowRoles(e.target.checked)}
+                  className="accent-primary h-3.5 w-3.5"
+                />
+                Roles
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <input
+                  type="checkbox"
+                  checked={showPermissions}
+                  onChange={(e) => setShowPermissions(e.target.checked)}
+                  className="accent-primary h-3.5 w-3.5"
+                />
+                Permissions
+              </label>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2 pb-0.5">
+            <Button size="sm" onClick={handleSearch} className="gap-1.5">
+              <Search className="h-3.5 w-3.5" />
+              Search
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleReset} className="gap-1.5">
+              <X className="h-3.5 w-3.5" />
+              Reset
+            </Button>
+          </div>
         </div>
-      </PhraseSearchBar>
+      </div>
 
       <DataTable
         data={users}
