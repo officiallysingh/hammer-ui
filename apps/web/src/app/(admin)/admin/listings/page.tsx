@@ -23,9 +23,10 @@ import {
   Download,
   Search,
   X,
+  Eye,
 } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Badge, Label } from '@repo/ui';
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Label } from '@repo/ui';
 import Select from 'react-select';
 import type { MultiValue } from 'react-select';
 import { DataTable } from '@/components/common/data-table';
@@ -406,7 +407,13 @@ export default function ListingsPage() {
       accessorKey: 'name',
       header: 'Name',
       cell: ({ row }) => (
-        <span className="font-medium text-foreground text-sm">{row.original.name}</span>
+        <button
+          type="button"
+          onClick={() => router.push(`/admin/listings/${row.original.id}/view`)}
+          className="font-medium text-primary hover:underline text-sm text-left"
+        >
+          {row.original.name}
+        </button>
       ),
     },
     {
@@ -510,6 +517,16 @@ export default function ListingsPage() {
       header: 'Actions',
       cell: ({ row }) => (
         <div className="flex items-center gap-0.5">
+          <Tip label="View listing">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+              onClick={() => router.push(`/admin/listings/${row.original.id}/view`)}
+            >
+              <Eye className="h-3.5 w-3.5" />
+            </Button>
+          </Tip>
           <Tip label="Edit listing">
             <Button
               variant="ghost"

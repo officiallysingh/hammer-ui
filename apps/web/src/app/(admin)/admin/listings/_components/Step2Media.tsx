@@ -582,26 +582,30 @@ export function Step2Media({
       previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
     }));
 
-    let current = [...uploads, ...newUploads];
-    onUploadsChange(current);
+    onUploadsChange([...uploadsRef.current, ...newUploads]);
 
-    for (let i = 0; i < newUploads.length; i++) {
-      const item = newUploads[i]!;
-      const idx = uploads.length + i;
+    for (const item of newUploads) {
       try {
         const blob = await blobsApi.upload(item.file, {
           bucket: username,
           entityId: listingId,
-          classifier: 'LISTING', //item.classifier,
-          metadata: { thumbnail: item.thumbnail ? 'true' : 'false' },
+          classifier: 'LISTING',
+          metadata: { thumbnail: 'false' },
         } satisfies BlobProperties);
-        current = current.map((u, j) => (j === idx ? { ...u, blob, uploading: false } : u));
-        onUploadsChange(current);
-      } catch {
-        current = current.map((u, j) =>
-          j === idx ? { ...u, uploading: false, error: 'Upload failed. Please try again.' } : u,
+        // Use uploadsRef.current so any blobMeta edits made during upload are preserved
+        onUploadsChange(
+          uploadsRef.current.map((u) =>
+            u.file === item.file && u.uploading ? { ...u, blob, uploading: false } : u,
+          ),
         );
-        onUploadsChange(current);
+      } catch {
+        onUploadsChange(
+          uploadsRef.current.map((u) =>
+            u.file === item.file && u.uploading
+              ? { ...u, uploading: false, error: 'Upload failed. Please try again.' }
+              : u,
+          ),
+        );
       }
     }
   };
@@ -665,7 +669,13 @@ export function Step2Media({
 
   const hasExistingBlobChanges =
     originalBlobIds.length !== existingBlobs.length ||
-    originalBlobIds.some((id) => !existingBlobs.some((b) => b.id === id));
+    originalBlobIds.some((id) => !existingBlobs.some((b) => b.id === id)) ||
+    existingBlobs.some((blob) => {
+      const orig = originalBlobs.find((o) => o.id === blob.id);
+      return orig
+        ? JSON.stringify(orig.metadata ?? {}) !== JSON.stringify(blob.metadata ?? {})
+        : false;
+    });
 
   /** Build blobProperties patch — only blobs whose metadata changed */
   const buildBlobProperties = (): Record<string, BlobPropertyPatch> => {
@@ -725,7 +735,6 @@ export function Step2Media({
   const blobProperties = buildBlobProperties();
   const hasBlobPropertyChanges = Object.keys(blobProperties).length > 0;
   const hasChanges = newBlobIds.length > 0 || hasExistingBlobChanges || hasBlobPropertyChanges;
-  const hasNewBlobs = uploads.some((u) => u.blob?.id);
 
   const blockProps = (cls: UploadedFile['classifier']) => ({
     classifier: cls,
