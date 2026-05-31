@@ -19,6 +19,7 @@ import {
   ChevronDown,
   List,
   Database,
+  Gavel,
 } from 'lucide-react';
 import {
   Button,
@@ -87,6 +88,17 @@ const navGroups: NavGroup[] = [
       { href: '/admin/listings', label: 'Listings', icon: List, description: 'Auction listings' },
     ],
   },
+  {
+    label: 'Auctions',
+    items: [
+      {
+        href: '/admin/auctions',
+        label: 'Auctions',
+        icon: Gavel,
+        description: 'Manage auctions',
+      },
+    ],
+  },
 ];
 
 // Flat list for topbar label lookup
@@ -143,6 +155,16 @@ const subRouteTitles: { match: RegExp; label: string; description: string }[] = 
     match: /\/admin\/metadata\/.+\/edit$/,
     label: 'Edit type',
     description: 'Update type definition',
+  },
+  {
+    match: /\/admin\/auctions\/new$/,
+    label: 'New auction',
+    description: 'Create a new auction',
+  },
+  {
+    match: /\/admin\/auctions\/.+\/view$/,
+    label: 'View auction',
+    description: 'Auction details',
   },
 ];
 
