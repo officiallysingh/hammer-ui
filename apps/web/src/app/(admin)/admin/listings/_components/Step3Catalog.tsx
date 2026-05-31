@@ -2,7 +2,16 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { ArrowLeft, Loader2, Plus, Search, Trash2, Upload } from 'lucide-react';
-import { Button, Label, DatePicker, TimePicker, DateTimePicker, YearPicker } from '@repo/ui';
+import {
+  Button,
+  Label,
+  DatePicker,
+  TimePicker,
+  DateTimePicker,
+  YearPicker,
+  OffsetTimePicker,
+  OffsetDateTimePicker,
+} from '@repo/ui';
 import { ManagedTypeVM, ManagedTypeListItemFull, PropertyDef, metadataApi } from '@repo/api';
 import ReactSelect from 'react-select';
 import type { SingleValue } from 'react-select';
@@ -260,7 +269,7 @@ function isRequired(prop: PropertyDef): boolean {
   });
 }
 
-const INTEGER_META_TYPES = new Set(['BYTE', 'SHORT', 'INTEGER', 'LONG', 'BIG_INTEGER']);
+const INTEGER_META_TYPES = new Set(['BYTE', 'SHORT', 'INTEGER', 'LONG', 'BIG_INTEGER', 'YEAR']);
 
 const DECIMAL_META_TYPES = new Set(['FLOAT', 'DOUBLE', 'BIG_DECIMAL']);
 const BOOLEAN_META_TYPES = new Set(['BOOLEAN']);
@@ -313,11 +322,14 @@ const META_TYPE_LABELS: Partial<Record<string, string>> = {
   LOCAL_DATE: 'Date',
   LOCAL_TIME: 'Time',
   LOCAL_DATE_TIME: 'Date & Time',
+  OFFSET_TIME: 'Offset Time',
+  OFFSET_DATE_TIME: 'Offset Date & Time',
   COORDINATES: 'Coordinates',
   ADDRESS: 'Address',
   FILE: 'File',
   LIST: 'List',
   DURATION: 'Duration',
+  PERIOD: 'Period',
 };
 
 // ─── PropertyFieldGroup ───────────────────────────────────────────────────────
@@ -559,6 +571,17 @@ const DAYS_OF_WEEK = [
 
 const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+function parsePeriod(val: string): { years: number; months: number; days: number } {
+  if (!val) return { years: 0, months: 0, days: 0 };
+  const m = val.match(/^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)D)?$/);
+  if (!m) return { years: 0, months: 0, days: 0 };
+  return {
+    years: m[1] ? parseInt(m[1], 10) : 0,
+    months: m[2] ? parseInt(m[2], 10) : 0,
+    days: m[3] ? parseInt(m[3], 10) : 0,
+  };
+}
+
 function parseISODuration(val: string) {
   if (!val || typeof val !== 'string') {
     return { hours: 0, minutes: 0, seconds: 0 };
@@ -796,6 +819,7 @@ function ScalarField({
 }) {
   const base =
     'w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground/60';
+  const numBase = `${base} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`;
 
   const strVal = typeof value === 'string' ? value : value != null ? String(value) : '';
 
@@ -905,7 +929,7 @@ function ScalarField({
           value={strVal}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className={base}
+          className={numBase}
         />
       );
 
@@ -933,7 +957,7 @@ function ScalarField({
           value={strVal}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className={base}
+          className={numBase}
         />
       );
 
@@ -1016,10 +1040,29 @@ function ScalarField({
 
     case 'LOCAL_DATE_TIME':
     case 'ZONED_DATE_TIME':
-    case 'OFFSET_DATE_TIME':
     case 'INSTANT':
       return (
         <DateTimePicker
+          id={`prop-${prop.name}`}
+          value={strVal || undefined}
+          onChange={onChange}
+          placeholder={placeholder}
+        />
+      );
+
+    case 'OFFSET_DATE_TIME':
+      return (
+        <OffsetDateTimePicker
+          id={`prop-${prop.name}`}
+          value={strVal || undefined}
+          onChange={onChange}
+          placeholder={placeholder}
+        />
+      );
+
+    case 'OFFSET_TIME':
+      return (
+        <OffsetTimePicker
           id={`prop-${prop.name}`}
           value={strVal || undefined}
           onChange={onChange}
@@ -1116,7 +1159,7 @@ function ScalarField({
               placeholder="Latitude"
               value={lat}
               onChange={(e) => updateCoord(e.target.value, lng)}
-              className={base}
+              className={numBase}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
               lat
@@ -1131,7 +1174,7 @@ function ScalarField({
               placeholder="Longitude"
               value={lng}
               onChange={(e) => updateCoord(lat, e.target.value)}
-              className={base}
+              className={numBase}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
               lng
@@ -1159,53 +1202,103 @@ function ScalarField({
     case 'DURATION': {
       const { hours, minutes, seconds } = parseISODuration(strVal);
 
-      const handleDurationChange = (h: number, m: number, s: number) => {
-        onChange(`PT${h}H${m}M${s}S`);
-      };
-
       return (
         <div className="flex gap-2">
-          <div className="flex-1">
-            <select
-              id={`prop-${prop.name}-hours`}
+          <div className="flex-1 relative">
+            <input
+              type="number"
+              min="0"
               value={hours}
-              onChange={(e) => handleDurationChange(parseInt(e.target.value, 10), minutes, seconds)}
-              className={base}
-            >
-              {Array.from({ length: 100 }, (_, i) => (
-                <option key={i} value={i}>
-                  {i} hr{i !== 1 ? 's' : ''}
-                </option>
-              ))}
-            </select>
+              onChange={(e) =>
+                onChange(`PT${parseInt(e.target.value, 10) || 0}H${minutes}M${seconds}S`)
+              }
+              className={numBase}
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
+              hr
+            </span>
           </div>
-          <div className="flex-1">
-            <select
-              id={`prop-${prop.name}-minutes`}
+          <div className="flex-1 relative">
+            <input
+              type="number"
+              min="0"
+              max="59"
               value={minutes}
-              onChange={(e) => handleDurationChange(hours, parseInt(e.target.value, 10), seconds)}
-              className={base}
-            >
-              {Array.from({ length: 60 }, (_, i) => (
-                <option key={i} value={i}>
-                  {i} min{i !== 1 ? 's' : ''}
-                </option>
-              ))}
-            </select>
+              onChange={(e) =>
+                onChange(`PT${hours}H${parseInt(e.target.value, 10) || 0}M${seconds}S`)
+              }
+              className={numBase}
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
+              min
+            </span>
           </div>
-          <div className="flex-1">
-            <select
-              id={`prop-${prop.name}-seconds`}
+          <div className="flex-1 relative">
+            <input
+              type="number"
+              min="0"
+              max="59"
               value={seconds}
-              onChange={(e) => handleDurationChange(hours, minutes, parseInt(e.target.value, 10))}
-              className={base}
-            >
-              {Array.from({ length: 60 }, (_, i) => (
-                <option key={i} value={i}>
-                  {i} sec{i !== 1 ? 's' : ''}
-                </option>
-              ))}
-            </select>
+              onChange={(e) =>
+                onChange(`PT${hours}H${minutes}M${parseInt(e.target.value, 10) || 0}S`)
+              }
+              className={numBase}
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
+              sec
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+    case 'PERIOD': {
+      const { years, months, days } = parsePeriod(strVal);
+
+      const updatePeriod = (y: number, mo: number, d: number) => {
+        const parts: string[] = [];
+        if (y) parts.push(`${y}Y`);
+        if (mo) parts.push(`${mo}M`);
+        if (d) parts.push(`${d}D`);
+        onChange(parts.length ? `P${parts.join('')}` : 'P0D');
+      };
+      return (
+        <div className="flex gap-2">
+          <div className="flex-1 relative">
+            <input
+              type="number"
+              min="0"
+              value={years}
+              onChange={(e) => updatePeriod(parseInt(e.target.value, 10) || 0, months, days)}
+              className={numBase}
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
+              yr
+            </span>
+          </div>
+          <div className="flex-1 relative">
+            <input
+              type="number"
+              min="0"
+              value={months}
+              onChange={(e) => updatePeriod(years, parseInt(e.target.value, 10) || 0, days)}
+              className={numBase}
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
+              mo
+            </span>
+          </div>
+          <div className="flex-1 relative">
+            <input
+              type="number"
+              min="0"
+              value={days}
+              onChange={(e) => updatePeriod(years, months, parseInt(e.target.value, 10) || 0)}
+              className={numBase}
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
+              d
+            </span>
           </div>
         </div>
       );

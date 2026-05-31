@@ -720,6 +720,12 @@ export function Step2Media({
     }
     setSaving(true);
     try {
+      // Push metadata directly to each blob — the listing PATCH only updates blob references
+      await Promise.all(
+        Object.entries(blobProperties)
+          .filter(([, patch]) => patch.metadata && Object.keys(patch.metadata).length > 0)
+          .map(([blobId, patch]) => blobsApi.updateBlob(blobId, { metadata: patch.metadata })),
+      );
       await onSave([...existingBlobs.map((b) => b.id), ...newBlobIds], blobProperties);
       onUploadsChange([]);
       onNext();

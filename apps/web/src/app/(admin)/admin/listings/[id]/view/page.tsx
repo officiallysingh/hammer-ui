@@ -248,6 +248,54 @@ function PropValue({ prop, def }: { prop: EmbeddedProp; def?: PropertyDef }) {
     return <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{strVal}</p>;
   }
 
+  // metaType-specific rendering for structured values
+  if (metaType === 'COORDINATES' && typeof val === 'object' && val !== null) {
+    const c = val as Record<string, unknown>;
+    const lat = c['latitude'] != null ? String(c['latitude']) : '—';
+    const lng = c['longitude'] != null ? String(c['longitude']) : '—';
+    return (
+      <span className="text-sm font-mono text-foreground">
+        {lat}, {lng}
+      </span>
+    );
+  }
+
+  if (metaType === 'ADDRESS' && typeof val === 'object' && val !== null) {
+    const a = val as Record<string, unknown>;
+    const parts = [
+      a['addressLine1'],
+      a['addressLine2'],
+      a['area'],
+      a['city'],
+      a['state'],
+      a['country'],
+      a['pinCode'],
+    ].filter(Boolean);
+    return <span className="text-sm text-foreground">{parts.join(', ') || '—'}</span>;
+  }
+
+  if (metaType === 'DURATION' && typeof strVal === 'string') {
+    const m = strVal.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/);
+    if (m) {
+      const parts: string[] = [];
+      if (m[1]) parts.push(`${m[1]}h`);
+      if (m[2]) parts.push(`${m[2]}m`);
+      if (m[3]) parts.push(`${Math.floor(Number(m[3]))}s`);
+      return <span className="text-sm text-foreground">{parts.join(' ') || '0s'}</span>;
+    }
+  }
+
+  if (metaType === 'PERIOD' && typeof strVal === 'string') {
+    const m = strVal.match(/^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)D)?$/);
+    if (m) {
+      const parts: string[] = [];
+      if (m[1]) parts.push(`${m[1]}y`);
+      if (m[2]) parts.push(`${m[2]}mo`);
+      if (m[3]) parts.push(`${m[3]}d`);
+      return <span className="text-sm text-foreground">{parts.join(' ') || '0d'}</span>;
+    }
+  }
+
   return <span className="text-sm text-foreground">{strVal}</span>;
 }
 

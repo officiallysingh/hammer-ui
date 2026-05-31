@@ -54,12 +54,16 @@ export {
   DateTimePicker,
   DateRangePicker,
   YearPicker,
+  OffsetTimePicker,
+  OffsetDateTimePicker,
   type DatePickerProps,
   type TimePickerProps,
   type DateTimePickerProps,
   type DateRangePickerProps,
   type DateRange,
   type YearPickerProps,
+  type OffsetTimePickerProps,
+  type OffsetDateTimePickerProps,
 } from './components/date-picker';
 export { Badge, type BadgeProps } from './components/badge';
 export * from './hooks';

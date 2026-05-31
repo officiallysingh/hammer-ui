@@ -41,10 +41,12 @@ function ScrollList({
   items,
   selected,
   onSelect,
+  buttonClassName = 'w-10',
 }: {
   items: string[];
   selected: string;
   onSelect: (val: string) => void;
+  buttonClassName?: string;
 }) {
   const listRef = React.useRef<HTMLDivElement>(null);
 
@@ -63,7 +65,7 @@ function ScrollList({
           data-val={item}
           onClick={() => onSelect(item)}
           className={cn(
-            'w-10 rounded px-2 py-1 text-sm text-center transition-colors',
+            `${buttonClassName} rounded px-2 py-1 text-sm text-center transition-colors`,
             item === selected
               ? 'bg-primary text-primary-foreground font-medium'
               : 'hover:bg-muted text-foreground',
@@ -75,6 +77,66 @@ function ScrollList({
     </div>
   );
 }
+
+// ─── Offset helpers ────────────────────────────────────────────────────────────
+
+const TZ_OFFSET_OPTIONS = [
+  { label: 'UTC (+00:00)', offset: '+00:00' },
+  { label: 'GMT (+00:00)', offset: '+00:00' },
+  { label: 'CET (+01:00)', offset: '+01:00' },
+  { label: 'EET (+02:00)', offset: '+02:00' },
+  { label: 'MSK (+03:00)', offset: '+03:00' },
+  { label: 'GST (+04:00)', offset: '+04:00' },
+  { label: 'PKT (+05:00)', offset: '+05:00' },
+  { label: 'IST (+05:30)', offset: '+05:30' },
+  { label: 'NPT (+05:45)', offset: '+05:45' },
+  { label: 'BST (+06:00)', offset: '+06:00' },
+  { label: 'ICT (+07:00)', offset: '+07:00' },
+  { label: 'CST (+08:00)', offset: '+08:00' },
+  { label: 'JST (+09:00)', offset: '+09:00' },
+  { label: 'ACST (+09:30)', offset: '+09:30' },
+  { label: 'AEST (+10:00)', offset: '+10:00' },
+  { label: 'NZST (+12:00)', offset: '+12:00' },
+  { label: 'HST (-10:00)', offset: '-10:00' },
+  { label: 'AKST (-09:00)', offset: '-09:00' },
+  { label: 'PST (-08:00)', offset: '-08:00' },
+  { label: 'MST (-07:00)', offset: '-07:00' },
+  { label: 'CST (-06:00)', offset: '-06:00' },
+  { label: 'EST (-05:00)', offset: '-05:00' },
+  { label: 'AST (-04:00)', offset: '-04:00' },
+  { label: 'NST (-03:30)', offset: '-03:30' },
+];
+
+function parseOffsetTimeParts(val: string): { hh: string; mm: string; offset: string } {
+  if (!val) return { hh: '', mm: '', offset: '+00:00' };
+  const m = val.match(/^([\d:.]+)([+-]\d{2}:\d{2})$/);
+  const rawTime = m ? (m[1] ?? '') : (val.split('.')[0] ?? val);
+  const timePart = rawTime.split('.')[0] ?? '';
+  const [h, min] = timePart.split(':');
+  return {
+    hh: h?.padStart(2, '0') ?? '',
+    mm: min?.padStart(2, '0') ?? '',
+    offset: m?.[2] ?? '+00:00',
+  };
+}
+
+function parseOffsetDateTimeParts(val: string): {
+  date: string;
+  hh: string;
+  mm: string;
+  offset: string;
+} {
+  if (!val) return { date: '', hh: '', mm: '', offset: '+00:00' };
+  const tIdx = val.indexOf('T');
+  if (tIdx === -1) return { date: val, hh: '', mm: '', offset: '+00:00' };
+  const datePart = val.substring(0, tIdx);
+  const rest = val.substring(tIdx + 1);
+  const { hh, mm, offset } = parseOffsetTimeParts(rest);
+  return { date: datePart, hh, mm, offset };
+}
+
+const tzSelect =
+  'w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
 
 // ─── YearPicker ───────────────────────────────────────────────────────────────
 
@@ -126,6 +188,7 @@ export function YearPicker({
           <ScrollList
             items={years}
             selected={value ?? ''}
+            buttonClassName="w-16"
             onSelect={(y) => {
               onChange(y);
               setOpen(false);
@@ -411,6 +474,191 @@ export function DateTimePicker({
                   onSelect={(m) => update(datePart ?? '', hour ?? '', m)}
                 />
               </div>
+            </div>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ─── OffsetTimePicker ─────────────────────────────────────────────────────────
+
+export interface OffsetTimePickerProps {
+  id?: string;
+  value?: string; // "HH:MM+HH:MM" or "HH:MM:SS.xxx+HH:MM"
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+}
+
+export function OffsetTimePicker({
+  id,
+  value,
+  onChange,
+  placeholder = 'Pick time & zone',
+  disabled,
+  className,
+}: OffsetTimePickerProps) {
+  const [open, setOpen] = React.useState(false);
+  const { hh, mm, offset } = parseOffsetTimeParts(value ?? '');
+
+  const commit = (h: string, m: string, tz: string) => onChange(`${h}:${m}${tz}`);
+
+  const displayLabel = hh && mm ? `${hh}:${mm}  ${offset}` : null;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          id={id}
+          type="button"
+          variant="outline"
+          disabled={disabled}
+          className={cn(
+            'w-full justify-start text-left font-normal',
+            !displayLabel && 'text-muted-foreground',
+            className,
+          )}
+        >
+          <ClockIcon className="mr-2 h-4 w-4 shrink-0" />
+          {displayLabel ?? <span>{placeholder}</span>}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-3" align="start">
+        <div className="flex gap-2 items-start">
+          <div className="flex flex-col">
+            <p className="text-[10px] text-center text-muted-foreground font-medium pb-1">HH</p>
+            <ScrollList
+              items={HOURS}
+              selected={hh}
+              onSelect={(h) => commit(h, mm || '00', offset)}
+            />
+          </div>
+          <span className="self-center text-muted-foreground font-bold text-lg mt-4">:</span>
+          <div className="flex flex-col">
+            <p className="text-[10px] text-center text-muted-foreground font-medium pb-1">MM</p>
+            <ScrollList
+              items={MINUTES}
+              selected={mm}
+              onSelect={(m) => commit(hh || '00', m, offset)}
+            />
+          </div>
+        </div>
+        <div className="mt-2 pt-2 border-t border-border">
+          <select
+            value={offset}
+            onChange={(e) => commit(hh || '00', mm || '00', e.target.value)}
+            className={tzSelect}
+          >
+            {TZ_OFFSET_OPTIONS.map((tz) => (
+              <option key={tz.label} value={tz.offset}>
+                {tz.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ─── OffsetDateTimePicker ─────────────────────────────────────────────────────
+
+export interface OffsetDateTimePickerProps {
+  id?: string;
+  value?: string; // "yyyy-MM-ddTHH:MM+HH:MM" or "yyyy-MM-ddTHH:MM:SS.xxx+HH:MM"
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+}
+
+export function OffsetDateTimePicker({
+  id,
+  value,
+  onChange,
+  placeholder = 'Pick date, time & zone',
+  disabled,
+  className,
+}: OffsetDateTimePickerProps) {
+  const [open, setOpen] = React.useState(false);
+  const normalized = value?.replace(' ', 'T') ?? '';
+  const { date: datePart, hh, mm, offset } = parseOffsetDateTimeParts(normalized);
+
+  const selected = datePart ? new Date(datePart + 'T00:00:00') : undefined;
+
+  const commit = (d: string, h: string, m: string, tz: string) => {
+    if (!d) return;
+    onChange(`${d}T${h || '00'}:${m || '00'}${tz}`);
+  };
+
+  const displayLabel = datePart
+    ? `${formatDate(datePart)}  ${hh || '00'}:${mm || '00'}  ${offset}`
+    : null;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          id={id}
+          type="button"
+          variant="outline"
+          disabled={disabled}
+          className={cn(
+            'w-full justify-start text-left font-normal',
+            !displayLabel && 'text-muted-foreground',
+            className,
+          )}
+        >
+          <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+          {displayLabel ?? <span>{placeholder}</span>}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <div className="flex divide-x divide-border">
+          <Calendar
+            mode="single"
+            selected={selected}
+            onSelect={(date) => {
+              if (date) commit(toIsoDate(date), hh, mm, offset);
+            }}
+            initialFocus
+          />
+          <div className="flex flex-col p-3 gap-1">
+            <p className="text-xs font-medium text-muted-foreground text-center pb-1">Time</p>
+            <div className="flex gap-2 items-start">
+              <div className="flex flex-col">
+                <p className="text-[10px] text-center text-muted-foreground pb-1">HH</p>
+                <ScrollList
+                  items={HOURS}
+                  selected={hh}
+                  onSelect={(h) => commit(datePart, h, mm, offset)}
+                />
+              </div>
+              <span className="self-center text-muted-foreground font-bold text-lg mt-4">:</span>
+              <div className="flex flex-col">
+                <p className="text-[10px] text-center text-muted-foreground pb-1">MM</p>
+                <ScrollList
+                  items={MINUTES}
+                  selected={mm}
+                  onSelect={(m) => commit(datePart, hh, m, offset)}
+                />
+              </div>
+            </div>
+            <div className="mt-2 pt-2 border-t border-border">
+              <select
+                value={offset}
+                onChange={(e) => commit(datePart, hh || '00', mm || '00', e.target.value)}
+                className={tzSelect}
+              >
+                {TZ_OFFSET_OPTIONS.map((tz) => (
+                  <option key={tz.label} value={tz.offset}>
+                    {tz.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
