@@ -67,3 +67,4 @@ export {
 } from './components/date-picker';
 export { Badge, type BadgeProps } from './components/badge';
 export * from './hooks';
+export { ThemeProvider } from './components/theme-provider';

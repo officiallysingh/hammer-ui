@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Gavel } from 'lucide-react';
+import { ThemeToggle } from './ThemeToggle';
 
 const Header = () => {
   return (
@@ -11,17 +12,20 @@ const Header = () => {
             HAM<span className="text-gradient-gold">MER</span>
           </span>
         </Link>
-        <nav className="hidden md:flex gap-6 font-body text-sm text-muted-foreground">
-          <Link href="/" className="hover:text-primary transition-colors">
-            Home
-          </Link>
-          <Link href="#auctions" className="hover:text-primary transition-colors">
-            Auctions
-          </Link>
-          <Link href="/login" className="hover:text-primary transition-colors">
-            Sign In
-          </Link>
-        </nav>
+        <div className="flex items-center gap-4">
+          <nav className="hidden md:flex gap-6 font-body text-sm text-muted-foreground">
+            <Link href="/" className="hover:text-primary transition-colors">
+              Home
+            </Link>
+            <Link href="#auctions" className="hover:text-primary transition-colors">
+              Auctions
+            </Link>
+            <Link href="/login" className="hover:text-primary transition-colors">
+              Sign In
+            </Link>
+          </nav>
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   );

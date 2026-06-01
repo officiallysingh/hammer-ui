@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useLayoutEffect } from 'react';
 import Image from 'next/image';
 import {
   ArrowLeft,
@@ -96,13 +96,32 @@ function fileClassifier(file: File): UploadedFile['classifier'] {
 function BlobMetaEditor({
   meta,
   onChange,
+  onRegisterFlush,
 }: {
   meta: Record<string, string>;
   onChange: (meta: Record<string, string>) => void;
+  onRegisterFlush?: (flush: () => void) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [newKey, setNewKey] = useState('');
   const [newVal, setNewVal] = useState('');
+
+  // Keep a ref to the latest values so the flush callback is always current
+  const pendingRef = useRef({ newKey, newVal, meta, onChange });
+  useLayoutEffect(() => {
+    pendingRef.current = { newKey, newVal, meta, onChange };
+  });
+
+  // Register a flush function with the parent so it can commit pending input before saving
+  useEffect(() => {
+    onRegisterFlush?.(() => {
+      const { newKey: k, newVal: v, meta: m, onChange: cb } = pendingRef.current;
+      const trimmed = k.trim();
+      if (!trimmed) return;
+      cb({ ...m, [trimmed]: v.trim() });
+    });
+  }, [onRegisterFlush]);
 
   const entries = Object.entries(meta).filter(([k]) => k !== 'thumbnail');
 
@@ -118,6 +137,12 @@ function BlobMetaEditor({
     onChange({ ...meta, [k]: newVal.trim() });
     setNewKey('');
     setNewVal('');
+    setAdding(false);
+  };
+  const cancelAdd = () => {
+    setNewKey('');
+    setNewVal('');
+    setAdding(false);
   };
 
   return (
@@ -162,31 +187,55 @@ function BlobMetaEditor({
             </div>
           ))}
 
-          {/* Add new key-value row */}
-          <div className="flex items-center gap-0.5 pt-0.5 border-t border-border/40">
-            <input
-              placeholder="key"
-              className="w-16 shrink-0 text-[9px] bg-muted/80 rounded px-1 py-px border border-border focus:outline-none focus:border-primary"
-              value={newKey}
-              onChange={(e) => setNewKey(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && add()}
-            />
-            <input
-              placeholder="value"
-              className="flex-1 min-w-0 text-[9px] bg-muted/80 rounded px-1 py-px border border-border focus:outline-none focus:border-primary"
-              value={newVal}
-              onChange={(e) => setNewVal(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && add()}
-            />
+          {adding ? (
+            <div className="flex items-center gap-0.5 pt-0.5 border-t border-border/40">
+              <input
+                autoFocus
+                placeholder="key"
+                className="w-16 shrink-0 text-[9px] bg-muted/80 rounded px-1 py-px border border-border focus:outline-none focus:border-primary"
+                value={newKey}
+                onChange={(e) => setNewKey(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') add();
+                  if (e.key === 'Escape') cancelAdd();
+                }}
+              />
+              <input
+                placeholder="value"
+                className="flex-1 min-w-0 text-[9px] bg-muted/80 rounded px-1 py-px border border-border focus:outline-none focus:border-primary"
+                value={newVal}
+                onChange={(e) => setNewVal(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') add();
+                  if (e.key === 'Escape') cancelAdd();
+                }}
+              />
+              <button
+                type="button"
+                onClick={add}
+                disabled={!newKey.trim()}
+                className="shrink-0 text-primary hover:opacity-80 disabled:opacity-30 transition-opacity"
+              >
+                <Plus className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                onClick={cancelAdd}
+                className="shrink-0 text-muted-foreground/60 hover:text-destructive transition-colors"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            </div>
+          ) : (
             <button
               type="button"
-              onClick={add}
-              disabled={!newKey.trim()}
-              className="shrink-0 text-primary hover:opacity-80 disabled:opacity-30 transition-opacity"
+              onClick={() => setAdding(true)}
+              className="flex items-center gap-1 text-[9px] text-muted-foreground hover:text-primary transition-colors pt-0.5"
             >
-              <Plus className="h-3 w-3" />
+              <Plus className="h-2.5 w-2.5" />
+              Add label
             </button>
-          </div>
+          )}
         </div>
       )}
     </div>
@@ -206,6 +255,7 @@ interface MediaBlockProps {
   onSetExistingThumbnail: (id: string, checked: boolean) => void;
   onSetUploadMeta: (idx: number, meta: Record<string, string>) => void;
   onSetExistingMeta: (id: string, meta: Record<string, string>) => void;
+  flushRegistry: React.MutableRefObject<Map<string, () => void>>;
 }
 
 function MediaBlock({
@@ -219,6 +269,7 @@ function MediaBlock({
   onSetExistingThumbnail,
   onSetUploadMeta,
   onSetExistingMeta,
+  flushRegistry,
 }: MediaBlockProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -362,6 +413,7 @@ function MediaBlock({
                         Object.entries(blob.metadata ?? {}).filter(([k]) => k !== 'thumbnail'),
                       )}
                       onChange={(m) => onSetExistingMeta(blob.id, m)}
+                      onRegisterFlush={(fn) => flushRegistry.current.set(`existing-${blob.id}`, fn)}
                     />
                   </div>
                 </div>
@@ -434,6 +486,9 @@ function MediaBlock({
                   <BlobMetaEditor
                     meta={u.blobMeta}
                     onChange={(m) => onSetUploadMeta(u.originalIdx, m)}
+                    onRegisterFlush={(fn) =>
+                      flushRegistry.current.set(`upload-${u.originalIdx}`, fn)
+                    }
                   />
                 </div>
               </div>
@@ -505,7 +560,6 @@ export function Step2Media({
 }: Step2Props) {
   const [existingBlobs, setExistingBlobs] = useState<BlobVM[]>([]);
   const [originalBlobs, setOriginalBlobs] = useState<BlobVM[]>([]);
-  const [originalBlobIds, setOriginalBlobIds] = useState<string[]>([]);
   const [loadingBlobs, setLoadingBlobs] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -520,7 +574,6 @@ export function Step2Media({
         if (!controller.signal.aborted) {
           setExistingBlobs(data);
           setOriginalBlobs(data);
-          setOriginalBlobIds(data.map((b) => b.id));
         }
       })
       .catch(() => {
@@ -534,6 +587,19 @@ export function Step2Media({
 
   const uploadsRef = useRef(uploads);
   uploadsRef.current = uploads;
+  const existingBlobsRef = useRef(existingBlobs);
+  const originalBlobsRef = useRef(originalBlobs);
+  // Registry of pending-add flush functions from all BlobMetaEditor instances
+  const flushRegistry = useRef<Map<string, () => void>>(new Map());
+
+  // Keep refs in sync after state commits (useEffect runs after paint, guaranteeing fresh values)
+  useEffect(() => {
+    existingBlobsRef.current = existingBlobs;
+  }, [existingBlobs]);
+
+  useEffect(() => {
+    originalBlobsRef.current = originalBlobs;
+  }, [originalBlobs]);
 
   useEffect(() => {
     return () => {
@@ -667,40 +733,47 @@ export function Step2Media({
     setExistingBlobs((prev) => prev.filter((b) => b.id !== blobId));
   };
 
-  const hasExistingBlobChanges =
-    originalBlobIds.length !== existingBlobs.length ||
-    originalBlobIds.some((id) => !existingBlobs.some((b) => b.id === id)) ||
-    existingBlobs.some((blob) => {
-      const orig = originalBlobs.find((o) => o.id === blob.id);
-      return orig
-        ? JSON.stringify(orig.metadata ?? {}) !== JSON.stringify(blob.metadata ?? {})
-        : false;
-    });
+  /** Returns true if two metadata objects differ (order-insensitive) */
+  const metadataChanged = (
+    a: Record<string, string> | undefined,
+    b: Record<string, string> | undefined,
+  ): boolean => {
+    const ma = a ?? {};
+    const mb = b ?? {};
+    const keysA = Object.keys(ma);
+    const keysB = Object.keys(mb);
+    if (keysA.length !== keysB.length) return true;
+    return keysA.some((k) => ma[k] !== mb[k]) || keysB.some((k) => !(k in ma));
+  };
 
   /** Build blobProperties patch — only blobs whose metadata changed */
-  const buildBlobProperties = (): Record<string, BlobPropertyPatch> => {
+  const buildBlobProperties = (
+    currentExisting: BlobVM[] = existingBlobs,
+    currentOriginal: BlobVM[] = originalBlobs,
+    currentUploads: UploadedFile[] = uploads,
+  ): Record<string, BlobPropertyPatch> => {
     const result: Record<string, BlobPropertyPatch> = {};
 
-    // Existing blobs with changed metadata (e.g. thumbnail toggled)
-    existingBlobs.forEach((blob) => {
-      const orig = originalBlobs.find((o) => o.id === blob.id);
+    // Existing blobs with changed metadata (e.g. thumbnail toggled, key-value added)
+    currentExisting.forEach((blob) => {
+      const orig = currentOriginal.find((o) => o.id === blob.id);
       if (!orig) return;
-      const origMeta = JSON.stringify(orig.metadata ?? {});
-      const newMeta = JSON.stringify(blob.metadata ?? {});
-      if (origMeta !== newMeta) {
+      if (metadataChanged(orig.metadata, blob.metadata)) {
         result[blob.id] = { metadata: blob.metadata as Record<string, string> };
       }
     });
 
     // New uploads — merge custom metadata with thumbnail flag
-    uploads.forEach((u) => {
+    currentUploads.forEach((u) => {
       if (u.blob?.id) {
-        result[u.blob.id] = {
-          metadata: {
-            ...u.blobMeta,
-            thumbnail: u.thumbnail ? 'true' : 'false', // always overrides any blobMeta.thumbnail
-          },
+        const mergedMeta = {
+          ...u.blobMeta,
+          thumbnail: u.thumbnail ? 'true' : 'false', // always overrides any blobMeta.thumbnail
         };
+        // Only patch if there's something meaningful to update
+        if (Object.keys(u.blobMeta).length > 0 || u.thumbnail) {
+          result[u.blob.id] = { metadata: mergedMeta };
+        }
       }
     });
 
@@ -709,24 +782,43 @@ export function Step2Media({
 
   const handleSaveAndContinue = async () => {
     setSaveError(null);
-    const newBlobIds = uploads.filter((u) => u.blob?.id).map((u) => u.blob!.id);
-    const blobProperties = buildBlobProperties();
-    const hasBlobPropertyChanges = Object.keys(blobProperties).length > 0;
-    const hasChanges = newBlobIds.length > 0 || hasExistingBlobChanges || hasBlobPropertyChanges;
 
+    // Flush any pending add-row inputs from all BlobMetaEditor instances
+    flushRegistry.current.forEach((flush) => flush());
+
+    // Small yield so the state updates from flush calls are committed before we read refs
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    // Use refs to guarantee fresh state regardless of closure age
+    const freshExisting = existingBlobsRef.current;
+    const freshOriginal = originalBlobsRef.current;
+    const freshUploads = uploadsRef.current;
+
+    const newBlobIds = freshUploads.filter((u) => u.blob?.id).map((u) => u.blob!.id);
+    const blobProperties = buildBlobProperties(freshExisting, freshOriginal, freshUploads);
+    const hasBlobPropertyChanges = Object.keys(blobProperties).length > 0;
+
+    const blobsRemoved =
+      freshOriginal.length !== freshExisting.length ||
+      freshOriginal.some((o) => !freshExisting.some((b) => b.id === o.id));
+
+    const hasChanges = newBlobIds.length > 0 || blobsRemoved || hasBlobPropertyChanges;
+
+    // If nothing changed, skip API calls and move on
     if (!hasChanges) {
       onNext();
       return;
     }
+
     setSaving(true);
     try {
-      // Push metadata directly to each blob — the listing PATCH only updates blob references
+      // Patch metadata on each changed blob directly
       await Promise.all(
         Object.entries(blobProperties)
           .filter(([, patch]) => patch.metadata && Object.keys(patch.metadata).length > 0)
           .map(([blobId, patch]) => blobsApi.updateBlob(blobId, { metadata: patch.metadata })),
       );
-      await onSave([...existingBlobs.map((b) => b.id), ...newBlobIds], blobProperties);
+      await onSave([...freshExisting.map((b) => b.id), ...newBlobIds], blobProperties);
       onUploadsChange([]);
       onNext();
     } catch {
@@ -737,10 +829,6 @@ export function Step2Media({
   };
 
   const anyUploading = uploads.some((u) => u.uploading);
-  const newBlobIds = uploads.filter((u) => u.blob?.id).map((u) => u.blob!.id);
-  const blobProperties = buildBlobProperties();
-  const hasBlobPropertyChanges = Object.keys(blobProperties).length > 0;
-  const hasChanges = newBlobIds.length > 0 || hasExistingBlobChanges || hasBlobPropertyChanges;
 
   const blockProps = (cls: UploadedFile['classifier']) => ({
     classifier: cls,
@@ -753,6 +841,7 @@ export function Step2Media({
     onSetExistingThumbnail: setExistingBlobThumbnail,
     onSetUploadMeta: handleSetUploadMeta,
     onSetExistingMeta: handleSetExistingMeta,
+    flushRegistry,
   });
 
   return (
@@ -766,17 +855,6 @@ export function Step2Media({
               Only one image can be set as thumbnail.
             </span>
           </p>
-          {hasChanges && (
-            <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-950/30 rounded-md border border-blue-200 dark:border-blue-900">
-              <p className="text-xs text-blue-700 dark:text-blue-300">
-                {newBlobIds.length > 0 &&
-                  `${newBlobIds.length} new file${newBlobIds.length > 1 ? 's' : ''} to upload. `}
-                {hasExistingBlobChanges && 'Existing files modified. '}
-                {hasBlobPropertyChanges && 'Thumbnail settings updated. '}
-                Changes will be saved when you continue.
-              </p>
-            </div>
-          )}
         </div>
 
         {loadingBlobs ? (
@@ -816,7 +894,7 @@ export function Step2Media({
             </>
           ) : (
             <>
-              {hasChanges ? 'Save & Continue' : 'Continue'} <ArrowRight className="h-4 w-4" />
+              Save & Continue <ArrowRight className="h-4 w-4" />
             </>
           )}
         </Button>
