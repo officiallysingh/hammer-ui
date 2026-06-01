@@ -27,6 +27,7 @@ import {
 } from '@repo/ui';
 import { useAuthStore } from '@/store/authStore';
 import { authApi } from '@repo/api';
+import { ThemeToggle } from '@/components/common/Header/ThemeToggle';
 
 const navLinks = [
   { label: 'Live Auctions', href: '#auctions' },
@@ -81,6 +82,7 @@ const AuctionNavbar = () => {
 
         {/* Desktop actions */}
         <div className="hidden md:flex items-center gap-2">
+          <ThemeToggle />
           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary">
             <Search className="h-5 w-5" />
           </Button>

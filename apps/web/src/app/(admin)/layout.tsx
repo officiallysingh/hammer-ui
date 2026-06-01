@@ -32,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from '@repo/ui';
 import { authApi } from '@repo/api';
+import { ThemeToggle } from '@/components/common/Header/ThemeToggle';
 
 interface NavItem {
   href: string;
@@ -325,69 +326,72 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </p>
             </div>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-secondary transition-colors outline-none">
-                {/* Avatar */}
-                <div className="w-8 h-8 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
-                  <span className="font-body text-xs font-bold text-primary uppercase">
-                    {user.username.charAt(0)}
-                  </span>
-                </div>
-                {/* Name — hidden on small screens */}
-                <div className="hidden sm:flex flex-col items-start min-w-0">
-                  <span className="font-body text-sm font-medium text-foreground leading-none truncate max-w-[120px]">
-                    {user.username}
-                  </span>
-                  <span className="font-body text-[10px] text-muted-foreground leading-none mt-0.5">
-                    Administrator
-                  </span>
-                </div>
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground hidden sm:block" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              {/* Header */}
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex items-center gap-3 py-1">
-                  <div className="w-9 h-9 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
-                    <span className="font-body text-sm font-bold text-primary uppercase">
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-secondary transition-colors outline-none">
+                  {/* Avatar */}
+                  <div className="w-8 h-8 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
+                    <span className="font-body text-xs font-bold text-primary uppercase">
                       {user.username.charAt(0)}
                     </span>
                   </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="font-body text-sm font-semibold text-foreground truncate">
+                  {/* Name — hidden on small screens */}
+                  <div className="hidden sm:flex flex-col items-start min-w-0">
+                    <span className="font-body text-sm font-medium text-foreground leading-none truncate max-w-[120px]">
                       {user.username}
                     </span>
-                    <span className="font-body text-xs text-muted-foreground">Administrator</span>
+                    <span className="font-body text-[10px] text-muted-foreground leading-none mt-0.5">
+                      Administrator
+                    </span>
                   </div>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuItem asChild>
-                  <Link href="/profile" className="gap-2 cursor-pointer">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <span>Profile</span>
-                  </Link>
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground hidden sm:block" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {/* Header */}
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex items-center gap-3 py-1">
+                    <div className="w-9 h-9 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
+                      <span className="font-body text-sm font-bold text-primary uppercase">
+                        {user.username.charAt(0)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-body text-sm font-semibold text-foreground truncate">
+                        {user.username}
+                      </span>
+                      <span className="font-body text-xs text-muted-foreground">Administrator</span>
+                    </div>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile" className="gap-2 cursor-pointer">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <span>Profile</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/" className="gap-2 cursor-pointer">
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                      <span>Back to site</span>
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="gap-2 cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
+                  onClick={handleSignOut}
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Sign out</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/" className="gap-2 cursor-pointer">
-                    <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                    <span>Back to site</span>
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="gap-2 cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
-                onClick={handleSignOut}
-              >
-                <LogOut className="h-4 w-4" />
-                <span>Sign out</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </header>
 
         <div className="flex-1 p-6 overflow-y-auto">{children}</div>

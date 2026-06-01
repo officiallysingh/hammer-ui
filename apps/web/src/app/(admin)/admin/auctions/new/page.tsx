@@ -13,12 +13,7 @@ interface SelectOption {
   label: string;
 }
 
-const AUCTION_TYPES: SelectOption[] = [
-  {
-    value: 'OFFER_BASE_STEP_PRICED_ATOMIC_UNIT_AUCTION',
-    label: 'Offer Base Step Priced Atomic Unit Auction',
-  },
-];
+const AUCTION_TYPE = 'OFFER_BASE_STEP_PRICED_ATOMIC_UNIT_AUCTION';
 
 const PARTICIPANT_VISIBILITY_TYPES: SelectOption[] = [
   { value: 'ALIAS', label: 'Alias - Participants shown by alias' },
@@ -37,7 +32,6 @@ const ROUNDING_MODES: SelectOption[] = [
 ];
 
 interface FormState {
-  type: string;
   format: string;
   title: string;
   description: string;
@@ -53,7 +47,6 @@ interface FormState {
 }
 
 const initialForm: FormState = {
-  type: 'OFFER_BASE_STEP_PRICED_ATOMIC_UNIT_AUCTION',
   format: '',
   title: '',
   description: '',
@@ -124,6 +117,36 @@ function SelectField({
   );
 }
 
+function StepIndicator({ current }: { current: number }) {
+  const steps = ['Details'];
+  return (
+    <div className="flex items-center mb-6">
+      {steps.map((label, i) => {
+        const s = i + 1;
+        const active = s === current;
+        return (
+          <div key={s} className="flex flex-col items-center gap-1.5">
+            <div
+              className={`flex items-center justify-center h-9 w-9 rounded-full text-sm font-semibold transition-colors ${
+                active
+                  ? 'bg-primary text-primary-foreground ring-4 ring-primary/20'
+                  : 'bg-muted text-muted-foreground'
+              }`}
+            >
+              {s}
+            </div>
+            <span
+              className={`text-xs font-medium whitespace-nowrap ${active ? 'text-foreground' : 'text-muted-foreground'}`}
+            >
+              {label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function NewAuctionPage() {
   const router = useRouter();
 
@@ -161,7 +184,6 @@ export default function NewAuctionPage() {
   const validate = (): Record<string, string> => {
     const errs: Record<string, string> = {};
     if (!form.title.trim()) errs.title = 'Title is required.';
-    if (!form.type) errs.type = 'Auction type is required.';
     if (!form.format) errs.format = 'Format is required.';
     if (!form.accessibility) errs.accessibility = 'Accessibility is required.';
     if (!form.direction) errs.direction = 'Direction is required.';
@@ -188,7 +210,7 @@ export default function NewAuctionPage() {
     setSaving(true);
     try {
       const payload: AuctionCreationRQ = {
-        type: form.type,
+        type: AUCTION_TYPE,
         format: form.format,
         title: form.title.trim(),
         description: form.description.trim() || undefined,
@@ -229,6 +251,8 @@ export default function NewAuctionPage() {
           </Button>
         }
       />
+
+      <StepIndicator current={1} />
 
       {generalError && (
         <div className="py-2 px-3 bg-destructive/10 text-destructive text-sm rounded-md">
@@ -291,15 +315,6 @@ export default function NewAuctionPage() {
         <div className="rounded-xl border border-border bg-card p-6">
           <SectionHeading>Auction Configuration</SectionHeading>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <SelectField
-              id="type"
-              label="Auction Type *"
-              value={form.type}
-              options={AUCTION_TYPES}
-              onChange={(v) => patch({ type: v })}
-              error={fieldErrors.type}
-              placeholder="Select auction type..."
-            />
             <SelectField
               id="format"
               label="Format *"
