@@ -14,6 +14,25 @@ export interface AuctionMonetaryOptions {
   roundingMode: string;
 }
 
+export interface AuctionSchedule {
+  startTime?: string;
+  endTime?: string;
+}
+
+export type AuctionUnitType = 'SINGLE_UNIT' | 'BUNDLE' | 'MULTI_UNIT' | 'LOT';
+
+export interface AuctionUnit {
+  type: AuctionUnitType;
+  items: string[];
+  quantity: number;
+}
+
+export interface AuctionPolicies {
+  basePrice?: number;
+  stepPrice?: number;
+  reservePrice?: number;
+}
+
 export interface AuctionVM {
   id: string;
   type?: string;
@@ -24,6 +43,10 @@ export interface AuctionVM {
   referenceId?: string;
   protocol?: AuctionProtocol;
   monetaryOptions?: AuctionMonetaryOptions;
+  schedule?: AuctionSchedule;
+  policies?: AuctionPolicies;
+  units?: AuctionUnit[];
+  blobs?: string[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -52,6 +75,33 @@ export interface AuctionCreationRQ {
   monetaryOptions: AuctionMonetaryOptions;
 }
 
+export interface AuctionUpdationRQ {
+  title?: string;
+  description?: string;
+  referenceId?: string;
+  protocol?: Partial<AuctionProtocol>;
+  monetaryOptions?: Partial<AuctionMonetaryOptions>;
+}
+
+export interface AuctionScheduleRQ {
+  startTime: string;
+  endTime: string;
+}
+
+export interface AuctionPoliciesCreationRQ {
+  basePrice: number;
+  stepPrice: number;
+  reservePrice?: number;
+}
+
+export interface AuctionUnitCreationRQ {
+  units: AuctionUnit[];
+}
+
+export interface AuctionBlobsCreationRQ {
+  blobIds: string[];
+}
+
 /** Model endpoints return arrays of single-key objects: [{ "KEY": "Label" }, ...] */
 export type AuctionModelEntry = Record<string, string>;
 
@@ -65,6 +115,10 @@ export const auctionsApi = {
   createAuction: async (data: AuctionCreationRQ): Promise<string> => {
     const response = await apiClient.post<{ id: string }>('/api/v1/auctions', data);
     return response.data.id;
+  },
+
+  updateAuction: async (id: string, data: AuctionUpdationRQ): Promise<void> => {
+    await apiClient.patch(`/api/v1/auctions/${id}`, data);
   },
 
   getAuctions: async (
@@ -83,6 +137,22 @@ export const auctionsApi = {
 
   deleteAuction: async (id: string): Promise<void> => {
     await apiClient.delete(`/api/v1/auctions/${id}`);
+  },
+
+  scheduleAuction: async (id: string, data: AuctionScheduleRQ): Promise<void> => {
+    await apiClient.put(`/api/v1/auctions/${id}/schedule`, data);
+  },
+
+  setAuctionPolicies: async (id: string, data: AuctionPoliciesCreationRQ): Promise<void> => {
+    await apiClient.put(`/api/v1/auctions/${id}/policies`, data);
+  },
+
+  setAuctionUnits: async (id: string, data: AuctionUnitCreationRQ): Promise<void> => {
+    await apiClient.put(`/api/v1/auctions/${id}/units`, data);
+  },
+
+  setAuctionBlobs: async (id: string, data: AuctionBlobsCreationRQ): Promise<void> => {
+    await apiClient.put(`/api/v1/auctions/${id}/blobs`, data);
   },
 
   getAccessibilityTypes: async (): Promise<{ value: string; label: string }[]> => {
@@ -117,6 +187,11 @@ export const auctionsApi = {
     const response = await apiClient.get<AuctionModelEntry[]>(
       '/api/v1/auctions/model/offer-visibility-types',
     );
+    return parseModelOptions(response.data);
+  },
+
+  getUnitTypes: async (): Promise<{ value: string; label: string }[]> => {
+    const response = await apiClient.get<AuctionModelEntry[]>('/api/v1/auctions/model/unit-types');
     return parseModelOptions(response.data);
   },
 };

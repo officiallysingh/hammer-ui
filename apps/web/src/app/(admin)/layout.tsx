@@ -163,6 +163,11 @@ const subRouteTitles: { match: RegExp; label: string; description: string }[] = 
     description: 'Create a new auction',
   },
   {
+    match: /\/admin\/auctions\/.+\/edit$/,
+    label: 'Edit auction',
+    description: 'Update auction details',
+  },
+  {
     match: /\/admin\/auctions\/.+\/view$/,
     label: 'View auction',
     description: 'Auction details',
@@ -181,7 +186,16 @@ function SidebarContent({ pathname, username, onNavClick, onSignOut }: SidebarCo
     <>
       {/* Brand */}
       <div className="h-16 flex items-center justify-center px-5 border-b border-border shrink-0">
-        <img src="/oxneer_logo_dark.svg" alt="OXNEER" className="h-12 w-auto shrink-0" />
+        <img
+          src="/oxneer_logo_light.svg"
+          alt="OXNEER"
+          className="h-12 w-auto shrink-0 dark:hidden"
+        />
+        <img
+          src="/oxneer_logo_dark.svg"
+          alt="OXNEER"
+          className="h-12 w-auto shrink-0 hidden dark:block"
+        />
       </div>
 
       {/* Nav groups */}

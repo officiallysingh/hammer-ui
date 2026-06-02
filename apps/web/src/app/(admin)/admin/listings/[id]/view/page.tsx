@@ -11,7 +11,18 @@ import {
   ManagedTypeVM,
   PropertyDef,
 } from '@repo/api';
-import { ArrowLeft, Loader2, Star, CheckCircle2, XCircle, Pencil, Tag } from 'lucide-react';
+import {
+  ArrowLeft,
+  Loader2,
+  Star,
+  CheckCircle2,
+  XCircle,
+  Pencil,
+  Tag,
+  Play,
+  FileText,
+  Download,
+} from 'lucide-react';
 import { Button, Badge } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
 import { ICON_REGISTRY } from '@/components/common/iconRegistry';
@@ -20,6 +31,14 @@ import { ICON_REGISTRY } from '@/components/common/iconRegistry';
 
 function isImageBlob(blob: ListingBlobRef) {
   return (blob.mediaType ?? '').startsWith('image/');
+}
+
+function isVideoBlob(blob: ListingBlobRef) {
+  return (blob.mediaType ?? '').startsWith('video/');
+}
+
+function isDocBlob(blob: ListingBlobRef) {
+  return !isImageBlob(blob) && !isVideoBlob(blob);
 }
 
 function getThumbnail(blobs: ListingBlobRef[]): ListingBlobRef | undefined {
@@ -299,16 +318,19 @@ function PropValue({ prop, def }: { prop: EmbeddedProp; def?: PropertyDef }) {
   return <span className="text-sm text-foreground">{strVal}</span>;
 }
 
-// ── Image Gallery ─────────────────────────────────────────────────────────────
+// ── Media Gallery ─────────────────────────────────────────────────────────────
 
-function ImageGallery({ blobs }: { blobs: ListingBlobRef[] }) {
+function MediaGallery({ blobs }: { blobs: ListingBlobRef[] }) {
   const images = blobs.filter(isImageBlob);
+  const videos = blobs.filter(isVideoBlob);
+  const mediaItems = [...images, ...videos];
+
   const [activeId, setActiveId] = useState<string>(
-    () => getThumbnail(blobs)?.id ?? images[0]?.id ?? '',
+    () => getThumbnail(blobs)?.id ?? mediaItems[0]?.id ?? '',
   );
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
 
-  // Collect unique colors from blob metadata
+  // Collect unique colors from blob metadata (images only)
   const colorMap: Record<string, string[]> = {};
   images.forEach((b) => {
     const c = b.metadata?.['color'];
@@ -320,17 +342,19 @@ function ImageGallery({ blobs }: { blobs: ListingBlobRef[] }) {
   const colors = Object.keys(colorMap);
   const hasColors = colors.length > 0;
 
-  const visibleImages = selectedColor
-    ? images.filter((b) => b.metadata?.['color'] === selectedColor)
-    : images;
+  // Color filter applies to images; videos always show
+  const visibleMedia = selectedColor
+    ? [...images.filter((b) => b.metadata?.['color'] === selectedColor), ...videos]
+    : mediaItems;
 
-  const effectiveActiveId = visibleImages.find((b) => b.id === activeId)
+  const effectiveActiveId = visibleMedia.find((b) => b.id === activeId)
     ? activeId
-    : (visibleImages[0]?.id ?? '');
+    : (visibleMedia[0]?.id ?? '');
 
-  const activeBlob = images.find((b) => b.id === effectiveActiveId) ?? visibleImages[0];
+  const activeBlob = mediaItems.find((b) => b.id === effectiveActiveId) ?? visibleMedia[0];
+  const isActiveVideo = activeBlob ? isVideoBlob(activeBlob) : false;
 
-  if (!images.length) {
+  if (!mediaItems.length) {
     return (
       <div className="w-full aspect-square rounded-2xl bg-muted flex items-center justify-center">
         <span className="text-muted-foreground text-sm">No images</span>
@@ -376,42 +400,94 @@ function ImageGallery({ blobs }: { blobs: ListingBlobRef[] }) {
         </div>
       )}
 
-      {/* Main image */}
+      {/* Main display */}
       {activeBlob && (
         <div className="relative rounded-2xl overflow-hidden border border-border bg-muted aspect-square">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={blobsApi.getDownloadUrl(activeBlob.id)}
-            alt={activeBlob.fileName ?? 'image'}
-            className="w-full h-full object-contain"
-          />
+          {isActiveVideo ? (
+            <video
+              key={activeBlob.id}
+              src={blobsApi.getDownloadUrl(activeBlob.id)}
+              controls
+              className="w-full h-full object-contain"
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={blobsApi.getDownloadUrl(activeBlob.id)}
+              alt={activeBlob.fileName ?? 'image'}
+              className="w-full h-full object-contain"
+            />
+          )}
         </div>
       )}
 
-      {/* Thumbnails */}
-      {visibleImages.length > 1 && (
+      {/* Thumbnail strip — scrollable */}
+      {visibleMedia.length > 1 && (
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {visibleImages.map((blob) => (
-            <button
-              key={blob.id}
-              type="button"
-              onClick={() => setActiveId(blob.id)}
-              className={`shrink-0 w-16 h-16 rounded-lg border-2 overflow-hidden transition-all ${
-                blob.id === effectiveActiveId
-                  ? 'border-primary ring-2 ring-primary/30'
-                  : 'border-border hover:border-primary/40'
-              }`}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={blobsApi.getDownloadUrl(blob.id)}
-                alt={blob.fileName ?? ''}
-                className="w-full h-full object-cover"
-              />
-            </button>
-          ))}
+          {visibleMedia.map((blob) => {
+            const isVideo = isVideoBlob(blob);
+            return (
+              <button
+                key={blob.id}
+                type="button"
+                onClick={() => setActiveId(blob.id)}
+                className={`shrink-0 w-16 h-16 rounded-lg border-2 overflow-hidden transition-all relative ${
+                  blob.id === effectiveActiveId
+                    ? 'border-primary ring-2 ring-primary/30'
+                    : 'border-border hover:border-primary/40'
+                }`}
+              >
+                {isVideo ? (
+                  <div className="w-full h-full bg-muted flex items-center justify-center">
+                    <Play className="h-6 w-6 text-muted-foreground fill-muted-foreground" />
+                  </div>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={blobsApi.getDownloadUrl(blob.id)}
+                    alt={blob.fileName ?? ''}
+                    className="w-full h-full object-cover"
+                  />
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Document Attachments ──────────────────────────────────────────────────────
+
+function DocAttachments({ blobs }: { blobs: ListingBlobRef[] }) {
+  const docs = blobs.filter(isDocBlob);
+  if (!docs.length) return null;
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+      <h2 className="text-sm font-semibold text-foreground">Documents</h2>
+      <div className="space-y-1.5">
+        {docs.map((blob) => (
+          <div
+            key={blob.id}
+            className="flex items-center justify-between py-1.5 px-2 rounded-md bg-muted/30 text-sm"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-foreground truncate">{blob.fileName ?? blob.id}</span>
+            </div>
+            <a
+              href={blobsApi.getDownloadUrl(blob.id)}
+              download={blob.fileName ?? true}
+              className="shrink-0 ml-3 inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-border bg-background hover:bg-muted transition-colors"
+            >
+              <Download className="h-3 w-3" />
+              Download
+            </a>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -498,9 +574,10 @@ export default function ListingViewPage() {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-        {/* Left — image gallery */}
-        <div className="lg:col-span-2">
-          <ImageGallery blobs={blobs} />
+        {/* Left — media gallery + documents */}
+        <div className="lg:col-span-2 space-y-4">
+          <MediaGallery blobs={blobs} />
+          <DocAttachments blobs={blobs} />
         </div>
 
         {/* Right — details */}
@@ -659,32 +736,6 @@ export default function ListingViewPage() {
                 </div>
               );
             })()}
-
-          {/* Non-image media */}
-          {blobs.some((b) => !isImageBlob(b)) && (
-            <div className="rounded-xl border border-border bg-card p-4 space-y-2">
-              <h2 className="text-sm font-semibold text-foreground">Attachments</h2>
-              <div className="space-y-1.5">
-                {blobs
-                  .filter((b) => !isImageBlob(b))
-                  .map((blob) => (
-                    <div
-                      key={blob.id}
-                      className="flex items-center justify-between py-1.5 px-2 rounded-md bg-muted/30 text-sm"
-                    >
-                      <span className="text-foreground truncate">{blob.fileName ?? blob.id}</span>
-                      <a
-                        href={blobsApi.getDownloadUrl(blob.id)}
-                        download={blob.fileName ?? true}
-                        className="shrink-0 ml-3 text-xs text-primary hover:underline"
-                      >
-                        Download
-                      </a>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
