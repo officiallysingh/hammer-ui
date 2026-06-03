@@ -33,11 +33,11 @@ export function StepIndicator({ current, onStepClick }: StepIndicatorProps) {
                 }
                 className={`flex items-center justify-center h-9 w-9 rounded-full text-sm font-semibold transition-colors ${
                   done
-                    ? 'bg-primary text-primary-foreground'
+                    ? 'bg-emerald-500 text-white'
                     : active
                       ? 'bg-primary text-primary-foreground ring-4 ring-primary/20'
                       : 'bg-muted text-muted-foreground'
-                } ${clickable ? 'cursor-pointer hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-primary/40' : ''}`}
+                } ${clickable ? 'cursor-pointer hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-emerald-400/40' : ''}`}
               >
                 {done ? <Check className="h-4 w-4" /> : s}
               </div>
@@ -50,7 +50,7 @@ export function StepIndicator({ current, onStepClick }: StepIndicatorProps) {
             {/* Connector line — not after last */}
             {i < STEPS.length - 1 && (
               <div
-                className={`flex-1 h-0.5 mx-4 mb-5 transition-colors ${done ? 'bg-primary' : 'bg-muted'}`}
+                className={`flex-1 h-0.5 mx-4 mb-5 transition-colors ${done ? 'bg-emerald-500' : 'bg-muted'}`}
               />
             )}
           </div>
