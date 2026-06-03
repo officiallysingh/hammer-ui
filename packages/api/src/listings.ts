@@ -89,6 +89,22 @@ export interface ListingsFilter {
   size?: number;
 }
 
+export interface ListingSummaryVM {
+  id: string;
+  name: string;
+  description?: string;
+  availableQuantity?: number;
+  categoryIcon?: string;
+  subCategoryIcon?: string;
+  thumbnailId?: string | null;
+}
+
+export interface ListingsSummaryFilter {
+  phrases?: string[];
+  categories?: string[];
+  subCategories?: string[];
+}
+
 export const listingsApi = {
   getListings: async (filter: ListingsFilter = {}): Promise<PaginatedListings> => {
     const { phrases, available, categories, subCategories, page = 0, size = 16 } = filter;
@@ -123,5 +139,17 @@ export const listingsApi = {
 
   deleteListing: async (id: string): Promise<void> => {
     await apiClient.delete(`/api/v1/listings/${id}`, { params: { id } });
+  },
+
+  getListingsSummary: async (filter: ListingsSummaryFilter = {}): Promise<ListingSummaryVM[]> => {
+    const { phrases, categories, subCategories } = filter;
+    const response = await apiClient.get<ListingSummaryVM[]>('/api/v1/listings/summary', {
+      params: {
+        ...(phrases?.length ? { phrases } : {}),
+        ...(categories?.length ? { categories } : {}),
+        ...(subCategories?.length ? { subCategories } : {}),
+      },
+    });
+    return response.data;
   },
 };

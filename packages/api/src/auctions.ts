@@ -21,10 +21,18 @@ export interface AuctionSchedule {
 
 export type AuctionUnitType = 'SINGLE_UNIT' | 'BUNDLE' | 'MULTI_UNIT' | 'LOT';
 
+export interface AuctionUnitBody {
+  type: Record<string, string>; // e.g. { "SINGLE_UNIT": "Single Item" }
+  openingPrice: number;
+  item?: string; // SINGLE_UNIT
+  items?: string[]; // BUNDLE / MULTI_UNIT / LOT
+}
+
 export interface AuctionUnit {
   type: AuctionUnitType;
-  items: string[];
-  quantity: number;
+  openingPrice?: number;
+  item?: string;
+  items?: string[];
 }
 
 export interface AuctionPolicies {
@@ -95,7 +103,9 @@ export interface AuctionPoliciesCreationRQ {
 }
 
 export interface AuctionUnitCreationRQ {
-  units: AuctionUnit[];
+  tags?: string[];
+  subCategories?: string[];
+  unit: AuctionUnitBody;
 }
 
 export interface AuctionBlobsCreationRQ {
