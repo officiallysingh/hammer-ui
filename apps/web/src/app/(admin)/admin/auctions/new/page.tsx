@@ -490,6 +490,7 @@ function Step2({
   saving,
   unitTypes,
   loadingUnitTypes,
+  precision,
   onSubmit,
   onBack,
   onSkip,
@@ -501,6 +502,7 @@ function Step2({
   saving: boolean;
   unitTypes: SelectOption[];
   loadingUnitTypes: boolean;
+  precision: number;
   onSubmit: (e: React.FormEvent) => void;
   onBack: () => void;
   onSkip: () => void;
@@ -614,10 +616,10 @@ function Step2({
               id="openingPrice"
               type="number"
               min={0}
-              step="any"
+              step={precision > 0 ? (1 / Math.pow(10, precision)).toFixed(precision) : '1'}
               value={form.openingPrice}
               onChange={(e) => onChange({ openingPrice: e.target.value })}
-              placeholder="0.00"
+              placeholder={precision > 0 ? `0.${'0'.repeat(precision)}` : '0'}
             />
             <FieldError message={fieldErrors.openingPrice} />
           </div>
@@ -995,6 +997,7 @@ export default function NewAuctionPage() {
           saving={savingStep2}
           unitTypes={unitTypes}
           loadingUnitTypes={loadingUnitTypes}
+          precision={parseInt(step1.precision, 10) || 0}
           onSubmit={handleStep2Submit}
           onBack={() => setStep(1)}
           onSkip={handleSkip}

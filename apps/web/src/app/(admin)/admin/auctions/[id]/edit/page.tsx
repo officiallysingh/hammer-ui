@@ -725,10 +725,16 @@ export default function EditAuctionPage() {
                   id="openingPrice"
                   type="number"
                   min={0}
-                  step="any"
+                  step={(() => {
+                    const p = parseInt(step1.precision, 10) || 0;
+                    return p > 0 ? (1 / Math.pow(10, p)).toFixed(p) : '1';
+                  })()}
                   value={step2.openingPrice}
                   onChange={(e) => setStep2((prev) => ({ ...prev, openingPrice: e.target.value }))}
-                  placeholder="0.00"
+                  placeholder={(() => {
+                    const p = parseInt(step1.precision, 10) || 0;
+                    return p > 0 ? `0.${'0'.repeat(p)}` : '0';
+                  })()}
                 />
                 <FieldError message={step2Errors.openingPrice} />
               </div>
