@@ -530,35 +530,6 @@ function Step2({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.item]);
 
-  // Merge categories/subcategories/tags from each newly added multi-unit listing
-  useEffect(() => {
-    if (!form.items.length || form.unitType === 'SINGLE_UNIT') return;
-    const last = form.items[form.items.length - 1];
-    if (!last) return;
-    listingsApi
-      .getListingById(last)
-      .then((listing) => {
-        const subCat = listing.subCategory;
-        const subCatId =
-          typeof subCat === 'object' && subCat
-            ? subCat.id
-            : typeof subCat === 'string'
-              ? subCat
-              : '';
-        onChange({
-          categories: listing.category?.id
-            ? [...new Set([...form.categories, listing.category.id])]
-            : form.categories,
-          subCategories: subCatId
-            ? [...new Set([...form.subCategories, subCatId])]
-            : form.subCategories,
-          tags: [...new Set([...form.tags, ...(listing.tags ?? [])])],
-        });
-      })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.items.length]);
-
   const removeItem = (idx: number) =>
     onChange({
       items: form.items.filter((_, i) => i !== idx),
@@ -844,6 +815,36 @@ export default function NewAuctionPage() {
       .finally(() => setLoadingUnitTypes(false));
   }, []);
 
+  // Merge categories/subcategories/tags from each newly added multi-unit listing
+  useEffect(() => {
+    if (!step2.items.length || step2.unitType === 'SINGLE_UNIT') return;
+    const last = step2.items[step2.items.length - 1];
+    if (!last) return;
+    listingsApi
+      .getListingById(last)
+      .then((listing) => {
+        const subCat = listing.subCategory;
+        const subCatId =
+          typeof subCat === 'object' && subCat
+            ? subCat.id
+            : typeof subCat === 'string'
+              ? subCat
+              : '';
+        setStep2((prev) => ({
+          ...prev,
+          categories: listing.category?.id
+            ? [...new Set([...prev.categories, listing.category.id])]
+            : prev.categories,
+          subCategories: subCatId
+            ? [...new Set([...prev.subCategories, subCatId])]
+            : prev.subCategories,
+          tags: [...new Set([...prev.tags, ...(listing.tags ?? [])])],
+        }));
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step2.items.length]);
+
   // ── Step 1 submit ──────────────────────────────────────────────────────────
 
   const validateStep1 = (): Record<string, string> => {
@@ -930,14 +931,13 @@ export default function NewAuctionPage() {
     setStep2Errors({});
     setSavingStep2(true);
     try {
-      const typeLabel = unitTypes.find((t) => t.value === step2.unitType)?.label ?? step2.unitType;
       const isSingle = step2.unitType === 'SINGLE_UNIT';
 
       await auctionsApi.setAuctionUnits(auctionId, {
         tags: step2.tags.length ? step2.tags : undefined,
         subCategories: step2.subCategories.length ? step2.subCategories : undefined,
         unit: {
-          type: { [step2.unitType]: typeLabel },
+          type: step2.unitType as AuctionUnitType,
           openingPrice: parseFloat(step2.openingPrice),
           ...(isSingle ? { item: step2.item } : { items: step2.items }),
         },

@@ -22,7 +22,7 @@ export interface AuctionSchedule {
 export type AuctionUnitType = 'SINGLE_UNIT' | 'BUNDLE' | 'MULTI_UNIT' | 'LOT';
 
 export interface AuctionUnitBody {
-  type: Record<string, string>; // e.g. { "SINGLE_UNIT": "Single Item" }
+  type: AuctionUnitType;
   openingPrice: number;
   item?: string; // SINGLE_UNIT
   items?: string[]; // BUNDLE / MULTI_UNIT / LOT
