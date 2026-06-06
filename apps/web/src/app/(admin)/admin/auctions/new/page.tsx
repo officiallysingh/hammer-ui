@@ -9,8 +9,10 @@ import {
   AuctionCreationRQ,
   AuctionUnitType,
   ListingSummaryVM,
+  PolicyGroup,
+  PolicyItemRQ,
 } from '@repo/api';
-import { ArrowLeft, ArrowRight, Eye, Loader2, Package, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Eye, Loader2, Package, Plus, Trash2 } from 'lucide-react';
 import { ListingSearchField } from '../_components/ListingSearchField';
 import { TagsCategorySection } from '../_components/TagsCategorySection';
 import { Button, Input, Label } from '@repo/ui';
@@ -114,7 +116,7 @@ function StepIndicator({
   current: number;
   onStepClick?: (step: number) => void;
 }) {
-  const steps = ['Details', 'Units'];
+  const steps = ['Details', 'Units', 'Policies'];
   return (
     <div className="flex items-center gap-2 mb-6">
       {steps.map((label, i) => {
@@ -786,6 +788,373 @@ function Step2({
   );
 }
 
+// ── Step 3 state ──────────────────────────────────────────────────────────────
+
+interface PreconditionItem {
+  type: string;
+  minimumCount: string;
+}
+
+interface Step3State {
+  participationType: string;
+  emdBasis: 'FIXED_AMOUNT' | 'PERCENTAGE' | '';
+  emdValue: string;
+  preconditions: PreconditionItem[];
+  priceChangePolicyType: string;
+  auctionExtensionType: string;
+  winnerDeterminationType: string;
+  clearingType: string;
+  tieBreakingType: string;
+}
+
+const initialStep3: Step3State = {
+  participationType: '',
+  emdBasis: '',
+  emdValue: '',
+  preconditions: [],
+  priceChangePolicyType: '',
+  auctionExtensionType: '',
+  winnerDeterminationType: '',
+  clearingType: '',
+  tieBreakingType: '',
+};
+
+// ── Step 3 ────────────────────────────────────────────────────────────────────
+
+function Step3({
+  form,
+  onChange,
+  auctionType,
+  priceProgression,
+  openingPrice,
+  precision,
+  currencyUnit,
+  fieldErrors,
+  generalError,
+  saving,
+  onSubmit,
+  onBack,
+  onSkip,
+}: {
+  form: Step3State;
+  onChange: (updates: Partial<Step3State>) => void;
+  auctionType: string;
+  priceProgression: string;
+  openingPrice: number;
+  precision: number;
+  currencyUnit: string;
+  fieldErrors: Record<string, string>;
+  generalError: string | null;
+  saving: boolean;
+  onSubmit: (e: React.FormEvent) => void;
+  onBack: () => void;
+  onSkip: () => void;
+}) {
+  const [groups, setGroups] = useState<PolicyGroup[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState(true);
+
+  useEffect(() => {
+    if (!auctionType) return;
+    auctionsApi
+      .getPolicyGroups(auctionType)
+      .then(setGroups)
+      .catch(() => setGroups([]))
+      .finally(() => setLoadingGroups(false));
+  }, [auctionType]);
+
+  const getGroupOptions = (groupName: string): SelectOption[] => {
+    const group = groups.find((g) => g.name === groupName);
+    if (!group) return [];
+    return group.types.flatMap((t) =>
+      Object.entries(t).map(([value, label]) => ({ value, label })),
+    );
+  };
+
+  const hasGroup = (groupName: string) => groups.some((g) => g.name === groupName);
+
+  const priceChangeGroup =
+    priceProgression === 'CLOCK_BASED' ? 'CLOCK_BASED_PRICE_CHANGE' : 'OFFER_BASED_PRICE_CHANGE';
+
+  const emdCalculated =
+    form.emdBasis === 'PERCENTAGE' && form.emdValue && openingPrice > 0
+      ? (openingPrice * parseFloat(form.emdValue)) / 100
+      : null;
+
+  const preconditionOptions = getGroupOptions('PRECONDITION');
+  const usedTypes = form.preconditions.map((p) => p.type);
+  const unusedPreconditionOptions = preconditionOptions.filter((o) => !usedTypes.includes(o.value));
+
+  const addPrecondition = () => {
+    const next = unusedPreconditionOptions[0];
+    if (!next) return;
+    onChange({ preconditions: [...form.preconditions, { type: next.value, minimumCount: '' }] });
+  };
+
+  const updatePrecondition = (i: number, patch: Partial<PreconditionItem>) =>
+    onChange({
+      preconditions: form.preconditions.map((p, idx) => (idx === i ? { ...p, ...patch } : p)),
+    });
+
+  const removePrecondition = (i: number) =>
+    onChange({ preconditions: form.preconditions.filter((_, idx) => idx !== i) });
+
+  if (loadingGroups) {
+    return (
+      <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        <span className="text-sm">Loading policy options...</span>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-6">
+      {generalError && (
+        <div className="py-2 px-3 bg-destructive/10 text-destructive text-sm rounded-md">
+          {generalError}
+        </div>
+      )}
+
+      {/* Participation Eligibility */}
+      <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+        <SectionHeading>Participation</SectionHeading>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <SelectField
+            id="participationType"
+            label="Participation Type"
+            value={form.participationType}
+            options={[
+              { value: '', label: 'Any one can participate' },
+              ...getGroupOptions('PARTICIPATION_ELIGIBILITY'),
+            ]}
+            onChange={(v) => onChange({ participationType: v, emdBasis: '', emdValue: '' })}
+            error={fieldErrors.participationType}
+          />
+        </div>
+
+        {form.participationType === 'EMD_POLICY' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-border/50">
+            <SelectField
+              id="emdBasis"
+              label="EMD Type *"
+              value={form.emdBasis}
+              options={[
+                { value: 'FIXED_AMOUNT', label: 'Fixed Amount' },
+                { value: 'PERCENTAGE', label: 'Percentage of Opening Price' },
+              ]}
+              onChange={(v) =>
+                onChange({ emdBasis: v as 'FIXED_AMOUNT' | 'PERCENTAGE', emdValue: '' })
+              }
+              error={fieldErrors.emdBasis}
+            />
+            {form.emdBasis && (
+              <div className="space-y-1.5">
+                <Label htmlFor="emdValue" className="text-sm font-medium">
+                  {form.emdBasis === 'FIXED_AMOUNT' ? 'Amount' : 'Percentage'}{' '}
+                  <span className="text-destructive">*</span>
+                </Label>
+                <div className="relative flex items-center">
+                  <Input
+                    id="emdValue"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={form.emdValue}
+                    onChange={(e) => onChange({ emdValue: e.target.value })}
+                    placeholder="0.00"
+                    className={form.emdBasis === 'PERCENTAGE' ? 'pr-8' : ''}
+                  />
+                  {form.emdBasis === 'PERCENTAGE' && (
+                    <span className="absolute right-3 text-sm text-muted-foreground">%</span>
+                  )}
+                </div>
+                {form.emdBasis === 'PERCENTAGE' && emdCalculated !== null && (
+                  <p className="text-xs text-muted-foreground">
+                    ≈ {currencyUnit} {emdCalculated.toFixed(precision)}
+                  </p>
+                )}
+                <FieldError message={fieldErrors.emdValue} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Preconditions */}
+      <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-2 mb-4">
+          <h3 className="text-sm font-semibold text-foreground">Preconditions</h3>
+          {unusedPreconditionOptions.length > 0 && (
+            <button
+              type="button"
+              onClick={addPrecondition}
+              className="flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add
+            </button>
+          )}
+        </div>
+
+        {form.preconditions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No preconditions</p>
+        ) : (
+          <div className="space-y-3">
+            {form.preconditions.map((pc, i) => (
+              <div key={i} className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-foreground">
+                    {preconditionOptions.find((o) => o.value === pc.type)?.label ?? pc.type}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removePrecondition(i)}
+                    className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                {pc.type === 'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY' && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">
+                      Minimum Participants <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={pc.minimumCount}
+                      onChange={(e) => updatePrecondition(i, { minimumCount: e.target.value })}
+                      placeholder="e.g. 5"
+                      className="h-8 text-sm max-w-[160px]"
+                    />
+                    <FieldError message={fieldErrors[`precondition_${i}`]} />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Price Progression Policy */}
+      {hasGroup(priceChangeGroup) && (
+        <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+          <SectionHeading>Price Progression Policy</SectionHeading>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <SelectField
+              id="priceChangePolicyType"
+              label="Policy Type *"
+              value={form.priceChangePolicyType}
+              options={getGroupOptions(priceChangeGroup)}
+              onChange={(v) => onChange({ priceChangePolicyType: v })}
+              error={fieldErrors.priceChangePolicyType}
+              placeholder="Select policy type..."
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Auction Extension */}
+      {hasGroup('AUCTION_EXTENSION') && (
+        <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+          <SectionHeading>Auction Extension</SectionHeading>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <SelectField
+              id="auctionExtensionType"
+              label="Extension Policy"
+              value={form.auctionExtensionType}
+              options={[
+                { value: '', label: 'No extension' },
+                ...getGroupOptions('AUCTION_EXTENSION'),
+              ]}
+              onChange={(v) => onChange({ auctionExtensionType: v })}
+              error={fieldErrors.auctionExtensionType}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Winner Determination */}
+      {hasGroup('WINNER_DETERMINATION') && (
+        <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+          <SectionHeading>Winner Determination</SectionHeading>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <SelectField
+              id="winnerDeterminationType"
+              label="Policy Type *"
+              value={form.winnerDeterminationType}
+              options={getGroupOptions('WINNER_DETERMINATION')}
+              onChange={(v) => onChange({ winnerDeterminationType: v })}
+              error={fieldErrors.winnerDeterminationType}
+              placeholder="Select policy type..."
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Clearing */}
+      {hasGroup('CLEARING') && (
+        <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+          <SectionHeading>Winner Payment</SectionHeading>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <SelectField
+              id="clearingType"
+              label="Clearing Policy *"
+              value={form.clearingType}
+              options={getGroupOptions('CLEARING')}
+              onChange={(v) => onChange({ clearingType: v })}
+              error={fieldErrors.clearingType}
+              placeholder="Select policy type..."
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Tie Breaking */}
+      {hasGroup('TIE_BREAKING') && (
+        <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+          <SectionHeading>Tie Breaking</SectionHeading>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <SelectField
+              id="tieBreakingType"
+              label="Tie Breaking Policy"
+              value={form.tieBreakingType}
+              options={[
+                { value: '', label: 'No tie breaking' },
+                ...getGroupOptions('TIE_BREAKING'),
+              ]}
+              onChange={(v) => onChange({ tieBreakingType: v })}
+              error={fieldErrors.tieBreakingType}
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-between gap-3">
+        <Button type="button" variant="outline" onClick={onBack} disabled={saving}>
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Back
+        </Button>
+        <div className="flex gap-3">
+          <Button type="button" variant="ghost" onClick={onSkip} disabled={saving}>
+            Skip
+          </Button>
+          <Button type="submit" disabled={saving} className="gap-2">
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Save & Finish'
+            )}
+          </Button>
+        </div>
+      </div>
+    </form>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function NewAuctionPage() {
@@ -802,6 +1171,14 @@ export default function NewAuctionPage() {
   const [step2Errors, setStep2Errors] = useState<Record<string, string>>({});
   const [step2GeneralError, setStep2GeneralError] = useState<string | null>(null);
   const [savingStep2, setSavingStep2] = useState(false);
+
+  // Step 3
+  const [createdAuctionId, setCreatedAuctionId] = useState<string | null>(null);
+  const [createdAuctionType, setCreatedAuctionType] = useState('');
+  const [step3, setStep3] = useState<Step3State>(initialStep3);
+  const [step3Errors, setStep3Errors] = useState<Record<string, string>>({});
+  const [step3GeneralError, setStep3GeneralError] = useState<string | null>(null);
+  const [savingStep3, setSavingStep3] = useState(false);
 
   // Model options
   const [formats, setFormats] = useState<SelectOption[]>([]);
@@ -935,40 +1312,128 @@ export default function NewAuctionPage() {
         setSavingStep2(false);
         return;
       }
-      const payload: AuctionCreationRQ = {
-        type: auctionType,
-        format: step1.format,
-        title: step1.title.trim(),
-        description: step1.description.trim() || undefined,
-        referenceId: step1.referenceId.trim() || undefined,
-        protocol: {
-          accessibility: step1.accessibility,
-          direction: step1.direction,
-          dimension: step1.dimension,
-          participantVisibility: step1.participantVisibility,
-          offerVisibility: step1.offerVisibility,
-        },
-        monetaryOptions: {
-          currencyUnit: step1.currencyUnit.trim().toUpperCase(),
-          precision: parseInt(step1.precision, 10),
-          roundingMode: step1.roundingMode,
-        },
-        tags: step2.tags.length ? step2.tags : undefined,
-        subCategories: step2.subCategories.length ? step2.subCategories : undefined,
-        unit: {
-          type: step2.unitType as AuctionUnitType,
-          openingPrice: parseFloat(step2.openingPrice),
-          ...(isSingle ? { item: step2.item } : { items: step2.items }),
-        },
-      };
-      await auctionsApi.createAuction(payload);
-      router.push('/admin/auctions');
+      let auctionId = createdAuctionId;
+      if (!auctionId) {
+        const payload: AuctionCreationRQ = {
+          type: auctionType,
+          format: step1.format,
+          title: step1.title.trim(),
+          description: step1.description.trim() || undefined,
+          referenceId: step1.referenceId.trim() || undefined,
+          protocol: {
+            accessibility: step1.accessibility,
+            direction: step1.direction,
+            dimension: step1.dimension,
+            participantVisibility: step1.participantVisibility,
+            offerVisibility: step1.offerVisibility,
+          },
+          monetaryOptions: {
+            currencyUnit: step1.currencyUnit.trim().toUpperCase(),
+            precision: parseInt(step1.precision, 10),
+            roundingMode: step1.roundingMode,
+          },
+          tags: step2.tags.length ? step2.tags : undefined,
+          subCategories: step2.subCategories.length ? step2.subCategories : undefined,
+          unit: {
+            type: step2.unitType as AuctionUnitType,
+            openingPrice: parseFloat(step2.openingPrice),
+            ...(isSingle ? { item: step2.item } : { items: step2.items }),
+          },
+        };
+        auctionId = await auctionsApi.createAuction(payload);
+        setCreatedAuctionId(auctionId);
+        setCreatedAuctionType(auctionType);
+      } else {
+        await auctionsApi.setAuctionUnits(auctionId, {
+          tags: step2.tags.length ? step2.tags : undefined,
+          subCategories: step2.subCategories.length ? step2.subCategories : undefined,
+          unit: {
+            type: step2.unitType as AuctionUnitType,
+            openingPrice: parseFloat(step2.openingPrice),
+            ...(isSingle ? { item: step2.item } : { items: step2.items }),
+          },
+        });
+      }
+      setStep(3);
     } catch (err) {
       const parsed = parseApiError(err);
       if (Object.keys(parsed.fieldErrors).length) setStep2Errors(parsed.fieldErrors);
       else setStep2GeneralError(parsed.general ?? 'Failed to create auction.');
     } finally {
       setSavingStep2(false);
+    }
+  };
+
+  // ── Step 3 submit ──────────────────────────────────────────────────────────
+
+  const validateStep3 = (): Record<string, string> => {
+    const errs: Record<string, string> = {};
+    if (step3.participationType === 'EMD_POLICY') {
+      if (!step3.emdBasis) errs.emdBasis = 'EMD type is required.';
+      if (!step3.emdValue || isNaN(parseFloat(step3.emdValue)) || parseFloat(step3.emdValue) <= 0)
+        errs.emdValue = 'A positive EMD value is required.';
+    }
+    step3.preconditions.forEach((pc, i) => {
+      if (
+        pc.type === 'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY' &&
+        (!pc.minimumCount || parseInt(pc.minimumCount, 10) < 1)
+      ) {
+        errs[`precondition_${i}`] = 'Minimum participants must be at least 1.';
+      }
+    });
+    return errs;
+  };
+
+  const buildPolicies = (): PolicyItemRQ[] => {
+    const policies: PolicyItemRQ[] = [];
+    if (step3.participationType) {
+      const p: PolicyItemRQ = { type: step3.participationType };
+      if (step3.participationType === 'EMD_POLICY' && step3.emdBasis) {
+        p.basis = step3.emdBasis as 'FIXED_AMOUNT' | 'PERCENTAGE';
+        p.value = parseFloat(step3.emdValue);
+      }
+      policies.push(p);
+    }
+    for (const pc of step3.preconditions) {
+      const p: PolicyItemRQ = { type: pc.type };
+      if (pc.type === 'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY')
+        p.minimumCount = parseInt(pc.minimumCount, 10);
+      policies.push(p);
+    }
+    if (step3.priceChangePolicyType) policies.push({ type: step3.priceChangePolicyType });
+    if (step3.auctionExtensionType) policies.push({ type: step3.auctionExtensionType });
+    if (step3.winnerDeterminationType) policies.push({ type: step3.winnerDeterminationType });
+    if (step3.clearingType) policies.push({ type: step3.clearingType });
+    if (step3.tieBreakingType) policies.push({ type: step3.tieBreakingType });
+    return policies;
+  };
+
+  const handleStep3Submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStep3GeneralError(null);
+    const errs = validateStep3();
+    if (Object.keys(errs).length) {
+      setStep3Errors(errs);
+      return;
+    }
+    setStep3Errors({});
+    if (!createdAuctionId) {
+      setStep3GeneralError('Auction ID is missing. Please go back and try again.');
+      return;
+    }
+    setSavingStep3(true);
+    try {
+      const policies = buildPolicies();
+      if (policies.length > 0) {
+        await auctionsApi.setAuctionPolicyGroups(createdAuctionId, { policies });
+      }
+      router.push('/admin/auctions');
+    } catch (err) {
+      const parsed = parseApiError(err);
+      if (Object.keys(parsed.fieldErrors).length) setStep3Errors(parsed.fieldErrors);
+      else setStep3GeneralError(parsed.general ?? 'Failed to save policies.');
+    } finally {
+      setSavingStep3(false);
     }
   };
 
@@ -1019,6 +1484,24 @@ export default function NewAuctionPage() {
           precision={parseInt(step1.precision, 10) || 0}
           onSubmit={handleStep2Submit}
           onBack={() => setStep(1)}
+          onSkip={handleSkip}
+        />
+      )}
+
+      {step === 3 && (
+        <Step3
+          form={step3}
+          onChange={(u) => setStep3((prev) => ({ ...prev, ...u }))}
+          auctionType={createdAuctionType}
+          priceProgression={step1.priceProgression}
+          openingPrice={parseFloat(step2.openingPrice) || 0}
+          precision={parseInt(step1.precision, 10) || 0}
+          currencyUnit={step1.currencyUnit || 'INR'}
+          fieldErrors={step3Errors}
+          generalError={step3GeneralError}
+          saving={savingStep3}
+          onSubmit={handleStep3Submit}
+          onBack={() => setStep(2)}
           onSkip={handleSkip}
         />
       )}

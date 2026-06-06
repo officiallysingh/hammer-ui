@@ -115,6 +115,23 @@ export interface AuctionBlobsCreationRQ {
   blobIds: string[];
 }
 
+export interface PolicyGroup {
+  name: string;
+  description: string;
+  types: Record<string, string>[];
+}
+
+export interface PolicyItemRQ {
+  type: string;
+  basis?: 'FIXED_AMOUNT' | 'PERCENTAGE';
+  value?: number;
+  minimumCount?: number;
+}
+
+export interface AuctionPoliciesGroupRQ {
+  policies: PolicyItemRQ[];
+}
+
 /** Model endpoints return arrays of single-key objects: [{ "KEY": "Label" }, ...] */
 export type AuctionModelEntry = Record<string, string>;
 
@@ -201,6 +218,17 @@ export const auctionsApi = {
       '/api/v1/auctions/model/offer-visibility-types',
     );
     return parseModelOptions(response.data);
+  },
+
+  getPolicyGroups: async (auctionType: string): Promise<PolicyGroup[]> => {
+    const response = await apiClient.get<PolicyGroup[]>(
+      `/api/v1/auctions/model/policies/groups/${encodeURIComponent(auctionType)}`,
+    );
+    return response.data;
+  },
+
+  setAuctionPolicyGroups: async (id: string, data: AuctionPoliciesGroupRQ): Promise<void> => {
+    await apiClient.put(`/api/v1/auctions/${id}/policies`, data);
   },
 
   getRoundingModeTypes: async (): Promise<{ value: string; label: string }[]> => {
