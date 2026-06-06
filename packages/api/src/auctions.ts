@@ -81,6 +81,9 @@ export interface AuctionCreationRQ {
   description?: string;
   referenceId?: string;
   monetaryOptions: AuctionMonetaryOptions;
+  tags?: string[];
+  subCategories?: string[];
+  unit?: AuctionUnitBody;
 }
 
 export interface AuctionUpdationRQ {

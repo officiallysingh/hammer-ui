@@ -250,7 +250,7 @@ export default function EditListingPage() {
         }
       />
 
-      <StepIndicator current={step} onStepClick={(s) => s < step && setStep(s)} />
+      <StepIndicator current={step} editMode onStepClick={setStep} />
 
       {step === 1 && (
         <>

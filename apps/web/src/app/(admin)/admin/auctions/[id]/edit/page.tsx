@@ -110,25 +110,43 @@ function SelectField({
 
 // ── Step indicator ────────────────────────────────────────────────────────────
 
-function StepIndicator({ current }: { current: number }) {
-  const steps = ['Details', 'Auction Units'];
+function StepIndicator({
+  current,
+  onStepClick,
+}: {
+  current: number;
+  onStepClick?: (step: number) => void;
+}) {
+  const steps = ['Details', 'Units'];
   return (
     <div className="flex items-center gap-2 mb-6">
       {steps.map((label, i) => {
         const s = i + 1;
         const done = s < current;
         const active = s === current;
+        // In edit mode all non-current steps are navigable
+        const clickable = !!onStepClick && !active;
         return (
           <div key={s} className="flex items-center gap-2">
             <div className="flex flex-col items-center gap-1.5">
               <div
+                role={clickable ? 'button' : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                onClick={clickable ? () => onStepClick(s) : undefined}
+                onKeyDown={
+                  clickable
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') onStepClick(s);
+                      }
+                    : undefined
+                }
                 className={`flex items-center justify-center h-9 w-9 rounded-full text-sm font-semibold transition-colors ${
                   active
                     ? 'bg-primary text-primary-foreground ring-4 ring-primary/20'
                     : done
                       ? 'bg-emerald-500 text-white'
                       : 'bg-muted text-muted-foreground'
-                }`}
+                } ${clickable ? 'cursor-pointer hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-primary/40' : ''}`}
               >
                 {done ? '✓' : s}
               </div>
@@ -494,7 +512,7 @@ export default function EditAuctionPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Edit auction"
+        title="Edit Auction"
         description="Update auction details"
         actions={
           <Button variant="outline" size="sm" onClick={() => router.push('/admin/auctions')}>
@@ -504,7 +522,7 @@ export default function EditAuctionPage() {
         }
       />
 
-      <StepIndicator current={step} />
+      <StepIndicator current={step} onStepClick={setStep} />
 
       {/* ── Step 1 ── */}
       {step === 1 && (

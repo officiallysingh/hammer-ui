@@ -24,11 +24,15 @@ import {
   Search,
   X,
   Eye,
+  LayoutGrid,
+  List,
+  Package,
 } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Label } from '@repo/ui';
 import Select from 'react-select';
 import type { MultiValue } from 'react-select';
+import { GroupedSubcategorySelect } from '@/components/common/admin/GroupedSubcategorySelect';
 import { DataTable } from '@/components/common/data-table';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
@@ -201,6 +205,175 @@ function MediaModal({ modal, onClose }: { modal: MediaModalState; onClose: () =>
   );
 }
 
+// ── Card view ─────────────────────────────────────────────────────────────────
+
+function ListingCardGrid({
+  listings,
+  isLoading,
+  deletingId,
+  onView,
+  onEdit,
+  onDelete,
+}: {
+  listings: ListingVM[];
+  isLoading: boolean;
+  deletingId: string | null;
+  onView: (id: string) => void;
+  onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="rounded-xl border border-border bg-card animate-pulse h-52" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!listings.length) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
+        <Package className="h-10 w-10 opacity-30" />
+        <p className="text-sm">No listings found.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      {listings.map((listing) => {
+        const thumb = (listing.blobs ?? []).find((b) => b.mediaType?.startsWith('image/'));
+        const cat = listing.category;
+        const sub = typeof listing.subCategory === 'object' ? listing.subCategory : null;
+        const tags = listing.tags ?? [];
+
+        return (
+          <div
+            key={listing.id}
+            className="rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:shadow-md transition-shadow"
+          >
+            {/* Thumbnail */}
+            <div className="h-36 bg-muted flex items-center justify-center overflow-hidden shrink-0">
+              {thumb ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={blobsApi.getDownloadUrl(thumb.id)}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <Package className="h-10 w-10 text-muted-foreground/30" />
+              )}
+            </div>
+
+            {/* Body */}
+            <div className="p-3 flex flex-col gap-2 flex-1">
+              <div>
+                <button
+                  type="button"
+                  onClick={() => onView(listing.id)}
+                  className="font-semibold text-sm text-foreground hover:text-primary hover:underline text-left line-clamp-1 w-full"
+                >
+                  {listing.name}
+                </button>
+                {listing.description && (
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                    {listing.description}
+                  </p>
+                )}
+              </div>
+
+              {/* Category / Sub-category */}
+              {(cat || sub) && (
+                <div className="flex flex-wrap gap-1">
+                  {cat && (
+                    <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                      {cat.icon && <span>{cat.icon}</span>}
+                      {cat.name}
+                    </span>
+                  )}
+                  {sub && (
+                    <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                      {sub.icon && <span>{sub.icon}</span>}
+                      {sub.name}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Tags */}
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {tags.map((t) => (
+                    <span
+                      key={t}
+                      className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Footer: available + actions */}
+              <div className="flex items-center justify-between mt-auto pt-1 border-t border-border">
+                <span
+                  className={`text-xs font-medium ${listing.available === false ? 'text-red-500' : listing.available ? 'text-emerald-500' : 'text-muted-foreground'}`}
+                >
+                  {listing.available === false
+                    ? 'Unavailable'
+                    : listing.available
+                      ? `Available${listing.quantity?.available != null ? ` (${listing.quantity.available})` : ''}`
+                      : '—'}
+                </span>
+                <div className="flex items-center gap-0.5">
+                  <Tip label="View">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                      onClick={() => onView(listing.id)}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                    </Button>
+                  </Tip>
+                  <Tip label="Edit">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                      onClick={() => onEdit(listing.id)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </Tip>
+                  <Tip label="Delete">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                      onClick={() => onDelete(listing.id)}
+                      disabled={deletingId === listing.id}
+                    >
+                      {deletingId === listing.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </Tip>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const reactSelectStyles = {
   control: (base: Record<string, unknown>, state: { isFocused: boolean }) => ({
     ...base,
@@ -269,6 +442,7 @@ export default function ListingsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [mediaModal, setMediaModal] = useState<MediaModalState | null>(null);
+  const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
 
   // Filter state — initialised from URL params
   const [phrases, setPhrases] = useState<string[]>(() => searchParams.getAll('phrases'));
@@ -307,15 +481,6 @@ export default function ListingsPage() {
     label: c.name,
     value: c.id,
   }));
-
-  const subCategoryOptions: SelectOption[] = selectedCategories.length
-    ? selectedCategories.flatMap((opt) => {
-        const cat = categories.find((c) => c.id === opt.value);
-        return (cat?.subCategories ?? []).map((s) => ({ label: s.name, value: s.id }));
-      })
-    : categories.flatMap((c) =>
-        (c.subCategories ?? []).map((s) => ({ label: s.name, value: s.id })),
-      );
 
   const fetchListings = async (opts?: {
     phrases?: string[];
@@ -564,6 +729,24 @@ export default function ListingsPage() {
         description="Manage auction listings"
         actions={
           <div className="flex gap-2">
+            <div className="flex rounded-md border border-border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className={`px-2.5 py-1.5 transition-colors ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                title="List view"
+              >
+                <List className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('card')}
+                className={`px-2.5 py-1.5 border-l border-border transition-colors ${viewMode === 'card' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                title="Card view"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+            </div>
             <Button size="sm" onClick={() => router.push('/admin/listings/new')}>
               <Plus className="h-4 w-4 mr-1" />
               New listing
@@ -645,13 +828,24 @@ export default function ListingsPage() {
           {/* Subcategories */}
           <div className="min-w-[240px] space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">Sub-categories</Label>
-            <Select<SelectOption, true>
+            <GroupedSubcategorySelect
               isMulti
-              options={subCategoryOptions}
-              value={selectedSubCategories}
-              onChange={(vals: MultiValue<SelectOption>) => setSelectedSubCategories([...vals])}
+              categories={
+                selectedCategories.length > 0
+                  ? categories.filter((c) => selectedCategories.some((s) => s.value === c.id))
+                  : categories
+              }
+              value={selectedSubCategories.map((o) => o.value)}
+              onChange={(ids) => {
+                const allSubs = categories.flatMap((c) => c.subCategories ?? []);
+                setSelectedSubCategories(
+                  ids
+                    .map((id) => allSubs.find((s) => s.id === id))
+                    .filter(Boolean)
+                    .map((s) => ({ label: s!.name, value: s!.id })),
+                );
+              }}
               placeholder="All sub-categories"
-              styles={reactSelectStyles as never}
             />
           </div>
 
@@ -669,13 +863,24 @@ export default function ListingsPage() {
         </div>
       </div>
 
-      <DataTable
-        data={listings}
-        columns={columns}
-        isLoading={isLoading}
-        emptyMessage="No listings found."
-        hideSearch
-      />
+      {viewMode === 'list' ? (
+        <DataTable
+          data={listings}
+          columns={columns}
+          isLoading={isLoading}
+          emptyMessage="No listings found."
+          hideSearch
+        />
+      ) : (
+        <ListingCardGrid
+          listings={listings}
+          isLoading={isLoading}
+          deletingId={deletingId}
+          onView={(id) => router.push(`/admin/listings/${id}/view`)}
+          onEdit={(id) => router.push(`/admin/listings/${id}/edit`)}
+          onDelete={(id) => setConfirmId(id)}
+        />
+      )}
 
       <ConfirmDialog
         open={confirmId !== null}

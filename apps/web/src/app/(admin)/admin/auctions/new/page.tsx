@@ -7,11 +7,10 @@ import {
   listingsApi,
   blobsApi,
   AuctionCreationRQ,
-  AuctionUnitCreationRQ,
   AuctionUnitType,
   ListingSummaryVM,
 } from '@repo/api';
-import { ArrowLeft, ArrowRight, Eye, Loader2, Package, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Eye, Loader2, Package, Trash2 } from 'lucide-react';
 import { ListingSearchField } from '../_components/ListingSearchField';
 import { TagsCategorySection } from '../_components/TagsCategorySection';
 import { Button, Input, Label } from '@repo/ui';
@@ -101,25 +100,42 @@ function SelectField({
 
 // ── Step indicator ────────────────────────────────────────────────────────────
 
-function StepIndicator({ current }: { current: number }) {
-  const steps = ['Details', 'Schedule & Config'];
+function StepIndicator({
+  current,
+  onStepClick,
+}: {
+  current: number;
+  onStepClick?: (step: number) => void;
+}) {
+  const steps = ['Details', 'Units'];
   return (
     <div className="flex items-center gap-2 mb-6">
       {steps.map((label, i) => {
         const s = i + 1;
         const done = s < current;
         const active = s === current;
+        const clickable = !!onStepClick && done;
         return (
           <div key={s} className="flex items-center gap-2">
             <div className="flex flex-col items-center gap-1.5">
               <div
+                role={clickable ? 'button' : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                onClick={clickable ? () => onStepClick(s) : undefined}
+                onKeyDown={
+                  clickable
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') onStepClick(s);
+                      }
+                    : undefined
+                }
                 className={`flex items-center justify-center h-9 w-9 rounded-full text-sm font-semibold transition-colors ${
                   active
                     ? 'bg-primary text-primary-foreground ring-4 ring-primary/20'
                     : done
                       ? 'bg-emerald-500 text-white'
                       : 'bg-muted text-muted-foreground'
-                }`}
+                } ${clickable ? 'cursor-pointer hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-emerald-400/40' : ''}`}
               >
                 {done ? '✓' : s}
               </div>
@@ -179,8 +195,6 @@ function Step1({
   form,
   onChange,
   fieldErrors,
-  generalError,
-  saving,
   formats,
   accessibilityTypes,
   directionTypes,
@@ -193,8 +207,6 @@ function Step1({
   form: Step1State;
   onChange: (updates: Partial<Step1State>) => void;
   fieldErrors: Record<string, string>;
-  generalError: string | null;
-  saving: boolean;
   formats: SelectOption[];
   accessibilityTypes: SelectOption[];
   directionTypes: SelectOption[];
@@ -206,12 +218,6 @@ function Step1({
 }) {
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      {generalError && (
-        <div className="py-2 px-3 bg-destructive/10 text-destructive text-sm rounded-md">
-          {generalError}
-        </div>
-      )}
-
       {/* Basic Information */}
       <div className="rounded-xl border border-border bg-card p-6">
         <SectionHeading>Basic Information</SectionHeading>
@@ -383,11 +389,10 @@ function Step1({
       </div>
 
       <div className="flex justify-end gap-3">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
+        <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" disabled={saving} className="gap-2">
-          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+        <Button type="submit" className="gap-2">
           Next
           <ArrowRight className="h-4 w-4" />
         </Button>
@@ -769,13 +774,10 @@ export default function NewAuctionPage() {
   const router = useRouter();
 
   const [step, setStep] = useState(1);
-  const [auctionId, setAuctionId] = useState<string | null>(null);
 
   // Step 1
   const [step1, setStep1] = useState<Step1State>(initialStep1);
   const [step1Errors, setStep1Errors] = useState<Record<string, string>>({});
-  const [step1GeneralError, setStep1GeneralError] = useState<string | null>(null);
-  const [savingStep1, setSavingStep1] = useState(false);
 
   // Step 2
   const [step2, setStep2] = useState<Step2State>(initialStep2);
@@ -864,17 +866,42 @@ export default function NewAuctionPage() {
     return errs;
   };
 
-  const handleStep1Submit = async (e: React.FormEvent) => {
+  const handleStep1Submit = (e: React.FormEvent) => {
     e.preventDefault();
-    setStep1GeneralError(null);
     const errs = validateStep1();
     if (Object.keys(errs).length) {
       setStep1Errors(errs);
       return;
     }
     setStep1Errors({});
-    setSavingStep1(true);
+    setStep(2);
+  };
+
+  // ── Step 2 submit ──────────────────────────────────────────────────────────
+
+  const validateStep2 = (): Record<string, string> => {
+    const errs: Record<string, string> = {};
+    if (!step2.unitType) errs.unitType = 'Unit type is required.';
+    if (!step2.openingPrice || isNaN(parseFloat(step2.openingPrice)))
+      errs.openingPrice = 'Opening price is required.';
+    if (step2.unitType === 'SINGLE_UNIT' && !step2.item) errs.item = 'A listing is required.';
+    if (step2.unitType && step2.unitType !== 'SINGLE_UNIT' && step2.items.length === 0)
+      errs.item = 'At least one listing is required.';
+    return errs;
+  };
+
+  const handleStep2Submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStep2GeneralError(null);
+    const errs = validateStep2();
+    if (Object.keys(errs).length) {
+      setStep2Errors(errs);
+      return;
+    }
+    setStep2Errors({});
+    setSavingStep2(true);
     try {
+      const isSingle = step2.unitType === 'SINGLE_UNIT';
       const payload: AuctionCreationRQ = {
         type: AUCTION_TYPE,
         format: step1.format,
@@ -893,47 +920,6 @@ export default function NewAuctionPage() {
           precision: parseInt(step1.precision, 10),
           roundingMode: step1.roundingMode,
         },
-      };
-      const id = await auctionsApi.createAuction(payload);
-      setAuctionId(id);
-      setStep(2);
-    } catch (err) {
-      const parsed = parseApiError(err);
-      if (Object.keys(parsed.fieldErrors).length) setStep1Errors(parsed.fieldErrors);
-      else setStep1GeneralError(parsed.general ?? 'Failed to create auction.');
-    } finally {
-      setSavingStep1(false);
-    }
-  };
-
-  // ── Step 2 submit ──────────────────────────────────────────────────────────
-
-  const validateStep2 = (): Record<string, string> => {
-    const errs: Record<string, string> = {};
-    if (!step2.unitType) errs.unitType = 'Unit type is required.';
-    if (!step2.openingPrice || isNaN(parseFloat(step2.openingPrice)))
-      errs.openingPrice = 'Opening price is required.';
-    if (step2.unitType === 'SINGLE_UNIT' && !step2.item) errs.item = 'A listing is required.';
-    if (step2.unitType && step2.unitType !== 'SINGLE_UNIT' && step2.items.length === 0)
-      errs.item = 'At least one listing is required.';
-    return errs;
-  };
-
-  const handleStep2Submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!auctionId) return;
-    setStep2GeneralError(null);
-    const errs = validateStep2();
-    if (Object.keys(errs).length) {
-      setStep2Errors(errs);
-      return;
-    }
-    setStep2Errors({});
-    setSavingStep2(true);
-    try {
-      const isSingle = step2.unitType === 'SINGLE_UNIT';
-
-      await auctionsApi.setAuctionUnits(auctionId, {
         tags: step2.tags.length ? step2.tags : undefined,
         subCategories: step2.subCategories.length ? step2.subCategories : undefined,
         unit: {
@@ -941,13 +927,13 @@ export default function NewAuctionPage() {
           openingPrice: parseFloat(step2.openingPrice),
           ...(isSingle ? { item: step2.item } : { items: step2.items }),
         },
-      });
-
+      };
+      await auctionsApi.createAuction(payload);
       router.push('/admin/auctions');
     } catch (err) {
       const parsed = parseApiError(err);
       if (Object.keys(parsed.fieldErrors).length) setStep2Errors(parsed.fieldErrors);
-      else setStep2GeneralError(parsed.general ?? 'Failed to save auction unit.');
+      else setStep2GeneralError(parsed.general ?? 'Failed to create auction.');
     } finally {
       setSavingStep2(false);
     }
@@ -968,15 +954,13 @@ export default function NewAuctionPage() {
         }
       />
 
-      <StepIndicator current={step} />
+      <StepIndicator current={step} onStepClick={(s) => s < step && setStep(s)} />
 
       {step === 1 && (
         <Step1
           form={step1}
           onChange={(u) => setStep1((prev) => ({ ...prev, ...u }))}
           fieldErrors={step1Errors}
-          generalError={step1GeneralError}
-          saving={savingStep1}
           formats={formats}
           accessibilityTypes={accessibilityTypes}
           directionTypes={directionTypes}

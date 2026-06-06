@@ -3,6 +3,7 @@
 import { ArrowRight } from 'lucide-react';
 import { Button, Input, Label } from '@repo/ui';
 import { TagInput } from '@/components/common/admin/TagInput';
+import { GroupedSubcategorySelect } from '@/components/common/admin/GroupedSubcategorySelect';
 import type { CategoryVM } from '@repo/api';
 
 export interface ListingDetails {
@@ -34,7 +35,6 @@ export function Step1Details({
   nextLabel = 'Save & Continue',
 }: Step1Props) {
   const selectedCategory = categories.find((c) => c.id === values.categoryId);
-  const subCategories = selectedCategory?.subCategories ?? [];
 
   return (
     <form onSubmit={onNext} className="space-y-6">
@@ -79,7 +79,7 @@ export function Step1Details({
               onChange={(e) => onChange({ categoryId: e.target.value, subCategory: '' })}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
-              <option value="">Select category...</option>
+              <option value="">All categories</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.icon ? `${c.icon} ` : ''}
@@ -89,29 +89,16 @@ export function Step1Details({
             </select>
           </div>
           <div className="space-y-1.5">
-            <Label
-              htmlFor="ls-subcat"
-              className={fieldErrors.subCategory ? 'text-destructive' : ''}
-            >
+            <Label className={fieldErrors.subCategory ? 'text-destructive' : ''}>
               Sub-category
             </Label>
-            <select
-              id="ls-subcat"
+            <GroupedSubcategorySelect
+              categories={selectedCategory ? [selectedCategory] : categories}
               value={values.subCategory}
-              onChange={(e) => onChange({ subCategory: e.target.value })}
-              disabled={!values.categoryId}
-              className={`w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed ${fieldErrors.subCategory ? 'border-destructive' : 'border-input'}`}
-            >
-              <option value="">
-                {values.categoryId ? 'Select sub-category...' : 'Select category first'}
-              </option>
-              {subCategories.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.icon ? `${s.icon} ` : ''}
-                  {s.name}
-                </option>
-              ))}
-            </select>
+              onChange={(id) => onChange({ subCategory: id })}
+              placeholder={values.categoryId ? 'Select sub-category...' : 'Select sub-category...'}
+              noOptionsMessage="No sub-categories found"
+            />
             {fieldErrors.subCategory && (
               <p className="text-xs text-destructive">{fieldErrors.subCategory}</p>
             )}

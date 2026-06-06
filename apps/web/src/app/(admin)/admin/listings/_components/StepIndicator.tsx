@@ -5,16 +5,18 @@ const STEPS = ['Details', 'Media', 'Custom Properties'];
 interface StepIndicatorProps {
   current: 1 | 2 | 3;
   onStepClick?: (step: 1 | 2 | 3) => void;
+  /** In edit mode all steps are navigable, not just completed ones */
+  editMode?: boolean;
 }
 
-export function StepIndicator({ current, onStepClick }: StepIndicatorProps) {
+export function StepIndicator({ current, onStepClick, editMode }: StepIndicatorProps) {
   return (
     <div className="flex items-center mb-8 px-8 max-w-lg">
       {STEPS.map((label, i) => {
         const s = (i + 1) as 1 | 2 | 3;
         const done = s < current;
         const active = s === current;
-        const clickable = !!onStepClick && done;
+        const clickable = !!onStepClick && (editMode ? !active : done);
 
         return (
           <div key={s} className="flex items-center flex-1 last:flex-none">
