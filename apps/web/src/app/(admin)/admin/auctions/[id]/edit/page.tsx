@@ -273,18 +273,16 @@ function Step3({
     priceProgression === 'CLOCK_BASED' ? 'CLOCK_BASED_PRICE_CHANGE' : 'OFFER_BASED_PRICE_CHANGE';
 
   const emdCalculated =
-    form.emdBasis === 'PERCENTAGE' && form.emdValue && openingPrice > 0
+    form.emdBasis === 'PERCENTAGE' && form.emdValue
       ? (openingPrice * parseFloat(form.emdValue)) / 100
       : null;
 
   const preconditionOptions = getGroupOptions('PRECONDITION');
-  const usedTypes = form.preconditions.map((p) => p.type);
+  const usedTypes = form.preconditions.filter((p) => p.type).map((p) => p.type);
   const unusedPreconditionOptions = preconditionOptions.filter((o) => !usedTypes.includes(o.value));
 
   const addPrecondition = () => {
-    const next = unusedPreconditionOptions[0];
-    if (!next) return;
-    onChange({ preconditions: [...form.preconditions, { type: next.value, minimumCount: '' }] });
+    onChange({ preconditions: [...form.preconditions, { type: '', minimumCount: '' }] });
   };
 
   const updatePrecondition = (i: number, patch: Partial<PreconditionItem>) =>
@@ -314,67 +312,121 @@ function Step3({
 
       {/* Participation Eligibility */}
       <div className="rounded-xl border border-border bg-card p-6 space-y-4">
-        <SectionHeading>Participation</SectionHeading>
+        <SectionHeading>Participation Eligibility</SectionHeading>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <SelectField
             id="participationType"
-            label="Participation Type"
+            label="Type"
             value={form.participationType}
             options={[
               { value: '', label: 'Any one can participate' },
               ...getGroupOptions('PARTICIPATION_ELIGIBILITY'),
             ]}
-            onChange={(v) => onChange({ participationType: v, emdBasis: '', emdValue: '' })}
+            onChange={(v) =>
+              onChange({
+                participationType: v,
+                emdBasis: v === 'EMD_POLICY' ? 'FIXED_AMOUNT' : '',
+                emdValue: '',
+              })
+            }
             error={fieldErrors.participationType}
           />
         </div>
 
-        {form.participationType === 'EMD_POLICY' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-border/50">
-            <SelectField
-              id="emdBasis"
-              label="EMD Type *"
-              value={form.emdBasis}
-              options={[
-                { value: 'FIXED_AMOUNT', label: 'Fixed Amount' },
-                { value: 'PERCENTAGE', label: 'Percentage of Opening Price' },
-              ]}
-              onChange={(v) =>
-                onChange({ emdBasis: v as 'FIXED_AMOUNT' | 'PERCENTAGE', emdValue: '' })
-              }
-              error={fieldErrors.emdBasis}
-            />
-            {form.emdBasis && (
-              <div className="space-y-1.5">
-                <Label htmlFor="emdValue" className="text-sm font-medium">
-                  {form.emdBasis === 'FIXED_AMOUNT' ? 'Amount' : 'Percentage'}{' '}
-                  <span className="text-destructive">*</span>
-                </Label>
-                <div className="relative flex items-center">
-                  <Input
-                    id="emdValue"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={form.emdValue}
-                    onChange={(e) => onChange({ emdValue: e.target.value })}
-                    placeholder="0.00"
-                    className={form.emdBasis === 'PERCENTAGE' ? 'pr-8' : ''}
-                  />
-                  {form.emdBasis === 'PERCENTAGE' && (
-                    <span className="absolute right-3 text-sm text-muted-foreground">%</span>
-                  )}
-                </div>
-                {form.emdBasis === 'PERCENTAGE' && emdCalculated !== null && (
-                  <p className="text-xs text-muted-foreground">
-                    ≈ {currencyUnit} {emdCalculated.toFixed(precision)}
-                  </p>
-                )}
-                <FieldError message={fieldErrors.emdValue} />
-              </div>
+        {/* Participant Fees */}
+        <div className="border-t border-border/50 pt-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-foreground">Participant Fees</span>
+            {!form.emdBasis && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (form.participationType === 'EMD_POLICY') {
+                    onChange({ emdBasis: 'FIXED_AMOUNT' });
+                  }
+                }}
+                disabled={!form.participationType}
+                className={`flex items-center gap-1 text-xs transition-colors ${
+                  form.participationType
+                    ? 'text-primary hover:underline'
+                    : 'text-muted-foreground opacity-40 cursor-not-allowed'
+                }`}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add
+              </button>
             )}
           </div>
-        )}
+
+          {form.participationType === 'EMD_POLICY' && form.emdBasis ? (
+            <div className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-foreground">
+                  Earnest Money Deposit (EMD)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onChange({ emdBasis: '', emdValue: '' })}
+                  className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <SelectField
+                  id="emdBasis"
+                  label="Basis *"
+                  value={form.emdBasis}
+                  options={[
+                    { value: 'FIXED_AMOUNT', label: 'Fixed Amount' },
+                    { value: 'PERCENTAGE', label: 'Percentage of Opening Price' },
+                  ]}
+                  onChange={(v) =>
+                    onChange({ emdBasis: v as 'FIXED_AMOUNT' | 'PERCENTAGE', emdValue: '' })
+                  }
+                  error={fieldErrors.emdBasis}
+                />
+                <div className="space-y-1.5">
+                  <Label htmlFor="emdValue" className="text-sm font-medium">
+                    {form.emdBasis === 'PERCENTAGE' ? 'Percentage' : 'Amount'}{' '}
+                    <span className="text-destructive">*</span>
+                  </Label>
+                  <div className="relative flex items-center">
+                    <Input
+                      id="emdValue"
+                      type="number"
+                      min={0}
+                      max={form.emdBasis === 'PERCENTAGE' ? 100 : undefined}
+                      step="0.01"
+                      value={form.emdValue}
+                      onChange={(e) => onChange({ emdValue: e.target.value })}
+                      placeholder="0.00"
+                      className={form.emdBasis === 'PERCENTAGE' ? 'pr-8' : ''}
+                    />
+                    {form.emdBasis === 'PERCENTAGE' && (
+                      <span className="absolute right-3 text-sm text-muted-foreground">%</span>
+                    )}
+                  </div>
+                  {form.emdBasis === 'PERCENTAGE' && emdCalculated !== null && (
+                    <p className="text-xs text-muted-foreground">
+                      ≈ {currencyUnit} {emdCalculated.toFixed(precision)}
+                    </p>
+                  )}
+                  <FieldError message={fieldErrors.emdValue} />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <p className="text-sm text-muted-foreground">
+                {form.participationType === 'EMD_POLICY'
+                  ? 'Click + to configure participation fee'
+                  : 'No participation fees'}
+              </p>
+              {fieldErrors.emdBasis && <FieldError message={fieldErrors.emdBasis} />}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Preconditions */}
@@ -397,38 +449,67 @@ function Step3({
           <p className="text-sm text-muted-foreground">No preconditions</p>
         ) : (
           <div className="space-y-3">
-            {form.preconditions.map((pc, i) => (
-              <div key={i} className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">
-                    {preconditionOptions.find((o) => o.value === pc.type)?.label ?? pc.type}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => removePrecondition(i)}
-                    className="p-1 text-muted-foreground hover:text-destructive transition-colors"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                {pc.type === 'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY' && (
-                  <div className="space-y-1">
-                    <Label className="text-xs">
-                      Minimum Participants <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={pc.minimumCount}
-                      onChange={(e) => updatePrecondition(i, { minimumCount: e.target.value })}
-                      placeholder="e.g. 5"
-                      className="h-8 text-sm max-w-[160px]"
-                    />
-                    <FieldError message={fieldErrors[`precondition_${i}`]} />
+            {form.preconditions.map((pc, i) => {
+              const otherUsedTypes = form.preconditions
+                .filter((_, idx) => idx !== i)
+                .filter((p) => p.type)
+                .map((p) => p.type);
+              const availableTypes = preconditionOptions.filter(
+                (o) => !otherUsedTypes.includes(o.value),
+              );
+              return (
+                <div
+                  key={i}
+                  className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-xs font-medium">Type</Label>
+                      <select
+                        value={pc.type}
+                        onChange={(e) =>
+                          updatePrecondition(i, { type: e.target.value, minimumCount: '' })
+                        }
+                        className="w-full rounded-md border border-input bg-background px-3 py-[7px] text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        <option value="">No preconditions</option>
+                        {availableTypes.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      {fieldErrors[`precondition_type_${i}`] && (
+                        <FieldError message={fieldErrors[`precondition_type_${i}`]} />
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removePrecondition(i)}
+                      className="p-1 mt-5 text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
-                )}
-              </div>
-            ))}
+                  {pc.type === 'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY' && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">
+                        Minimum Participants <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={pc.minimumCount}
+                        onChange={(e) => updatePrecondition(i, { minimumCount: e.target.value })}
+                        placeholder="e.g. 5"
+                        className="h-8 text-sm max-w-[160px]"
+                      />
+                      <FieldError message={fieldErrors[`precondition_${i}`]} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -678,7 +759,7 @@ export default function EditAuctionPage() {
         };
         setStep1(loaded);
         setOriginalStep1(loaded);
-        if (auction.type) setAuctionType(auction.type);
+        if (auction.type) setAuctionType(resolveStr(auction.type));
 
         if (auction.units?.length) {
           const u = auction.units[0]!;
@@ -886,12 +967,17 @@ export default function EditAuctionPage() {
   const validateStep3 = (): Record<string, string> => {
     const errs: Record<string, string> = {};
     if (step3.participationType === 'EMD_POLICY') {
-      if (!step3.emdBasis) errs.emdBasis = 'EMD type is required.';
-      if (!step3.emdValue || isNaN(parseFloat(step3.emdValue)) || parseFloat(step3.emdValue) <= 0)
+      if (!step3.emdBasis) errs.emdBasis = 'Please add a participant fee.';
+      if (
+        step3.emdBasis &&
+        (!step3.emdValue || isNaN(parseFloat(step3.emdValue)) || parseFloat(step3.emdValue) <= 0)
+      )
         errs.emdValue = 'A positive EMD value is required.';
     }
     step3.preconditions.forEach((pc, i) => {
-      if (
+      if (!pc.type) {
+        errs[`precondition_type_${i}`] = 'Please select a precondition type.';
+      } else if (
         pc.type === 'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY' &&
         (!pc.minimumCount || parseInt(pc.minimumCount, 10) < 1)
       ) {
@@ -912,6 +998,7 @@ export default function EditAuctionPage() {
       policies.push(p);
     }
     for (const pc of step3.preconditions) {
+      if (!pc.type) continue;
       const p: PolicyItemRQ = { type: pc.type };
       if (pc.type === 'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY')
         p.minimumCount = parseInt(pc.minimumCount, 10);

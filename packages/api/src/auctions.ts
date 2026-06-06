@@ -43,9 +43,9 @@ export interface AuctionPolicies {
 
 export interface AuctionVM {
   id: string;
-  type?: string;
-  format?: string;
-  status?: string;
+  type?: string | Record<string, string>;
+  format?: string | Record<string, string>;
+  status?: string | Record<string, string>;
   title: string;
   description?: string;
   referenceId?: string;
