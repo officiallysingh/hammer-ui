@@ -22,23 +22,30 @@ interface SelectOption {
   label: string;
 }
 
-const AUCTION_TYPE = 'OFFER_BASE_STEP_PRICED_ATOMIC_UNIT_AUCTION';
+// ── Price progression ─────────────────────────────────────────────────────────
 
-const PARTICIPANT_VISIBILITY_TYPES: SelectOption[] = [
-  { value: 'ALIAS', label: 'Alias - Participants shown by alias' },
-  { value: 'REAL', label: 'Real - Real names visible' },
-  { value: 'HIDDEN', label: 'Hidden - Participant identities hidden' },
-];
+const PRICE_PROGRESSION_OPTIONS: Record<string, SelectOption[]> = {
+  FORWARD: [
+    { value: 'STEP_BASED', label: 'Step based increment on highest bid' },
+    { value: 'FIXED_PERCENTAGE', label: 'Fixed percentage increment on highest bid' },
+    { value: 'PERCENTAGE_RANGE', label: 'Percentage range increment on highest bid' },
+    { value: 'CLOCK_BASED', label: 'Clock based ascending price' },
+  ],
+  REVERSE: [
+    { value: 'STEP_BASED', label: 'Step based decrement on lowest ask' },
+    { value: 'FIXED_PERCENTAGE', label: 'Fixed percentage decrement on lowest ask' },
+    { value: 'PERCENTAGE_RANGE', label: 'Percentage range decrement on lowest ask' },
+    { value: 'CLOCK_BASED', label: 'Clock based descending price' },
+  ],
+};
 
-const ROUNDING_MODES: SelectOption[] = [
-  { value: 'HALF_UP', label: 'Half Up' },
-  { value: 'HALF_DOWN', label: 'Half Down' },
-  { value: 'HALF_EVEN', label: "Half Even (Banker's Rounding)" },
-  { value: 'UP', label: 'Up' },
-  { value: 'DOWN', label: 'Down' },
-  { value: 'CEILING', label: 'Ceiling' },
-  { value: 'FLOOR', label: 'Floor' },
-];
+function deriveAuctionType(priceProgression: string, unitType: string): string {
+  const isAtomic = unitType === 'SINGLE_UNIT' || unitType === 'BUNDLE';
+  if (priceProgression === 'STEP_BASED' && isAtomic) {
+    return 'OFFER_BASE_STEP_PRICED_ATOMIC_UNIT_AUCTION';
+  }
+  return '';
+}
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
 
@@ -166,6 +173,7 @@ interface Step1State {
   referenceId: string;
   accessibility: string;
   direction: string;
+  priceProgression: string;
   dimension: string;
   participantVisibility: string;
   offerVisibility: string;
@@ -181,12 +189,13 @@ const initialStep1: Step1State = {
   referenceId: '',
   accessibility: '',
   direction: '',
+  priceProgression: '',
   dimension: '',
-  participantVisibility: 'ALIAS',
+  participantVisibility: '',
   offerVisibility: '',
   currencyUnit: 'INR',
   precision: '2',
-  roundingMode: 'HALF_UP',
+  roundingMode: '',
 };
 
 // ── Step 1 ────────────────────────────────────────────────────────────────────
@@ -199,7 +208,9 @@ function Step1({
   accessibilityTypes,
   directionTypes,
   dimensionTypes,
+  participantVisibilityTypes,
   offerVisibilityTypes,
+  roundingModes,
   loadingOptions,
   onSubmit,
   onCancel,
@@ -211,7 +222,9 @@ function Step1({
   accessibilityTypes: SelectOption[];
   directionTypes: SelectOption[];
   dimensionTypes: SelectOption[];
+  participantVisibilityTypes: SelectOption[];
   offerVisibilityTypes: SelectOption[];
+  roundingModes: SelectOption[];
   loadingOptions: boolean;
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
@@ -249,6 +262,17 @@ function Step1({
             <FieldError message={fieldErrors.referenceId} />
           </div>
 
+          <SelectField
+            id="format"
+            label="Format *"
+            value={form.format}
+            options={formats}
+            onChange={(v) => onChange({ format: v })}
+            error={fieldErrors.format}
+            placeholder="Select format..."
+            loading={loadingOptions}
+          />
+
           <div className="md:col-span-2 space-y-1.5">
             <Label htmlFor="description" className="text-sm font-medium">
               Description
@@ -265,23 +289,6 @@ function Step1({
             />
             <FieldError message={fieldErrors.description} />
           </div>
-        </div>
-      </div>
-
-      {/* Auction Configuration */}
-      <div className="rounded-xl border border-border bg-card p-6">
-        <SectionHeading>Auction Configuration</SectionHeading>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <SelectField
-            id="format"
-            label="Format *"
-            value={form.format}
-            options={formats}
-            onChange={(v) => onChange({ format: v })}
-            error={fieldErrors.format}
-            placeholder="Select format..."
-            loading={loadingOptions}
-          />
         </div>
       </div>
 
@@ -304,10 +311,19 @@ function Step1({
             label="Direction *"
             value={form.direction}
             options={directionTypes}
-            onChange={(v) => onChange({ direction: v })}
+            onChange={(v) => onChange({ direction: v, priceProgression: '' })}
             error={fieldErrors.direction}
             placeholder="Select direction..."
             loading={loadingOptions}
+          />
+          <SelectField
+            id="priceProgression"
+            label="Price Progression *"
+            value={form.priceProgression}
+            options={PRICE_PROGRESSION_OPTIONS[form.direction] ?? []}
+            onChange={(v) => onChange({ priceProgression: v })}
+            error={fieldErrors.priceProgression}
+            placeholder={form.direction ? 'Select price progression...' : 'Select direction first'}
           />
           <SelectField
             id="dimension"
@@ -323,10 +339,11 @@ function Step1({
             id="participantVisibility"
             label="Participant Visibility *"
             value={form.participantVisibility}
-            options={PARTICIPANT_VISIBILITY_TYPES}
+            options={participantVisibilityTypes}
             onChange={(v) => onChange({ participantVisibility: v })}
             error={fieldErrors.participantVisibility}
             placeholder="Select participant visibility..."
+            loading={loadingOptions}
           />
           <SelectField
             id="offerVisibility"
@@ -380,10 +397,11 @@ function Step1({
             id="roundingMode"
             label="Rounding Mode *"
             value={form.roundingMode}
-            options={ROUNDING_MODES}
+            options={roundingModes}
             onChange={(v) => onChange({ roundingMode: v })}
             error={fieldErrors.roundingMode}
             placeholder="Select rounding mode..."
+            loading={loadingOptions}
           />
         </div>
       </div>
@@ -790,7 +808,9 @@ export default function NewAuctionPage() {
   const [accessibilityTypes, setAccessibilityTypes] = useState<SelectOption[]>([]);
   const [directionTypes, setDirectionTypes] = useState<SelectOption[]>([]);
   const [dimensionTypes, setDimensionTypes] = useState<SelectOption[]>([]);
+  const [participantVisibilityTypes, setParticipantVisibilityTypes] = useState<SelectOption[]>([]);
   const [offerVisibilityTypes, setOfferVisibilityTypes] = useState<SelectOption[]>([]);
+  const [roundingModes, setRoundingModes] = useState<SelectOption[]>([]);
   const [unitTypes, setUnitTypes] = useState<SelectOption[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [loadingUnitTypes, setLoadingUnitTypes] = useState(true);
@@ -801,13 +821,17 @@ export default function NewAuctionPage() {
       auctionsApi.getAccessibilityTypes(),
       auctionsApi.getDirectionTypes(),
       auctionsApi.getDimensionTypes(),
+      auctionsApi.getParticipantVisibilityTypes(),
       auctionsApi.getOfferVisibilityTypes(),
-    ]).then(([fmts, access, dirs, dims, offerVis]) => {
+      auctionsApi.getRoundingModeTypes(),
+    ]).then(([fmts, access, dirs, dims, partVis, offerVis, rounding]) => {
       if (fmts.status === 'fulfilled') setFormats(fmts.value);
       if (access.status === 'fulfilled') setAccessibilityTypes(access.value);
       if (dirs.status === 'fulfilled') setDirectionTypes(dirs.value);
       if (dims.status === 'fulfilled') setDimensionTypes(dims.value);
+      if (partVis.status === 'fulfilled') setParticipantVisibilityTypes(partVis.value);
       if (offerVis.status === 'fulfilled') setOfferVisibilityTypes(offerVis.value);
+      if (rounding.status === 'fulfilled') setRoundingModes(rounding.value);
       setLoadingOptions(false);
     });
 
@@ -855,6 +879,7 @@ export default function NewAuctionPage() {
     if (!step1.format) errs.format = 'Format is required.';
     if (!step1.accessibility) errs.accessibility = 'Accessibility is required.';
     if (!step1.direction) errs.direction = 'Direction is required.';
+    if (!step1.priceProgression) errs.priceProgression = 'Price progression is required.';
     if (!step1.dimension) errs.dimension = 'Dimension is required.';
     if (!step1.participantVisibility)
       errs.participantVisibility = 'Participant visibility is required.';
@@ -902,8 +927,16 @@ export default function NewAuctionPage() {
     setSavingStep2(true);
     try {
       const isSingle = step2.unitType === 'SINGLE_UNIT';
+      const auctionType = deriveAuctionType(step1.priceProgression, step2.unitType);
+      if (!auctionType) {
+        setStep2GeneralError(
+          'This price progression and unit type combination is not yet supported.',
+        );
+        setSavingStep2(false);
+        return;
+      }
       const payload: AuctionCreationRQ = {
-        type: AUCTION_TYPE,
+        type: auctionType,
         format: step1.format,
         title: step1.title.trim(),
         description: step1.description.trim() || undefined,
@@ -965,7 +998,9 @@ export default function NewAuctionPage() {
           accessibilityTypes={accessibilityTypes}
           directionTypes={directionTypes}
           dimensionTypes={dimensionTypes}
+          participantVisibilityTypes={participantVisibilityTypes}
           offerVisibilityTypes={offerVisibilityTypes}
+          roundingModes={roundingModes}
           loadingOptions={loadingOptions}
           onSubmit={handleStep1Submit}
           onCancel={() => router.push('/admin/auctions')}

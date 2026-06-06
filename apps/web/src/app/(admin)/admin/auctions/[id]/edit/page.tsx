@@ -23,21 +23,20 @@ interface SelectOption {
   label: string;
 }
 
-const PARTICIPANT_VISIBILITY_TYPES: SelectOption[] = [
-  { value: 'ALIAS', label: 'Alias - Participants shown by alias' },
-  { value: 'REAL', label: 'Real - Real names visible' },
-  { value: 'HIDDEN', label: 'Hidden - Participant identities hidden' },
-];
-
-const ROUNDING_MODES: SelectOption[] = [
-  { value: 'HALF_UP', label: 'Half Up' },
-  { value: 'HALF_DOWN', label: 'Half Down' },
-  { value: 'HALF_EVEN', label: "Half Even (Banker's Rounding)" },
-  { value: 'UP', label: 'Up' },
-  { value: 'DOWN', label: 'Down' },
-  { value: 'CEILING', label: 'Ceiling' },
-  { value: 'FLOOR', label: 'Floor' },
-];
+const PRICE_PROGRESSION_OPTIONS: Record<string, { value: string; label: string }[]> = {
+  FORWARD: [
+    { value: 'STEP_BASED', label: 'Step based increment on highest bid' },
+    { value: 'FIXED_PERCENTAGE', label: 'Fixed percentage increment on highest bid' },
+    { value: 'PERCENTAGE_RANGE', label: 'Percentage range increment on highest bid' },
+    { value: 'CLOCK_BASED', label: 'Clock based ascending price' },
+  ],
+  REVERSE: [
+    { value: 'STEP_BASED', label: 'Step based decrement on lowest ask' },
+    { value: 'FIXED_PERCENTAGE', label: 'Fixed percentage decrement on lowest ask' },
+    { value: 'PERCENTAGE_RANGE', label: 'Percentage range decrement on lowest ask' },
+    { value: 'CLOCK_BASED', label: 'Clock based descending price' },
+  ],
+};
 
 /** Normalises API fields that arrive as either a plain string or { KEY: "Label" } */
 function resolveStr(value: unknown): string {
@@ -177,6 +176,7 @@ interface Step1State {
   format: string;
   accessibility: string;
   direction: string;
+  priceProgression: string;
   dimension: string;
   participantVisibility: string;
   offerVisibility: string;
@@ -220,6 +220,7 @@ export default function EditAuctionPage() {
     format: '',
     accessibility: '',
     direction: '',
+    priceProgression: '',
     dimension: '',
     participantVisibility: '',
     offerVisibility: '',
@@ -254,7 +255,9 @@ export default function EditAuctionPage() {
   const [accessibilityTypes, setAccessibilityTypes] = useState<SelectOption[]>([]);
   const [directionTypes, setDirectionTypes] = useState<SelectOption[]>([]);
   const [dimensionTypes, setDimensionTypes] = useState<SelectOption[]>([]);
+  const [participantVisibilityTypes, setParticipantVisibilityTypes] = useState<SelectOption[]>([]);
   const [offerVisibilityTypes, setOfferVisibilityTypes] = useState<SelectOption[]>([]);
+  const [roundingModes, setRoundingModes] = useState<SelectOption[]>([]);
   const [unitTypes, setUnitTypes] = useState<SelectOption[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [loadingUnitTypes, setLoadingUnitTypes] = useState(true);
@@ -265,13 +268,17 @@ export default function EditAuctionPage() {
       auctionsApi.getAccessibilityTypes(),
       auctionsApi.getDirectionTypes(),
       auctionsApi.getDimensionTypes(),
+      auctionsApi.getParticipantVisibilityTypes(),
       auctionsApi.getOfferVisibilityTypes(),
-    ]).then(([fmts, access, dirs, dims, offerVis]) => {
+      auctionsApi.getRoundingModeTypes(),
+    ]).then(([fmts, access, dirs, dims, partVis, offerVis, rounding]) => {
       if (fmts.status === 'fulfilled') setFormats(fmts.value);
       if (access.status === 'fulfilled') setAccessibilityTypes(access.value);
       if (dirs.status === 'fulfilled') setDirectionTypes(dirs.value);
       if (dims.status === 'fulfilled') setDimensionTypes(dims.value);
+      if (partVis.status === 'fulfilled') setParticipantVisibilityTypes(partVis.value);
       if (offerVis.status === 'fulfilled') setOfferVisibilityTypes(offerVis.value);
+      if (rounding.status === 'fulfilled') setRoundingModes(rounding.value);
       setLoadingOptions(false);
     });
 
@@ -332,6 +339,7 @@ export default function EditAuctionPage() {
     if (!step1.format) errs.format = 'Format is required.';
     if (!step1.accessibility) errs.accessibility = 'Accessibility is required.';
     if (!step1.direction) errs.direction = 'Direction is required.';
+    if (!step1.priceProgression) errs.priceProgression = 'Price progression is required.';
     if (!step1.dimension) errs.dimension = 'Dimension is required.';
     if (!step1.participantVisibility)
       errs.participantVisibility = 'Participant visibility is required.';
@@ -564,6 +572,17 @@ export default function EditAuctionPage() {
                 <FieldError message={step1Errors.referenceId} />
               </div>
 
+              <SelectField
+                id="format"
+                label="Format *"
+                value={step1.format}
+                options={formats}
+                onChange={(v) => patch1({ format: v })}
+                error={step1Errors.format}
+                placeholder="Select format..."
+                loading={loadingOptions}
+              />
+
               <div className="md:col-span-2 space-y-1.5">
                 <Label htmlFor="description" className="text-sm font-medium">
                   Description
@@ -580,23 +599,6 @@ export default function EditAuctionPage() {
                 />
                 <FieldError message={step1Errors.description} />
               </div>
-            </div>
-          </div>
-
-          {/* Auction Configuration */}
-          <div className="rounded-xl border border-border bg-card p-6">
-            <SectionHeading>Auction Configuration</SectionHeading>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <SelectField
-                id="format"
-                label="Format *"
-                value={step1.format}
-                options={formats}
-                onChange={(v) => patch1({ format: v })}
-                error={step1Errors.format}
-                placeholder="Select format..."
-                loading={loadingOptions}
-              />
             </div>
           </div>
 
@@ -619,10 +621,21 @@ export default function EditAuctionPage() {
                 label="Direction *"
                 value={step1.direction}
                 options={directionTypes}
-                onChange={(v) => patch1({ direction: v })}
+                onChange={(v) => patch1({ direction: v, priceProgression: '' })}
                 error={step1Errors.direction}
                 placeholder="Select direction..."
                 loading={loadingOptions}
+              />
+              <SelectField
+                id="priceProgression"
+                label="Price Progression *"
+                value={step1.priceProgression}
+                options={PRICE_PROGRESSION_OPTIONS[step1.direction] ?? []}
+                onChange={(v) => patch1({ priceProgression: v })}
+                error={step1Errors.priceProgression}
+                placeholder={
+                  step1.direction ? 'Select price progression...' : 'Select direction first'
+                }
               />
               <SelectField
                 id="dimension"
@@ -638,10 +651,11 @@ export default function EditAuctionPage() {
                 id="participantVisibility"
                 label="Participant Visibility *"
                 value={step1.participantVisibility}
-                options={PARTICIPANT_VISIBILITY_TYPES}
+                options={participantVisibilityTypes}
                 onChange={(v) => patch1({ participantVisibility: v })}
                 error={step1Errors.participantVisibility}
                 placeholder="Select participant visibility..."
+                loading={loadingOptions}
               />
               <SelectField
                 id="offerVisibility"
@@ -695,10 +709,11 @@ export default function EditAuctionPage() {
                 id="roundingMode"
                 label="Rounding Mode *"
                 value={step1.roundingMode}
-                options={ROUNDING_MODES}
+                options={roundingModes}
                 onChange={(v) => patch1({ roundingMode: v })}
                 error={step1Errors.roundingMode}
                 placeholder="Select rounding mode..."
+                loading={loadingOptions}
               />
             </div>
           </div>

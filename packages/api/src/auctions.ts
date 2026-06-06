@@ -203,6 +203,20 @@ export const auctionsApi = {
     return parseModelOptions(response.data);
   },
 
+  getRoundingModeTypes: async (): Promise<{ value: string; label: string }[]> => {
+    const response = await apiClient.get<AuctionModelEntry[]>(
+      '/api/v1/auctions/model/monetary-rounding-mode-types',
+    );
+    return parseModelOptions(response.data);
+  },
+
+  getParticipantVisibilityTypes: async (): Promise<{ value: string; label: string }[]> => {
+    const response = await apiClient.get<AuctionModelEntry[]>(
+      '/api/v1/auctions/model/participant-identity-visibility-types',
+    );
+    return parseModelOptions(response.data);
+  },
+
   getUnitTypes: async (): Promise<{ value: string; label: string }[]> => {
     const response = await apiClient.get<AuctionModelEntry[]>('/api/v1/auctions/model/unit-types');
     return parseModelOptions(response.data);
