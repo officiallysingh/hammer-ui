@@ -276,14 +276,15 @@ const BOOLEAN_META_TYPES = new Set(['BOOLEAN']);
 
 function coerceValue(prop: PropertyDef, value: unknown): unknown {
   if (value === undefined || value === null) return value;
+  const metaType = resolveMetaType(prop.metaType as unknown);
 
-  if (BOOLEAN_META_TYPES.has(prop.metaType)) {
+  if (BOOLEAN_META_TYPES.has(metaType)) {
     if (typeof value === 'boolean') return value;
     if (typeof value === 'string') return value === 'true';
     if (typeof value === 'number') return value !== 0;
   }
 
-  if (INTEGER_META_TYPES.has(prop.metaType)) {
+  if (INTEGER_META_TYPES.has(metaType)) {
     if (typeof value === 'number') return value;
     if (typeof value === 'string') {
       if (value === '') return value;
@@ -292,7 +293,7 @@ function coerceValue(prop: PropertyDef, value: unknown): unknown {
     }
   }
 
-  if (DECIMAL_META_TYPES.has(prop.metaType)) {
+  if (DECIMAL_META_TYPES.has(metaType)) {
     if (typeof value === 'number') return value;
     if (typeof value === 'string') {
       if (value === '') return value;
@@ -302,6 +303,13 @@ function coerceValue(prop: PropertyDef, value: unknown): unknown {
   }
 
   return value;
+}
+
+function resolveMetaType(metaType: unknown): string {
+  if (typeof metaType === 'string') return metaType;
+  if (typeof metaType === 'object' && metaType !== null)
+    return Object.keys(metaType as Record<string, unknown>)[0] ?? '';
+  return '';
 }
 
 const META_TYPE_LABELS: Partial<Record<string, string>> = {
@@ -344,6 +352,7 @@ interface FieldGroupProps {
 function PropertyFieldGroup({ prop, value, onChange, depth = 0 }: FieldGroupProps) {
   const indent = depth > 0 ? 'ml-4 pl-3 border-l border-border' : '';
   const required = isRequired(prop);
+  const resolvedMetaType = resolveMetaType(prop.metaType as unknown);
   const handleChange = (nextValue: unknown) => onChange(coerceValue(prop, nextValue));
 
   // COMPOSITE_PROPERTY → labeled card with child fields inside
@@ -401,9 +410,9 @@ function PropertyFieldGroup({ prop, value, onChange, depth = 0 }: FieldGroupProp
     <div className={`space-y-1.5 ${indent}`}>
       <div className="flex items-center gap-2">
         <FieldLabel label={prop.label} required={required} />
-        {prop.metaType && prop.metaType !== 'STRING' && (
+        {resolvedMetaType && resolvedMetaType !== 'STRING' && (
           <span className="text-[10px] text-muted-foreground/70 font-mono bg-muted/40 px-1.5 py-0.5 rounded">
-            {META_TYPE_LABELS[prop.metaType] ?? prop.metaType}
+            {META_TYPE_LABELS[resolvedMetaType] ?? resolvedMetaType}
           </span>
         )}
       </div>
@@ -822,6 +831,7 @@ function ScalarField({
   const numBase = `${base} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`;
 
   const strVal = typeof value === 'string' ? value : value != null ? String(value) : '';
+  const metaType = resolveMetaType(prop.metaType as unknown);
 
   // ── Read attributes as typed rendering hints (namespaced protocol) ────────
   const attrs = prop.attributes ?? {};
@@ -850,7 +860,7 @@ function ScalarField({
         .filter(Boolean)
     : null;
 
-  switch (prop.metaType) {
+  switch (metaType) {
     // ── Numeric ──────────────────────────────────────────────────────────────
     case 'BYTE':
     case 'SHORT':

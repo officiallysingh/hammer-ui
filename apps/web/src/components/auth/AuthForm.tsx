@@ -23,6 +23,8 @@ import { TextCaptcha, type TextCaptchaHandle } from './TextCaptcha';
 
 const OTP_RESEND_COOLDOWN_SEC = 30;
 
+const CAPTCHA_DISABLED = process.env.NEXT_PUBLIC_CAPTCHA_DISABLED === 'true';
+
 // ─── Identity detection ───────────────────────────────────────────────────────
 const MOBILE_RE = /^\d{10}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -189,7 +191,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       setIdentifierError('Please enter your username, email, or mobile number.');
       return;
     }
-    if (!loginCaptchaRef.current?.validate()) return;
+    if (!CAPTCHA_DISABLED && !loginCaptchaRef.current?.validate()) return;
     const type = detectIdentity(loginIdentifier.trim());
     setIdentityType(type);
     setLoginStep('password');
@@ -280,7 +282,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       return;
     }
     // Validate captcha only on first submission (e is present = form submit, not resend)
-    if (e && !signupCaptchaRef.current?.validate()) return;
+    if (e && !CAPTCHA_DISABLED && !signupCaptchaRef.current?.validate()) return;
     setIsLoading(true);
     try {
       const emailExists: unknown = await usersApi.checkEmailExists(email.trim());
@@ -885,7 +887,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               )}
             </div>
 
-            <TextCaptcha ref={loginCaptchaRef} />
+            {!CAPTCHA_DISABLED && <TextCaptcha ref={loginCaptchaRef} />}
 
             <Button
               type="submit"
@@ -918,7 +920,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               </div>
               {emailError && <p className="text-sm font-medium text-destructive">{emailError}</p>}
             </div>
-            <TextCaptcha ref={signupCaptchaRef} />
+            {!CAPTCHA_DISABLED && <TextCaptcha ref={signupCaptchaRef} />}
             <Button
               type="submit"
               className="w-full h-11 text-base font-medium"

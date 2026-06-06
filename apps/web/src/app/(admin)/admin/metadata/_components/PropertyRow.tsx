@@ -7,7 +7,7 @@ import { metadataApi } from '@repo/api';
 import type { PropertyDef, ValidatorDef, MetaType, PropertyType } from '@repo/api';
 import { ValidatorRow } from './ValidatorRow';
 import { AttributeEditor } from './AttributeEditor';
-import { PROPERTY_TYPES, HAS_CHILDREN, emptyProperty } from './types';
+import { PROPERTY_TYPES, HAS_CHILDREN, emptyProperty, extractMetaTypeKey } from './types';
 import type { KV } from './types';
 
 interface PropertyRowProps {
@@ -52,7 +52,8 @@ export function PropertyRow({
 
   // Fetch validators on mount if metaType set
   useEffect(() => {
-    if (prop.metaType) fetchValidators(prop.metaType);
+    const key = extractMetaTypeKey(prop.metaType);
+    if (key) fetchValidators(key);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleMetaTypeChange = (mt: string) => {
@@ -118,7 +119,7 @@ export function PropertyRow({
               <span className="text-xs text-destructive shrink-0">⚠ incomplete</span>
             )}
             <span className="text-xs text-muted-foreground font-mono shrink-0">
-              {prop.metaType}
+              {extractMetaTypeKey(prop.metaType)}
             </span>
           </>
         )}
@@ -227,7 +228,7 @@ export function PropertyRow({
               <div className="space-y-1">
                 <Label className="text-xs">Meta type</Label>
                 <select
-                  value={prop.metaType}
+                  value={extractMetaTypeKey(prop.metaType)}
                   onChange={(e) => handleMetaTypeChange(e.target.value)}
                   className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 >

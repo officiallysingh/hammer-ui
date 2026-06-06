@@ -141,10 +141,19 @@ export default function MetadataPage() {
       header: 'Properties',
       cell: ({ row }) => (
         <TagList
-          tags={(row.original.properties ?? []).map((p) => ({
-            id: p.name,
-            label: `${p.label} (${p.metaType})`,
-          }))}
+          tags={(row.original.properties ?? []).map((p) => {
+            const metaTypeLabel = Object.keys(p.metaType)[0] || '';
+
+            const formattedLabel = metaTypeLabel
+              .replace(/_/g, ' ')
+              .toLowerCase()
+              .replace(/\b\w/g, (char) => char.toUpperCase());
+
+            return {
+              id: p.name,
+              label: `${p.label} (${formattedLabel})`,
+            };
+          })}
           variant="muted"
           max={2}
         />

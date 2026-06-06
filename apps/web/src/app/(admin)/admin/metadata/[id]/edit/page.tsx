@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { metadataApi, ManagedTypeVM } from '@repo/api';
-import { sanitizeProperties } from '../../_components/types';
+import { sanitizeProperties, normalizeProperties } from '../../_components/types';
 import { Loader2 } from 'lucide-react';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { MetadataForm, MetadataFormValues } from '../../_components/MetadataForm';
@@ -24,7 +24,7 @@ export default function EditMetadataPage() {
           name: mt.name,
           description: mt.description ?? '',
           type: mt.type,
-          properties: mt.properties ?? [],
+          properties: normalizeProperties(mt.properties ?? []),
           tags: mt.tags ?? [],
         });
       })
