@@ -19,6 +19,7 @@ function Field({
   type = 'text',
   error,
   optional,
+  required,
 }: {
   id: string;
   label: string;
@@ -28,11 +29,13 @@ function Field({
   type?: string;
   error?: string;
   optional?: boolean;
+  required?: boolean;
 }) {
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id} className={error ? 'text-destructive' : ''}>
         {label}
+        {required && <span className="text-destructive ml-0.5">*</span>}
         {optional && <span className="text-muted-foreground font-normal ml-1">(optional)</span>}
       </Label>
       <Input
@@ -216,6 +219,7 @@ export default function NewUserPage() {
           <Field
             id="username"
             label="Username"
+            required
             value={form.username}
             onChange={(v) => {
               setField('username', v);
@@ -228,6 +232,7 @@ export default function NewUserPage() {
             id="email"
             label="Email"
             type="email"
+            required
             value={form.email}
             onChange={(v) => {
               setField('email', v);
@@ -240,6 +245,7 @@ export default function NewUserPage() {
             <Field
               id="firstName"
               label="First name"
+              required
               value={form.firstName}
               onChange={(v) => {
                 setField('firstName', v);
@@ -251,6 +257,7 @@ export default function NewUserPage() {
             <Field
               id="lastName"
               label="Last name"
+              required
               value={form.lastName}
               onChange={(v) => {
                 setField('lastName', v);

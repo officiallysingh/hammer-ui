@@ -34,6 +34,7 @@ function FieldInput({
   type = 'text',
   error,
   optional,
+  required,
 }: {
   id: string;
   label: string;
@@ -43,11 +44,13 @@ function FieldInput({
   type?: string;
   error?: string;
   optional?: boolean;
+  required?: boolean;
 }) {
   return (
     <div className="space-y-1">
       <Label htmlFor={id} className={error ? 'text-destructive' : ''}>
         {label}
+        {required && <span className="text-destructive ml-0.5">*</span>}
         {optional && <span className="text-muted-foreground font-normal ml-1">(optional)</span>}
       </Label>
       <Input
@@ -212,6 +215,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
           <FieldInput
             id="cu-username"
             label="Username"
+            required
             value={form.username}
             onChange={(v) => {
               setField('username', v);
@@ -224,6 +228,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
             id="cu-email"
             label="Email"
             type="email"
+            required
             value={form.email}
             onChange={(v) => {
               setField('email', v);
@@ -236,6 +241,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
             <FieldInput
               id="cu-first"
               label="First name"
+              required
               value={form.firstName}
               onChange={(v) => {
                 setField('firstName', v);
@@ -247,6 +253,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
             <FieldInput
               id="cu-last"
               label="Last name"
+              required
               value={form.lastName}
               onChange={(v) => {
                 setField('lastName', v);

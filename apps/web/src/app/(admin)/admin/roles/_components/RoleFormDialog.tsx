@@ -107,7 +107,7 @@ export function RoleFormDialog({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
             <Label htmlFor="cr-name" className={fieldErrors.name ? 'text-destructive' : ''}>
-              Name
+              Name <span className="text-destructive">*</span>
             </Label>
             <Input
               id="cr-name"
@@ -126,7 +126,7 @@ export function RoleFormDialog({
           </div>
           <div className="space-y-1">
             <Label htmlFor="cr-label" className={fieldErrors.label ? 'text-destructive' : ''}>
-              Label
+              Label <span className="text-destructive">*</span>
             </Label>
             <Input
               id="cr-label"
@@ -306,7 +306,7 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
             <Label htmlFor="er-name" className={fieldErrors.name ? 'text-destructive' : ''}>
-              Name
+              Name <span className="text-destructive">*</span>
             </Label>
             <Input
               id="er-name"
@@ -325,7 +325,7 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
           </div>
           <div className="space-y-1">
             <Label htmlFor="er-label" className={fieldErrors.label ? 'text-destructive' : ''}>
-              Label
+              Label <span className="text-destructive">*</span>
             </Label>
             <Input
               id="er-label"

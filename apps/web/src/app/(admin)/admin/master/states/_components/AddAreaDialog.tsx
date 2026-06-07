@@ -73,7 +73,7 @@ export function AddAreaDialog({ city, onClose, onCreated }: AddAreaDialogProps) 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
             <Label htmlFor="area-name" className={fieldError ? 'text-destructive' : ''}>
-              Name
+              Name <span className="text-destructive">*</span>
             </Label>
             <Input
               id="area-name"

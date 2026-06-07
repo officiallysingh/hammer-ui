@@ -22,6 +22,7 @@ interface Step1Props {
   fieldErrors: Record<string, string>;
   onNext: (e: React.FormEvent) => void;
   onCancel: () => void;
+  onSkip?: () => void;
   nextLabel?: string;
 }
 
@@ -32,6 +33,7 @@ export function Step1Details({
   fieldErrors,
   onNext,
   onCancel,
+  onSkip,
   nextLabel = 'Save & Continue',
 }: Step1Props) {
   const selectedCategory = categories.find((c) => c.id === values.categoryId);
@@ -43,7 +45,7 @@ export function Step1Details({
 
         <div className="space-y-1.5">
           <Label htmlFor="ls-name" className={fieldErrors.name ? 'text-destructive' : ''}>
-            Name
+            Name <span className="text-destructive">*</span>
           </Label>
           <Input
             id="ls-name"
@@ -72,7 +74,9 @@ export function Step1Details({
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label htmlFor="ls-cat">Category</Label>
+            <Label htmlFor="ls-cat">
+              Category <span className="text-destructive">*</span>
+            </Label>
             <select
               id="ls-cat"
               value={values.categoryId}
@@ -90,7 +94,7 @@ export function Step1Details({
           </div>
           <div className="space-y-1.5">
             <Label className={fieldErrors.subCategory ? 'text-destructive' : ''}>
-              Sub-category
+              Sub-category <span className="text-destructive">*</span>
             </Label>
             <GroupedSubcategorySelect
               categories={selectedCategory ? [selectedCategory] : categories}
@@ -128,13 +132,19 @@ export function Step1Details({
         </div>
       </div>
 
-      <div className="flex gap-3">
-        <Button type="submit" className="gap-2">
-          {nextLabel} <ArrowRight className="h-4 w-4" />
-        </Button>
+      <div className="flex justify-between gap-3">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
+        {onSkip ? (
+          <Button type="button" variant="ghost" onClick={onSkip} className="gap-2">
+            Skip <ArrowRight className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button type="submit" className="gap-2">
+            {nextLabel} <ArrowRight className="h-4 w-4" />
+          </Button>
+        )}
       </div>
     </form>
   );

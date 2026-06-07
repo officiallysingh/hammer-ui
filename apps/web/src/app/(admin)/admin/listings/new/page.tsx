@@ -215,6 +215,7 @@ export default function NewListingPage() {
           onSubmit={handleStep3}
           onBack={() => setStep(2)}
           onCancel={() => router.push('/admin/listings')}
+          onSkip={!managedTypeId ? () => router.push('/admin/listings') : undefined}
           saving={step3Saving}
           error={step3Error}
         />

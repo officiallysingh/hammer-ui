@@ -68,7 +68,7 @@ export function AddStateDialog({ open, onOpenChange, onCreated }: AddStateDialog
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
             <Label htmlFor="state-name" className={fieldError ? 'text-destructive' : ''}>
-              Name
+              Name <span className="text-destructive">*</span>
             </Label>
             <Input
               id="state-name"

@@ -48,7 +48,7 @@ function PermissionFields({
     <>
       <div className="space-y-1">
         <Label htmlFor={nameId} className={fieldErrors.name ? 'text-destructive' : ''}>
-          Name
+          Name <span className="text-destructive">*</span>
         </Label>
         <Input
           id={nameId}
@@ -65,7 +65,7 @@ function PermissionFields({
       </div>
       <div className="space-y-1">
         <Label htmlFor={labelId} className={fieldErrors.label ? 'text-destructive' : ''}>
-          Label
+          Label <span className="text-destructive">*</span>
         </Label>
         <Input
           id={labelId}

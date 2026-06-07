@@ -270,7 +270,7 @@ export function MetadataForm({
 
             <div className="space-y-1.5">
               <Label htmlFor="mt-name" className={fieldErrors.name ? 'text-destructive' : ''}>
-                Name
+                Name <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="mt-name"
@@ -293,7 +293,7 @@ export function MetadataForm({
                 htmlFor="mt-desc"
                 className={fieldErrors.description ? 'text-destructive' : ''}
               >
-                Description
+                Description <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="mt-desc"
@@ -335,14 +335,39 @@ export function MetadataForm({
             </div>
           </div>
 
-          <div className="flex gap-3">
-            <Button type="submit" className="gap-2">
-              Continue <ArrowRight className="h-4 w-4" />
-            </Button>
-            <Button type="button" variant="outline" onClick={() => router.push('/admin/metadata')}>
-              Cancel
-            </Button>
-          </div>
+          {(() => {
+            const hasStep1Changes =
+              !original ||
+              form.name !== original.name ||
+              form.description !== original.description ||
+              form.type !== original.type ||
+              JSON.stringify(form.tags) !== JSON.stringify(original.tags);
+            return (
+              <div className="flex justify-between gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => router.push('/admin/metadata')}
+                >
+                  Cancel
+                </Button>
+                {original && !hasStep1Changes ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setStep(2)}
+                    className="gap-2"
+                  >
+                    Skip <ArrowRight className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button type="submit" className="gap-2">
+                    Continue <ArrowRight className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            );
+          })()}
         </form>
       )}
 
@@ -390,30 +415,45 @@ export function MetadataForm({
             />
           </div>
 
-          <div className="flex gap-3">
-            <Button type="button" variant="outline" onClick={() => setStep(1)} disabled={saving}>
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Back
-            </Button>
-            <Button type="submit" disabled={saving} className="gap-2">
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                submitLabel
-              )}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push('/admin/metadata')}
-              disabled={saving}
-            >
-              Cancel
-            </Button>
-          </div>
+          {(() => {
+            const hasStep2Changes =
+              !original || JSON.stringify(form.properties) !== JSON.stringify(original.properties);
+            return (
+              <div className="flex justify-between gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setStep(1)}
+                  disabled={saving}
+                >
+                  <ArrowLeft className="h-4 w-4 mr-1" />
+                  Back
+                </Button>
+                {original && !hasStep2Changes ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => router.push('/admin/metadata')}
+                    disabled={saving}
+                    className="gap-2"
+                  >
+                    Skip <ArrowRight className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button type="submit" disabled={saving} className="gap-2">
+                    {saving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      submitLabel
+                    )}
+                  </Button>
+                )}
+              </div>
+            );
+          })()}
         </form>
       )}
     </div>

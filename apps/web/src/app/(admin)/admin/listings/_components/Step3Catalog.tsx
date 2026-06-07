@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { ArrowLeft, Loader2, Plus, Search, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, Plus, Search, Trash2, Upload } from 'lucide-react';
 import {
   Button,
   Label,
@@ -35,6 +35,7 @@ interface Step3Props {
   onSubmit: (e: React.FormEvent) => void;
   onBack: () => void;
   onCancel: () => void;
+  onSkip?: () => void;
   saving: boolean;
   error: string | null;
 }
@@ -49,6 +50,7 @@ export function Step3Catalog({
   onSubmit,
   onBack,
   onCancel,
+  onSkip,
   saving,
   error,
 }: Step3Props) {
@@ -235,24 +237,33 @@ export function Step3Catalog({
 
       {error && <ErrorAlert message={error} />}
 
-      <div className="flex gap-3">
+      <div className="flex justify-between gap-3">
         <Button type="button" variant="outline" onClick={onBack} disabled={saving}>
           <ArrowLeft className="h-4 w-4 mr-1" />
           Back
         </Button>
-        <Button type="submit" disabled={saving} className="gap-2">
-          {saving ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            'Save listing'
-          )}
-        </Button>
-        <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
-          Cancel
-        </Button>
+        {onSkip ? (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onSkip}
+            disabled={saving}
+            className="gap-2"
+          >
+            Skip <ArrowRight className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button type="submit" disabled={saving} className="gap-2">
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Save listing'
+            )}
+          </Button>
+        )}
       </div>
     </form>
   );

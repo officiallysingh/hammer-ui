@@ -49,6 +49,10 @@ export default function EditListingPage() {
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const origRef = useRef<ListingVM | null>(null);
+  const origCatalogRef = useRef<{ managedTypeId: string; fieldValues: Record<string, unknown> }>({
+    managedTypeId: '',
+    fieldValues: {},
+  });
 
   // Step 1 state
   const [details, setDetails] = useState<ListingDetails>({
@@ -125,11 +129,13 @@ export default function EditListingPage() {
         if (embedded) {
           const typeId = embedded.typeId as string;
           if (typeId) {
-            setManagedTypeId(typeId);
             const properties = Array.isArray(embedded.properties)
               ? (embedded.properties as EmbeddedProp[])
               : [];
-            setFieldValues(propsToFieldValues(properties));
+            const loadedFieldValues = propsToFieldValues(properties);
+            setManagedTypeId(typeId);
+            setFieldValues(loadedFieldValues);
+            origCatalogRef.current = { managedTypeId: typeId, fieldValues: loadedFieldValues };
             // Fetch full type schema to render fields
             setLoadingType(true);
             metadataApi
@@ -264,9 +270,9 @@ export default function EditListingPage() {
             onChange={(patch: Partial<ListingDetails>) => setDetails((p) => ({ ...p, ...patch }))}
             categories={categories}
             fieldErrors={step1Errors}
-            onNext={!hasChanges() ? handleContinue : handleStep1}
+            onNext={handleStep1}
+            onSkip={!hasChanges() ? () => setStep(2) : undefined}
             onCancel={() => router.push('/admin/listings')}
-            nextLabel={!hasChanges() ? 'Continue' : 'Save & Continue'}
           />
         </>
       )}
@@ -302,6 +308,12 @@ export default function EditListingPage() {
           onSubmit={handleStep3}
           onBack={() => setStep(2)}
           onCancel={() => router.push('/admin/listings')}
+          onSkip={
+            managedTypeId === origCatalogRef.current.managedTypeId &&
+            JSON.stringify(fieldValues) === JSON.stringify(origCatalogRef.current.fieldValues)
+              ? () => router.push('/admin/listings')
+              : undefined
+          }
           saving={step3Saving}
           error={step3Error}
         />

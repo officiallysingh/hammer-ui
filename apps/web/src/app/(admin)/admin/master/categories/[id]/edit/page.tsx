@@ -92,7 +92,7 @@ export default function EditCategoryPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-1.5">
               <Label htmlFor="name" className={fieldErrors.name ? 'text-destructive' : ''}>
-                Name
+                Name <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="name"

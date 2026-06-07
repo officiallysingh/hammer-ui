@@ -73,7 +73,7 @@ export function AddCityDialog({ state, onClose, onCreated }: AddCityDialogProps)
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
             <Label htmlFor="city-name" className={fieldError ? 'text-destructive' : ''}>
-              Name
+              Name <span className="text-destructive">*</span>
             </Label>
             <Input
               id="city-name"

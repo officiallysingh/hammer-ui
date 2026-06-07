@@ -830,6 +830,12 @@ export function Step2Media({
 
   const anyUploading = uploads.some((u) => u.uploading);
 
+  const hasMediaChanges =
+    uploads.length > 0 ||
+    originalBlobs.length !== existingBlobs.length ||
+    originalBlobs.some((o) => !existingBlobs.some((b) => b.id === o.id)) ||
+    Object.keys(buildBlobProperties()).length > 0;
+
   const blockProps = (cls: UploadedFile['classifier']) => ({
     classifier: cls,
     uploads,
@@ -876,31 +882,40 @@ export function Step2Media({
 
       {saveError && <p className="text-xs text-destructive">{saveError}</p>}
 
-      <div className="flex gap-3">
+      <div className="flex justify-between gap-3">
         <Button type="button" variant="outline" onClick={onBack} disabled={saving}>
           <ArrowLeft className="h-4 w-4 mr-1" />
           Back
         </Button>
-        <Button
-          type="button"
-          onClick={handleSaveAndContinue}
-          disabled={saving || anyUploading}
-          className="gap-2"
-        >
-          {saving ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              Save & Continue <ArrowRight className="h-4 w-4" />
-            </>
-          )}
-        </Button>
-        <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
-          Cancel
-        </Button>
+        {hasMediaChanges ? (
+          <Button
+            type="button"
+            onClick={handleSaveAndContinue}
+            disabled={saving || anyUploading}
+            className="gap-2"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                Save & Continue <ArrowRight className="h-4 w-4" />
+              </>
+            )}
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onNext}
+            disabled={saving || anyUploading}
+            className="gap-2"
+          >
+            Skip <ArrowRight className="h-4 w-4" />
+          </Button>
+        )}
       </div>
     </div>
   );
