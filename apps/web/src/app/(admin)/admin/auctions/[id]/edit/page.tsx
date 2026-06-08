@@ -3,6 +3,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { auctionsApi, AuctionUpdationRQ, AuctionUnitType, PolicyItemRQ } from '@repo/api';
+
+function buildDurationFromDaysHours(days: string, hours: string): string {
+  const d = parseInt(days, 10) || 0;
+  const h = parseInt(hours, 10) || 0;
+  return `PT${d * 24 + h}H`;
+}
+
+function buildWindowDuration(hours: string, minutes: string): string {
+  const h = parseInt(hours, 10) || 0;
+  const m = parseInt(minutes, 10) || 0;
+  if (h > 0 && m > 0) return `PT${h}H${m}M`;
+  if (h > 0) return `PT${h}H`;
+  if (m > 0) return `PT${m}M`;
+  return 'PT0S';
+}
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
@@ -301,49 +316,166 @@ export default function EditAuctionPage() {
 
   const validateStep3 = (): Record<string, string> => {
     const errs: Record<string, string> = {};
-    if (step3.participationType === 'EMD_POLICY') {
-      if (!step3.emdBasis) errs.emdBasis = 'Please add a participant fee.';
-      if (
-        step3.emdBasis &&
-        (!step3.emdValue || isNaN(parseFloat(step3.emdValue)) || parseFloat(step3.emdValue) <= 0)
-      )
-        errs.emdValue = 'A positive EMD value is required.';
-    }
+
+    step3.participationPolicies.forEach((p, i) => {
+      if (!p.type) {
+        errs[`participation_type_${i}`] = 'Please select a policy type.';
+      } else if (!p.basis) {
+        errs[`participation_basis_${i}`] = 'Please select a basis.';
+      } else if (!p.value || isNaN(parseFloat(p.value)) || parseFloat(p.value) <= 0) {
+        errs[`participation_value_${i}`] = 'A positive value is required.';
+      }
+    });
+
     step3.preconditions.forEach((pc, i) => {
       if (!pc.type) {
         errs[`precondition_type_${i}`] = 'Please select a precondition type.';
       } else if (
         pc.type === 'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY' &&
-        (!pc.minimumCount || parseInt(pc.minimumCount, 10) < 1)
+        (!pc.count || parseInt(pc.count, 10) < 1)
       ) {
-        errs[`precondition_${i}`] = 'Minimum participants must be at least 1.';
+        errs[`precondition_count_${i}`] = 'Minimum participants must be at least 1.';
       }
     });
+
+    step3.priceChangePolicies.forEach((p, i) => {
+      if (!p.type) {
+        errs[`price_type_${i}`] = 'Please select a policy type.';
+      } else if (!p.value || isNaN(parseFloat(p.value)) || parseFloat(p.value) <= 0) {
+        errs[`price_value_${i}`] = 'A positive step value is required.';
+      }
+    });
+
     return errs;
   };
 
-  const buildPolicies = (): PolicyItemRQ[] => {
-    const policies: PolicyItemRQ[] = [];
-    if (step3.participationType) {
-      const p: PolicyItemRQ = { type: step3.participationType };
-      if (step3.participationType === 'EMD_POLICY' && step3.emdBasis) {
-        p.basis = step3.emdBasis as 'FIXED_AMOUNT' | 'PERCENTAGE';
-        p.value = parseFloat(step3.emdValue);
+  const buildPolicies = (): Record<string, PolicyItemRQ[]> => {
+    const policies: Record<string, PolicyItemRQ[]> = {};
+
+    const participationItems = step3.participationPolicies.filter(
+      (p) => p.type && p.basis && p.value,
+    );
+    if (participationItems.length > 0) {
+      policies['PARTICIPATION_ELIGIBILITY'] = participationItems.map((p, i, arr) => ({
+        type: p.type,
+        name: p.name || undefined,
+        description: p.description || undefined,
+        priority: i + 1,
+        basis: p.basis as 'FIXED_AMOUNT' | 'PERCENTAGE',
+        value: parseFloat(p.value),
+        preStartDeadlineDuration:
+          i === arr.length - 1
+            ? 'PT0S'
+            : buildDurationFromDaysHours(p.deadlineDays, p.deadlineHours),
+      }));
+    }
+
+    const preconditionItems = step3.preconditions.filter((p) => p.type);
+    if (preconditionItems.length > 0) {
+      policies['PRECONDITION'] = preconditionItems.map((p) => {
+        const item: PolicyItemRQ = {
+          type: p.type,
+          name: p.name || undefined,
+          description: p.description || undefined,
+        };
+        if (p.type === 'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY') {
+          item.count = parseInt(p.count, 10);
+        }
+        if (p.validationDays || p.validationHours) {
+          item.preStartValidationDuration = buildDurationFromDaysHours(
+            p.validationDays,
+            p.validationHours,
+          );
+        }
+        return item;
+      });
+    }
+
+    const isClockBased = step1.priceProgression === 'CLOCK_BASED';
+    const isStepBased = step1.priceProgression === 'STEP_BASED';
+
+    if (isClockBased && step3.priceChangePolicyType) {
+      policies['CLOCK_BASED_PRICE_CHANGE'] = [{ type: step3.priceChangePolicyType }];
+    } else if (isStepBased && step3.priceChangePolicies.length > 0) {
+      const items = step3.priceChangePolicies.filter((p) => p.type && p.value);
+      if (items.length > 0) {
+        policies['OFFER_BASED_PRICE_CHANGE'] = items.map((p, i, arr) => {
+          const isLast = i === arr.length - 1;
+          const item: PolicyItemRQ = {
+            type: p.type,
+            name: p.name || undefined,
+            description: p.description || undefined,
+            priority: i + 1,
+            windowDuration: isLast ? 'PT0S' : buildWindowDuration(p.windowHours, p.windowMinutes),
+            value: parseFloat(p.value),
+          };
+          if (p.steps.trim()) {
+            item.steps = p.steps
+              .split(',')
+              .map((s) => parseInt(s.trim(), 10))
+              .filter((n) => !isNaN(n));
+          }
+          return item;
+        });
       }
-      policies.push(p);
+    } else if (!isClockBased && !isStepBased && step3.priceChangePolicyType) {
+      policies['OFFER_BASED_PRICE_CHANGE'] = [{ type: step3.priceChangePolicyType }];
     }
-    for (const pc of step3.preconditions) {
-      if (!pc.type) continue;
-      const p: PolicyItemRQ = { type: pc.type };
-      if (pc.type === 'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY')
-        p.minimumCount = parseInt(pc.minimumCount, 10);
-      policies.push(p);
+
+    if (step3.extensionEnabled && step3.extensionType) {
+      policies['EXTENSION'] = [
+        {
+          type: step3.extensionType,
+          name: step3.extensionName || undefined,
+          description: step3.extensionDescription || undefined,
+          reference: step3.extensionReference,
+          duration: `PT${parseInt(step3.extensionDurationMinutes, 10) || 10}M`,
+          limit: parseInt(step3.extensionLimit, 10) || 0,
+        },
+      ];
     }
-    if (step3.priceChangePolicyType) policies.push({ type: step3.priceChangePolicyType });
-    if (step3.auctionExtensionType) policies.push({ type: step3.auctionExtensionType });
-    if (step3.winnerDeterminationType) policies.push({ type: step3.winnerDeterminationType });
-    if (step3.clearingType) policies.push({ type: step3.clearingType });
-    if (step3.tieBreakingType) policies.push({ type: step3.tieBreakingType });
+
+    if (step3.winnerDeterminationType) {
+      const item: PolicyItemRQ = {
+        type: step3.winnerDeterminationType,
+        name: step3.winnerDeterminationName || undefined,
+        description: step3.winnerDeterminationDescription || undefined,
+      };
+      if (step3.winnerDeterminationKth) item.kth = parseInt(step3.winnerDeterminationKth, 10);
+      policies['WINNER_DETERMINATION'] = [item];
+    }
+
+    if (step3.winnerPriceDeterminationType) {
+      const item: PolicyItemRQ = {
+        type: step3.winnerPriceDeterminationType,
+        name: step3.winnerPriceDeterminationName || undefined,
+        description: step3.winnerPriceDeterminationDescription || undefined,
+      };
+      if (step3.winnerPriceDeterminationKth)
+        item.kth = parseInt(step3.winnerPriceDeterminationKth, 10);
+      policies['WINNER_PRICE_DETERMINATION'] = [item];
+    }
+
+    if (step3.clearingType) {
+      policies['CLEARING'] = [
+        {
+          type: step3.clearingType,
+          name: step3.clearingName || undefined,
+          description: step3.clearingDescription || undefined,
+        },
+      ];
+    }
+
+    if (step3.tieBreakingType) {
+      policies['TIE_BREAKING'] = [
+        {
+          type: step3.tieBreakingType,
+          name: step3.tieBreakingName || undefined,
+          description: step3.tieBreakingDescription || undefined,
+        },
+      ];
+    }
+
     return policies;
   };
 
@@ -359,7 +491,7 @@ export default function EditAuctionPage() {
     setSavingStep3(true);
     try {
       const policies = buildPolicies();
-      if (policies.length > 0) {
+      if (Object.keys(policies).length > 0) {
         await auctionsApi.setAuctionPolicyGroups(id, { policies });
       }
       router.push('/admin/auctions');

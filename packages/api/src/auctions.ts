@@ -123,13 +123,24 @@ export interface PolicyGroup {
 
 export interface PolicyItemRQ {
   type: string;
+  name?: string;
+  description?: string;
   basis?: 'FIXED_AMOUNT' | 'PERCENTAGE';
   value?: number;
-  minimumCount?: number;
+  priority?: number;
+  preStartDeadlineDuration?: string;
+  preStartValidationDuration?: string;
+  count?: number;
+  reference?: string;
+  duration?: string;
+  limit?: number;
+  windowDuration?: string;
+  steps?: number[];
+  kth?: number;
 }
 
 export interface AuctionPoliciesGroupRQ {
-  policies: PolicyItemRQ[];
+  policies: Record<string, PolicyItemRQ[]>;
 }
 
 /** Model endpoints return arrays of single-key objects: [{ "KEY": "Label" }, ...] */
