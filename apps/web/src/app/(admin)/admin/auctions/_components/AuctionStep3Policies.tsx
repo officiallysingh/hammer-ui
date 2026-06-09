@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
 import { auctionsApi, PolicyGroup } from '@repo/api';
 import { Button } from '@repo/ui';
 import { SelectOption } from './AuctionShared';
+import { POLICY_DEFAULTS } from './PolicyShared';
 import { PolicyParticipationSection } from './PolicyParticipationSection';
 import { PolicyPreconditionsSection } from './PolicyPreconditionsSection';
 import { PolicyPriceProgressionSection } from './PolicyPriceProgressionSection';
@@ -149,7 +150,25 @@ export function AuctionStep3Policies({
           extensionReference={form.extensionReference}
           extensionDurationMinutes={form.extensionDurationMinutes}
           extensionLimit={form.extensionLimit}
-          onToggle={(v) => onChange({ extensionEnabled: v })}
+          onAdd={() => {
+            const opts = getGroupOptions(extensionGroupName);
+            const first = opts[0];
+            const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
+            onChange({
+              extensionEnabled: true,
+              extensionType: first?.value ?? '',
+              extensionName: defaults?.name ?? '',
+              extensionDescription: defaults?.description ?? '',
+            });
+          }}
+          onRemove={() =>
+            onChange({
+              extensionEnabled: false,
+              extensionType: '',
+              extensionName: '',
+              extensionDescription: '',
+            })
+          }
           onFieldChange={setField}
           options={getGroupOptions(extensionGroupName)}
           fieldErrors={fieldErrors}
@@ -168,6 +187,42 @@ export function AuctionStep3Policies({
           winnerPriceDeterminationName={form.winnerPriceDeterminationName}
           winnerPriceDeterminationDescription={form.winnerPriceDeterminationDescription}
           onFieldChange={setField}
+          onWinnerAdd={() => {
+            const opts = getGroupOptions('WINNER_DETERMINATION');
+            const first = opts[0];
+            const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
+            onChange({
+              winnerDeterminationType: first?.value ?? '',
+              winnerDeterminationName: defaults?.name ?? '',
+              winnerDeterminationDescription: defaults?.description ?? '',
+            });
+          }}
+          onWinnerRemove={() =>
+            onChange({
+              winnerDeterminationType: '',
+              winnerDeterminationName: '',
+              winnerDeterminationDescription: '',
+              winnerDeterminationKth: '1',
+            })
+          }
+          onWinnerPriceAdd={() => {
+            const opts = getGroupOptions('WINNER_PRICE_DETERMINATION');
+            const first = opts[0];
+            const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
+            onChange({
+              winnerPriceDeterminationType: first?.value ?? '',
+              winnerPriceDeterminationName: defaults?.name ?? '',
+              winnerPriceDeterminationDescription: defaults?.description ?? '',
+            });
+          }}
+          onWinnerPriceRemove={() =>
+            onChange({
+              winnerPriceDeterminationType: '',
+              winnerPriceDeterminationName: '',
+              winnerPriceDeterminationDescription: '',
+              winnerPriceDeterminationKth: '1',
+            })
+          }
           winnerDeterminationOptions={getGroupOptions('WINNER_DETERMINATION')}
           winnerPriceOptions={getGroupOptions('WINNER_PRICE_DETERMINATION')}
           fieldErrors={fieldErrors}
@@ -181,6 +236,17 @@ export function AuctionStep3Policies({
           clearingName={form.clearingName}
           clearingDescription={form.clearingDescription}
           onFieldChange={setField}
+          onAdd={() => {
+            const opts = getGroupOptions('CLEARING');
+            const first = opts[0];
+            const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
+            onChange({
+              clearingType: first?.value ?? '',
+              clearingName: defaults?.name ?? '',
+              clearingDescription: defaults?.description ?? '',
+            });
+          }}
+          onRemove={() => onChange({ clearingType: '', clearingName: '', clearingDescription: '' })}
           options={getGroupOptions('CLEARING')}
           fieldErrors={fieldErrors}
         />
@@ -193,6 +259,19 @@ export function AuctionStep3Policies({
           tieBreakingName={form.tieBreakingName}
           tieBreakingDescription={form.tieBreakingDescription}
           onFieldChange={setField}
+          onAdd={() => {
+            const opts = getGroupOptions('TIE_BREAKING');
+            const first = opts[0];
+            const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
+            onChange({
+              tieBreakingType: first?.value ?? '',
+              tieBreakingName: defaults?.name ?? '',
+              tieBreakingDescription: defaults?.description ?? '',
+            });
+          }}
+          onRemove={() =>
+            onChange({ tieBreakingType: '', tieBreakingName: '', tieBreakingDescription: '' })
+          }
           options={getGroupOptions('TIE_BREAKING')}
           fieldErrors={fieldErrors}
         />

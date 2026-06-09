@@ -99,7 +99,7 @@ export function PolicyPriceProgressionSection({
           className="flex items-center gap-1 text-xs text-primary hover:underline"
         >
           <Plus className="h-3.5 w-3.5" />
-          Add Window
+          Add
         </button>
       </div>
 

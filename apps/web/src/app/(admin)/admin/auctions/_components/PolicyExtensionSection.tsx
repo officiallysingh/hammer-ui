@@ -1,5 +1,6 @@
 'use client';
 
+import { Plus, Trash2 } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
 import { FieldError, SelectField, SelectOption } from './AuctionShared';
 import { POLICY_DEFAULTS, SELECT_CLS } from './PolicyShared';
@@ -12,7 +13,8 @@ interface Props {
   extensionReference: string;
   extensionDurationMinutes: string;
   extensionLimit: string;
-  onToggle: (enabled: boolean) => void;
+  onAdd: () => void;
+  onRemove: () => void;
   onFieldChange: (field: string, value: string) => void;
   options: SelectOption[];
   fieldErrors: Record<string, string>;
@@ -31,7 +33,8 @@ export function PolicyExtensionSection({
   extensionReference,
   extensionDurationMinutes,
   extensionLimit,
-  onToggle,
+  onAdd,
+  onRemove,
   onFieldChange,
   options,
   fieldErrors,
@@ -40,29 +43,28 @@ export function PolicyExtensionSection({
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div className="flex items-center justify-between border-b border-border pb-2 mb-4">
         <h3 className="text-sm font-semibold text-foreground">Extension</h3>
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <span className="text-xs text-muted-foreground">
-            {extensionEnabled ? 'Enabled' : 'Disabled'}
-          </span>
-          <div className="relative inline-flex h-5 w-9 items-center">
-            <input
-              type="checkbox"
-              className="sr-only peer"
-              checked={extensionEnabled}
-              onChange={(e) => onToggle(e.target.checked)}
-            />
-            <div className="h-5 w-9 rounded-full bg-muted peer-checked:bg-primary transition-colors" />
-            <div
-              className={`absolute h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
-                extensionEnabled ? 'translate-x-4' : 'translate-x-1'
-              }`}
-            />
-          </div>
-        </label>
+        {!extensionEnabled ? (
+          <button
+            type="button"
+            onClick={onAdd}
+            className="flex items-center gap-1 text-xs text-primary hover:underline"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
 
       {!extensionEnabled ? (
-        <p className="text-sm text-muted-foreground">No extension policy.</p>
+        <p className="text-sm text-muted-foreground">No extension policy defined.</p>
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
