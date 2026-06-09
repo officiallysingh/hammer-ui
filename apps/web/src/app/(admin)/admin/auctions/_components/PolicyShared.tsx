@@ -22,7 +22,7 @@ export const POLICY_DEFAULTS: Record<string, { name: string; description: string
   },
   STEP_BASED_OFFER_PRICE_POLICY: {
     name: 'Step based Offer price',
-    description: 'Offers are made in steps of the given amount',
+    description: 'Offers are made in step of given amount',
   },
   KTH_PRICE_WINNER_DETERMINATION_POLICY: {
     name: 'Winner determination',
@@ -30,11 +30,19 @@ export const POLICY_DEFAULTS: Record<string, { name: string; description: string
   },
   KTH_PRICE_WINNER_PRICE_DETERMINATION_POLICY: {
     name: 'Winner Price determination',
-    description: 'Winner can pay 1st, 2nd or Kth price',
+    description: 'Winner can pay 1st, 2nd or Kth price.',
+  },
+  KTH_WINNER_PRICE_DETERMINATION_POLICY: {
+    name: 'Winner Price determination',
+    description: 'Winner can pay 1st, 2nd or Kth price.',
   },
   FULL_PAYMENT_CLEARING_POLICY: {
     name: 'Winner Payment',
     description: 'Winner pays the full Winning Auction Amount',
+  },
+  INSTALLMENTS_PAYMENT_CLEARING_POLICY: {
+    name: 'Installments Payment',
+    description: 'Winner pays the winning amount in installments',
   },
 };
 

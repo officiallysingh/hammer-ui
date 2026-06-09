@@ -77,9 +77,10 @@ export function AuctionStep3Policies({
 
   const hasGroup = (groupName: string) => groups.some((g) => g.name === groupName);
 
-  const isStepBased = priceProgression === 'STEP_BASED';
-  const isClockBased = priceProgression === 'CLOCK_BASED';
+  const isStepBased = hasGroup('OFFER_BASED_PRICE_CHANGE');
+  const isClockBased = hasGroup('CLOCK_BASED_PRICE_CHANGE');
   const priceChangeGroup = isClockBased ? 'CLOCK_BASED_PRICE_CHANGE' : 'OFFER_BASED_PRICE_CHANGE';
+  const hasPriceChange = isStepBased || isClockBased;
   const extensionGroupName = hasGroup('EXTENSION') ? 'EXTENSION' : 'AUCTION_EXTENSION';
   const hasExtension = hasGroup('EXTENSION') || hasGroup('AUCTION_EXTENSION');
 
@@ -125,17 +126,15 @@ export function AuctionStep3Policies({
       )}
 
       {/* Price Progression */}
-      {hasGroup(priceChangeGroup) && (
+      {hasPriceChange && (
         <PolicyPriceProgressionSection
-          auctionType={priceProgression}
+          auctionType={isStepBased ? 'STEP_BASED' : 'CLOCK_BASED'}
           priceChangePolicies={form.priceChangePolicies}
           priceChangePolicyType={form.priceChangePolicyType}
           onPoliciesChange={(v) => onChange({ priceChangePolicies: v })}
           onPolicyTypeChange={(v) => onChange({ priceChangePolicyType: v })}
-          stepBasedOptions={getGroupOptions(
-            isStepBased ? 'OFFER_BASED_PRICE_CHANGE' : priceChangeGroup,
-          )}
-          clockBasedOptions={getGroupOptions(priceChangeGroup)}
+          stepBasedOptions={getGroupOptions('OFFER_BASED_PRICE_CHANGE')}
+          clockBasedOptions={getGroupOptions('CLOCK_BASED_PRICE_CHANGE')}
           fieldErrors={fieldErrors}
         />
       )}

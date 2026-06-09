@@ -288,11 +288,23 @@ export default function EditAuctionPage() {
       return;
     }
     setStep2Errors({});
+    const orig = origStep2Ref.current;
+    const isSingle = step2.unitType === 'SINGLE_UNIT';
+    const itemsChanged = isSingle
+      ? step2.item !== orig.item
+      : step2.items.length !== orig.items.length ||
+        step2.items.some((it, i) => it !== orig.items[i]);
+    const hasChanged =
+      step2.unitType !== orig.unitType || step2.openingPrice !== orig.openingPrice || itemsChanged;
+
+    if (!hasChanged) {
+      setStep(3);
+      return;
+    }
+
     setSavingStep2(true);
     try {
-      const isSingle = step2.unitType === 'SINGLE_UNIT';
-
-      await auctionsApi.setAuctionUnits(id, {
+      await auctionsApi.updateAuction(id, {
         tags: step2.tags.length ? step2.tags : undefined,
         subCategories: step2.subCategories.length ? step2.subCategories : undefined,
         unit: {
@@ -340,9 +352,9 @@ export default function EditAuctionPage() {
 
     step3.priceChangePolicies.forEach((p, i) => {
       if (!p.type) {
-        errs[`price_type_${i}`] = 'Please select a policy type.';
+        errs[`priceChange_type_${i}`] = 'Please select a policy type.';
       } else if (!p.value || isNaN(parseFloat(p.value)) || parseFloat(p.value) <= 0) {
-        errs[`price_value_${i}`] = 'A positive step value is required.';
+        errs[`priceChange_value_${i}`] = 'A positive step value is required.';
       }
     });
 
@@ -391,8 +403,8 @@ export default function EditAuctionPage() {
       });
     }
 
-    const isClockBased = step1.priceProgression === 'CLOCK_BASED';
-    const isStepBased = step1.priceProgression === 'STEP_BASED';
+    const isClockBased = auctionType.includes('CLOCK_BASED');
+    const isStepBased = auctionType.includes('STEP_PRICED') || auctionType.includes('STEP_BASED');
 
     if (isClockBased && step3.priceChangePolicyType) {
       policies['CLOCK_BASED_PRICE_CHANGE'] = [{ type: step3.priceChangePolicyType }];
@@ -409,11 +421,8 @@ export default function EditAuctionPage() {
             windowDuration: isLast ? 'PT0S' : buildWindowDuration(p.windowHours, p.windowMinutes),
             value: parseFloat(p.value),
           };
-          if (p.steps.trim()) {
-            item.steps = p.steps
-              .split(',')
-              .map((s) => parseInt(s.trim(), 10))
-              .filter((n) => !isNaN(n));
+          if (p.steps.length > 0) {
+            item.steps = p.steps;
           }
           return item;
         });

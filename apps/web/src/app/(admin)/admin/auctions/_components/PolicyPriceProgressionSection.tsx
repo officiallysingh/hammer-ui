@@ -2,6 +2,8 @@
 
 import { Plus, Trash2 } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
+import ReactSelect from 'react-select';
+import { makeReactSelectStyles } from '@/components/common/admin/GroupedSubcategorySelect';
 import { FieldError, SelectField, SelectOption } from './AuctionShared';
 import { PriceChangeItem } from './AuctionStep3Types';
 import {
@@ -23,13 +25,18 @@ interface Props {
   fieldErrors: Record<string, string>;
 }
 
+const STEP_OPTIONS = Array.from({ length: 10 }, (_, i) => ({
+  value: i + 1,
+  label: String(i + 1),
+}));
+
 const EMPTY_ITEM: PriceChangeItem = {
   name: '',
   description: '',
   type: '',
   windowHours: '',
   windowMinutes: '0',
-  steps: '',
+  steps: [],
   value: '',
 };
 
@@ -45,7 +52,19 @@ export function PolicyPriceProgressionSection({
 }: Props) {
   const isStepBased = auctionType === 'STEP_BASED';
 
-  const add = () => onPoliciesChange([...priceChangePolicies, { ...EMPTY_ITEM }]);
+  const add = () => {
+    const firstType = stepBasedOptions[0]?.value ?? '';
+    const defaults = firstType ? POLICY_DEFAULTS[firstType] : undefined;
+    onPoliciesChange([
+      ...priceChangePolicies,
+      {
+        ...EMPTY_ITEM,
+        type: firstType,
+        name: defaults?.name ?? '',
+        description: defaults?.description ?? '',
+      },
+    ]);
+  };
   const remove = (i: number) => onPoliciesChange(priceChangePolicies.filter((_, idx) => idx !== i));
   const move = (i: number, dir: -1 | 1) => onPoliciesChange(moveItem(priceChangePolicies, i, dir));
   const update = (i: number, patch: Partial<PriceChangeItem>) =>
@@ -155,24 +174,29 @@ export function PolicyPriceProgressionSection({
                     <div className="space-y-1.5">
                       <Label className="text-xs font-medium">Window Duration</Label>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Input
-                          type="number"
-                          min={0}
+                        <select
                           value={pc.windowHours}
                           onChange={(e) => update(i, { windowHours: e.target.value })}
-                          placeholder="0"
-                          className="h-8 text-sm w-20"
-                        />
+                          className="w-20 rounded-md border border-input bg-background px-2 py-[7px] text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          {Array.from({ length: 25 }, (_, h) => (
+                            <option key={h} value={String(h)}>
+                              {h}
+                            </option>
+                          ))}
+                        </select>
                         <span className="text-sm text-muted-foreground">h</span>
-                        <Input
-                          type="number"
-                          min={0}
-                          max={59}
+                        <select
                           value={pc.windowMinutes}
                           onChange={(e) => update(i, { windowMinutes: e.target.value })}
-                          placeholder="0"
-                          className="h-8 text-sm w-20"
-                        />
+                          className="w-20 rounded-md border border-input bg-background px-2 py-[7px] text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          {Array.from({ length: 60 }, (_, m) => (
+                            <option key={m} value={String(m)}>
+                              {m}
+                            </option>
+                          ))}
+                        </select>
                         <span className="text-sm text-muted-foreground">min</span>
                       </div>
                       <FieldError message={fieldErrors[`priceChange_window_${i}`]} />
@@ -183,16 +207,22 @@ export function PolicyPriceProgressionSection({
                 {pc.type && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label htmlFor={`pc_steps_${i}`} className="text-xs font-medium">
-                        Step Amounts{' '}
-                        <span className="text-muted-foreground text-[10px]">(comma separated)</span>
+                      <Label className="text-xs font-medium">
+                        Step Multipliers{' '}
+                        <span className="text-muted-foreground text-[10px]">
+                          (1–10, leave empty for all)
+                        </span>
                       </Label>
-                      <Input
-                        id={`pc_steps_${i}`}
-                        value={pc.steps}
-                        onChange={(e) => update(i, { steps: e.target.value })}
-                        placeholder="e.g. 1000, 2000, 5000"
-                        className="h-8 text-sm"
+                      <ReactSelect
+                        isMulti
+                        options={STEP_OPTIONS}
+                        value={STEP_OPTIONS.filter((o) => pc.steps.includes(o.value))}
+                        onChange={(selected) => update(i, { steps: selected.map((s) => s.value) })}
+                        placeholder="Select steps..."
+                        menuPortalTarget={
+                          typeof document !== 'undefined' ? document.body : undefined
+                        }
+                        styles={makeReactSelectStyles<true>()}
                       />
                       <FieldError message={fieldErrors[`priceChange_steps_${i}`]} />
                     </div>

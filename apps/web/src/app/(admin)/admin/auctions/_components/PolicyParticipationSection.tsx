@@ -44,7 +44,19 @@ export function PolicyParticipationSection({
 }: Props) {
   const usedTypes = policies.map((p) => p.type).filter(Boolean);
 
-  const add = () => onChange([...policies, { ...EMPTY_ITEM }]);
+  const add = () => {
+    const availableType = options.find((opt) => !usedTypes.includes(opt.value));
+    const defaults = availableType ? POLICY_DEFAULTS[availableType.value] : undefined;
+    onChange([
+      ...policies,
+      {
+        ...EMPTY_ITEM,
+        type: availableType?.value ?? '',
+        name: defaults?.name ?? '',
+        description: defaults?.description ?? '',
+      },
+    ]);
+  };
   const remove = (i: number) => onChange(policies.filter((_, idx) => idx !== i));
   const move = (i: number, dir: -1 | 1) => onChange(moveItem(policies, i, dir));
   const update = (i: number, patch: Partial<ParticipationEligibilityItem>) =>

@@ -92,6 +92,9 @@ export interface AuctionUpdationRQ {
   referenceId?: string;
   protocol?: Partial<AuctionProtocol>;
   monetaryOptions?: Partial<AuctionMonetaryOptions>;
+  unit?: AuctionUnitBody;
+  subCategories?: string[];
+  tags?: string[];
 }
 
 export interface AuctionScheduleRQ {

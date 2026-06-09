@@ -23,7 +23,7 @@ export interface PriceChangeItem {
   type: string;
   windowHours: string;
   windowMinutes: string;
-  steps: string;
+  steps: number[];
   value: string;
 }
 

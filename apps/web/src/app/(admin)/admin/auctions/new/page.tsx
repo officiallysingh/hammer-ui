@@ -197,7 +197,7 @@ export default function NewAuctionPage() {
         setCreatedAuctionId(auctionId);
         setCreatedAuctionType(auctionType);
       } else {
-        await auctionsApi.setAuctionUnits(auctionId, {
+        const updatePayload = {
           tags: step2.tags.length ? step2.tags : undefined,
           subCategories: step2.subCategories.length ? step2.subCategories : undefined,
           unit: {
@@ -205,7 +205,8 @@ export default function NewAuctionPage() {
             openingPrice: parseFloat(step2.openingPrice),
             ...(isSingle ? { item: step2.item } : { items: step2.items }),
           },
-        });
+        };
+        await auctionsApi.updateAuction(auctionId, updatePayload);
       }
       setStep(3);
     } catch (err) {
@@ -245,9 +246,9 @@ export default function NewAuctionPage() {
 
     step3.priceChangePolicies.forEach((p, i) => {
       if (!p.type) {
-        errs[`price_type_${i}`] = 'Please select a policy type.';
+        errs[`priceChange_type_${i}`] = 'Please select a policy type.';
       } else if (!p.value || isNaN(parseFloat(p.value)) || parseFloat(p.value) <= 0) {
-        errs[`price_value_${i}`] = 'A positive step value is required.';
+        errs[`priceChange_value_${i}`] = 'A positive step value is required.';
       }
     });
 
@@ -296,8 +297,9 @@ export default function NewAuctionPage() {
       });
     }
 
-    const isClockBased = step1.priceProgression === 'CLOCK_BASED';
-    const isStepBased = step1.priceProgression === 'STEP_BASED';
+    const isClockBased = createdAuctionType.includes('CLOCK_BASED');
+    const isStepBased =
+      createdAuctionType.includes('STEP_PRICED') || createdAuctionType.includes('STEP_BASED');
 
     if (isClockBased && step3.priceChangePolicyType) {
       policies['CLOCK_BASED_PRICE_CHANGE'] = [{ type: step3.priceChangePolicyType }];
@@ -314,11 +316,8 @@ export default function NewAuctionPage() {
             windowDuration: isLast ? 'PT0S' : buildWindowDuration(p.windowHours, p.windowMinutes),
             value: parseFloat(p.value),
           };
-          if (p.steps.trim()) {
-            item.steps = p.steps
-              .split(',')
-              .map((s) => parseInt(s.trim(), 10))
-              .filter((n) => !isNaN(n));
+          if (p.steps.length > 0) {
+            item.steps = p.steps;
           }
           return item;
         });

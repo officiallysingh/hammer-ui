@@ -37,7 +37,19 @@ export function PolicyPreconditionsSection({
 }: Props) {
   const usedTypes = preconditions.map((p) => p.type).filter(Boolean);
 
-  const add = () => onChange([...preconditions, { ...EMPTY_ITEM }]);
+  const add = () => {
+    const availableType = options.find((opt) => !usedTypes.includes(opt.value));
+    const defaults = availableType ? POLICY_DEFAULTS[availableType.value] : undefined;
+    onChange([
+      ...preconditions,
+      {
+        ...EMPTY_ITEM,
+        type: availableType?.value ?? '',
+        name: defaults?.name ?? '',
+        description: defaults?.description ?? '',
+      },
+    ]);
+  };
   const remove = (i: number) => onChange(preconditions.filter((_, idx) => idx !== i));
   const move = (i: number, dir: -1 | 1) => onChange(moveItem(preconditions, i, dir));
   const update = (i: number, patch: Partial<PreconditionItem>) =>
