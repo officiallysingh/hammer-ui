@@ -1,6 +1,7 @@
 'use client';
 
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
 
 export const POLICY_DEFAULTS: Record<string, { name: string; description: string }> = {
@@ -45,6 +46,30 @@ export const POLICY_DEFAULTS: Record<string, { name: string; description: string
     description: 'Winner pays the winning amount in installments',
   },
 };
+
+export function PolicyInfoButton({ description }: { description: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="h-5 w-5 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        aria-label="More information"
+      >
+        <HelpCircle className="h-4 w-4" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-6 z-20 w-64 rounded-lg border border-border bg-popover p-3 shadow-md text-xs text-popover-foreground leading-relaxed">
+            {description}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export const SELECT_CLS =
   'w-full rounded-md border border-input bg-background px-3 py-[7px] text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60';

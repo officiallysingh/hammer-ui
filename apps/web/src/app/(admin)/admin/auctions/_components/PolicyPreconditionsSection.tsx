@@ -8,6 +8,7 @@ import {
   DayHourDropdowns,
   NameDescriptionFields,
   POLICY_DEFAULTS,
+  PolicyInfoButton,
   SELECT_CLS,
   SortButtons,
   moveItem,
@@ -18,6 +19,7 @@ interface Props {
   onChange: (updated: PreconditionItem[]) => void;
   options: SelectOption[];
   fieldErrors: Record<string, string>;
+  groupDescription?: string;
 }
 
 const EMPTY_ITEM: PreconditionItem = {
@@ -34,6 +36,7 @@ export function PolicyPreconditionsSection({
   onChange,
   options,
   fieldErrors,
+  groupDescription,
 }: Props) {
   const usedTypes = preconditions.map((p) => p.type).filter(Boolean);
 
@@ -58,7 +61,10 @@ export function PolicyPreconditionsSection({
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div className="flex items-center justify-between border-b border-border pb-2 mb-4">
-        <h3 className="text-sm font-semibold text-foreground">Preconditions</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-foreground">Preconditions</h3>
+          {groupDescription && <PolicyInfoButton description={groupDescription} />}
+        </div>
         {usedTypes.length < options.length && (
           <button
             type="button"

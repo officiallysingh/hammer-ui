@@ -3,7 +3,7 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
 import { SelectField, SelectOption } from './AuctionShared';
-import { POLICY_DEFAULTS } from './PolicyShared';
+import { POLICY_DEFAULTS, PolicyInfoButton } from './PolicyShared';
 
 interface Props {
   clearingType: string;
@@ -14,6 +14,7 @@ interface Props {
   onRemove: () => void;
   options: SelectOption[];
   fieldErrors: Record<string, string>;
+  groupDescription?: string;
 }
 
 export function PolicyClearingSection({
@@ -25,13 +26,17 @@ export function PolicyClearingSection({
   onRemove,
   options,
   fieldErrors,
+  groupDescription,
 }: Props) {
   const added = clearingType !== '';
 
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div className="flex items-center justify-between border-b border-border pb-2 mb-4">
-        <h3 className="text-sm font-semibold text-foreground">Clearing (Winner Payment)</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-foreground">Clearing (Winner Payment)</h3>
+          {groupDescription && <PolicyInfoButton description={groupDescription} />}
+        </div>
         {!added ? (
           <button
             type="button"

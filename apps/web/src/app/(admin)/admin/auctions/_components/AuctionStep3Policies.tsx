@@ -36,6 +36,7 @@ interface AuctionStep3PoliciesProps {
   fieldErrors: Record<string, string>;
   generalError: string | null;
   saving: boolean;
+  submitLabel?: string;
   onSubmit: (e: React.FormEvent) => void;
   onBack: () => void;
   onSkip?: () => void;
@@ -52,6 +53,7 @@ export function AuctionStep3Policies({
   fieldErrors,
   generalError,
   saving,
+  submitLabel = 'Save & Finish',
   onSubmit,
   onBack,
   onSkip,
@@ -75,6 +77,9 @@ export function AuctionStep3Policies({
       Object.entries(t).map(([value, label]) => ({ value, label })),
     );
   };
+
+  const getGroupDescription = (groupName: string): string =>
+    groups.find((g) => g.name === groupName)?.description ?? '';
 
   const hasGroup = (groupName: string) => groups.some((g) => g.name === groupName);
 
@@ -114,6 +119,7 @@ export function AuctionStep3Policies({
         precision={precision}
         currencyUnit={currencyUnit}
         fieldErrors={fieldErrors}
+        groupDescription={getGroupDescription('PARTICIPATION_ELIGIBILITY')}
       />
 
       {/* Preconditions */}
@@ -123,6 +129,7 @@ export function AuctionStep3Policies({
           onChange={(v) => onChange({ preconditions: v })}
           options={getGroupOptions('PRECONDITION')}
           fieldErrors={fieldErrors}
+          groupDescription={getGroupDescription('PRECONDITION')}
         />
       )}
 
@@ -137,6 +144,7 @@ export function AuctionStep3Policies({
           stepBasedOptions={getGroupOptions('OFFER_BASED_PRICE_CHANGE')}
           clockBasedOptions={getGroupOptions('CLOCK_BASED_PRICE_CHANGE')}
           fieldErrors={fieldErrors}
+          groupDescription={getGroupDescription(priceChangeGroup)}
         />
       )}
 
@@ -172,6 +180,7 @@ export function AuctionStep3Policies({
           onFieldChange={setField}
           options={getGroupOptions(extensionGroupName)}
           fieldErrors={fieldErrors}
+          groupDescription={getGroupDescription(extensionGroupName)}
         />
       )}
 
@@ -226,6 +235,8 @@ export function AuctionStep3Policies({
           winnerDeterminationOptions={getGroupOptions('WINNER_DETERMINATION')}
           winnerPriceOptions={getGroupOptions('WINNER_PRICE_DETERMINATION')}
           fieldErrors={fieldErrors}
+          winnerGroupInfo={getGroupDescription('WINNER_DETERMINATION')}
+          winnerPriceGroupInfo={getGroupDescription('WINNER_PRICE_DETERMINATION')}
         />
       )}
 
@@ -249,6 +260,7 @@ export function AuctionStep3Policies({
           onRemove={() => onChange({ clearingType: '', clearingName: '', clearingDescription: '' })}
           options={getGroupOptions('CLEARING')}
           fieldErrors={fieldErrors}
+          groupDescription={getGroupDescription('CLEARING')}
         />
       )}
 
@@ -274,6 +286,7 @@ export function AuctionStep3Policies({
           }
           options={getGroupOptions('TIE_BREAKING')}
           fieldErrors={fieldErrors}
+          groupDescription={getGroupDescription('TIE_BREAKING')}
         />
       )}
 
@@ -300,7 +313,7 @@ export function AuctionStep3Policies({
                 Saving...
               </>
             ) : (
-              'Save & Finish'
+              submitLabel
             )}
           </Button>
         )}

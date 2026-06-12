@@ -9,6 +9,7 @@ import { PriceChangeItem } from './AuctionStep3Types';
 import {
   NameDescriptionFields,
   POLICY_DEFAULTS,
+  PolicyInfoButton,
   SELECT_CLS,
   SortButtons,
   moveItem,
@@ -23,6 +24,7 @@ interface Props {
   stepBasedOptions: SelectOption[];
   clockBasedOptions: SelectOption[];
   fieldErrors: Record<string, string>;
+  groupDescription?: string;
 }
 
 const STEP_OPTIONS = Array.from({ length: 10 }, (_, i) => ({
@@ -49,6 +51,7 @@ export function PolicyPriceProgressionSection({
   stepBasedOptions,
   clockBasedOptions,
   fieldErrors,
+  groupDescription,
 }: Props) {
   const isStepBased = auctionType === 'STEP_BASED';
 
@@ -73,8 +76,9 @@ export function PolicyPriceProgressionSection({
   if (!isStepBased) {
     return (
       <div className="rounded-xl border border-border bg-card p-6 space-y-4">
-        <div className="border-b border-border pb-2 mb-4">
+        <div className="flex items-center gap-2 border-b border-border pb-2 mb-4">
           <h3 className="text-sm font-semibold text-foreground">Price Progression</h3>
+          {groupDescription && <PolicyInfoButton description={groupDescription} />}
         </div>
         <SelectField
           id="priceChangePolicyType"
@@ -92,7 +96,10 @@ export function PolicyPriceProgressionSection({
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div className="flex items-center justify-between border-b border-border pb-2 mb-4">
-        <h3 className="text-sm font-semibold text-foreground">Price Progression</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-foreground">Price Progression</h3>
+          {groupDescription && <PolicyInfoButton description={groupDescription} />}
+        </div>
         <button
           type="button"
           onClick={add}

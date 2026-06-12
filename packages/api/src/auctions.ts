@@ -84,6 +84,7 @@ export interface AuctionCreationRQ {
   tags?: string[];
   subCategories?: string[];
   unit?: AuctionUnitBody;
+  policies?: Record<string, PolicyItemRQ[]>;
 }
 
 export interface AuctionUpdationRQ {
@@ -142,9 +143,7 @@ export interface PolicyItemRQ {
   kth?: number;
 }
 
-export interface AuctionPoliciesGroupRQ {
-  policies: Record<string, PolicyItemRQ[]>;
-}
+export type AuctionPoliciesGroupRQ = Record<string, PolicyItemRQ[]>;
 
 /** Model endpoints return arrays of single-key objects: [{ "KEY": "Label" }, ...] */
 export type AuctionModelEntry = Record<string, string>;

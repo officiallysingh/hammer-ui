@@ -8,6 +8,7 @@ import {
   DayHourDropdowns,
   NameDescriptionFields,
   POLICY_DEFAULTS,
+  PolicyInfoButton,
   SELECT_CLS,
   SortButtons,
   moveItem,
@@ -21,6 +22,7 @@ interface Props {
   precision: number;
   currencyUnit: string;
   fieldErrors: Record<string, string>;
+  groupDescription?: string;
 }
 
 const EMPTY_ITEM: ParticipationEligibilityItem = {
@@ -41,6 +43,7 @@ export function PolicyParticipationSection({
   precision,
   currencyUnit,
   fieldErrors,
+  groupDescription,
 }: Props) {
   const usedTypes = policies.map((p) => p.type).filter(Boolean);
 
@@ -65,7 +68,12 @@ export function PolicyParticipationSection({
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div className="flex items-center justify-between border-b border-border pb-2 mb-4">
-        <h3 className="text-sm font-semibold text-foreground">Participation Eligibility Policy</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-foreground">
+            Participation Eligibility Policy
+          </h3>
+          {groupDescription && <PolicyInfoButton description={groupDescription} />}
+        </div>
         {usedTypes.length < options.length && (
           <button
             type="button"
@@ -137,7 +145,10 @@ export function PolicyParticipationSection({
                       }}
                       className={SELECT_CLS}
                     >
-                      <option value="" disabled>
+                      <option
+                        value=""
+                        disabled={policies.some((p, idx) => p.type === '' && idx !== i)}
+                      >
                         Any one can participate
                       </option>
                       {options.map((opt) => (

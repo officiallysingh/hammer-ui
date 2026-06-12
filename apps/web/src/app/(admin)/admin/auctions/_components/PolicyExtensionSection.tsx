@@ -3,7 +3,7 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
 import { FieldError, SelectField, SelectOption } from './AuctionShared';
-import { POLICY_DEFAULTS, SELECT_CLS } from './PolicyShared';
+import { POLICY_DEFAULTS, PolicyInfoButton, SELECT_CLS } from './PolicyShared';
 
 interface Props {
   extensionEnabled: boolean;
@@ -18,6 +18,7 @@ interface Props {
   onFieldChange: (field: string, value: string) => void;
   options: SelectOption[];
   fieldErrors: Record<string, string>;
+  groupDescription?: string;
 }
 
 const REFERENCE_OPTIONS: SelectOption[] = [
@@ -38,11 +39,15 @@ export function PolicyExtensionSection({
   onFieldChange,
   options,
   fieldErrors,
+  groupDescription,
 }: Props) {
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div className="flex items-center justify-between border-b border-border pb-2 mb-4">
-        <h3 className="text-sm font-semibold text-foreground">Extension</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-foreground">Extension</h3>
+          {groupDescription && <PolicyInfoButton description={groupDescription} />}
+        </div>
         {!extensionEnabled ? (
           <button
             type="button"

@@ -201,6 +201,8 @@ export default function EditAuctionPage() {
   const validateStep1 = (): Record<string, string> => {
     const errs: Record<string, string> = {};
     if (!step1.title.trim()) errs.title = 'Title is required.';
+    else if (step1.title.trim().length < 5) errs.title = 'Title must be at least 5 characters.';
+    else if (step1.title.trim().length > 100) errs.title = 'Title must be at most 100 characters.';
     if (!step1.format) errs.format = 'Format is required.';
     if (!step1.accessibility) errs.accessibility = 'Accessibility is required.';
     if (!step1.direction) errs.direction = 'Direction is required.';
@@ -501,7 +503,7 @@ export default function EditAuctionPage() {
     try {
       const policies = buildPolicies();
       if (Object.keys(policies).length > 0) {
-        await auctionsApi.setAuctionPolicyGroups(id, { policies });
+        await auctionsApi.setAuctionPolicyGroups(id, policies);
       }
       router.push('/admin/auctions');
     } catch (err) {

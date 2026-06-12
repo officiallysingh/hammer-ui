@@ -102,6 +102,8 @@ export function AuctionStep1Details({
               value={form.title}
               onChange={(e) => onChange({ title: e.target.value })}
               placeholder="e.g. Samsung TV"
+              minLength={5}
+              maxLength={100}
             />
             <FieldError message={fieldErrors.title} />
           </div>

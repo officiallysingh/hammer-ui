@@ -48,6 +48,7 @@ export default function NewAuctionPage() {
   // Step 1
   const [step1, setStep1] = useState<Step1State>(initialStep1);
   const [step1Errors, setStep1Errors] = useState<Record<string, string>>({});
+  const [step1GeneralError, setStep1GeneralError] = useState<string | null>(null);
 
   // Step 2
   const [step2, setStep2] = useState<Step2State>(initialStep2);
@@ -106,6 +107,8 @@ export default function NewAuctionPage() {
   const validateStep1 = (): Record<string, string> => {
     const errs: Record<string, string> = {};
     if (!step1.title.trim()) errs.title = 'Title is required.';
+    else if (step1.title.trim().length < 5) errs.title = 'Title must be at least 5 characters.';
+    else if (step1.title.trim().length > 100) errs.title = 'Title must be at most 100 characters.';
     if (!step1.format) errs.format = 'Format is required.';
     if (!step1.accessibility) errs.accessibility = 'Accessibility is required.';
     if (!step1.direction) errs.direction = 'Direction is required.';
@@ -123,6 +126,7 @@ export default function NewAuctionPage() {
 
   const handleStep1Submit = (e: React.FormEvent) => {
     e.preventDefault();
+    setStep1GeneralError(null);
     const errs = validateStep1();
     if (Object.keys(errs).length) {
       setStep1Errors(errs);
@@ -211,8 +215,33 @@ export default function NewAuctionPage() {
       setStep(3);
     } catch (err) {
       const parsed = parseApiError(err);
-      if (Object.keys(parsed.fieldErrors).length) setStep2Errors(parsed.fieldErrors);
-      else setStep2GeneralError(parsed.general ?? 'Failed to create auction.');
+      const step1FieldNames = new Set([
+        'title',
+        'format',
+        'accessibility',
+        'direction',
+        'dimension',
+        'participantVisibility',
+        'offerVisibility',
+        'currencyUnit',
+        'precision',
+        'roundingMode',
+      ]);
+      const s1Errs: Record<string, string> = {};
+      const s2Errs: Record<string, string> = {};
+      for (const [k, v] of Object.entries(parsed.fieldErrors)) {
+        if (step1FieldNames.has(k)) s1Errs[k] = v;
+        else s2Errs[k] = v;
+      }
+      if (Object.keys(s1Errs).length) {
+        setStep1Errors(s1Errs);
+        setStep1GeneralError('Please correct the highlighted fields.');
+        setStep(1);
+      } else if (Object.keys(s2Errs).length) {
+        setStep2Errors(s2Errs);
+      } else {
+        setStep2GeneralError(parsed.general ?? 'Failed to create auction.');
+      }
     } finally {
       setSavingStep2(false);
     }
@@ -400,7 +429,7 @@ export default function NewAuctionPage() {
     try {
       const policies = buildPolicies();
       if (Object.keys(policies).length > 0) {
-        await auctionsApi.setAuctionPolicyGroups(createdAuctionId, { policies });
+        await auctionsApi.setAuctionPolicyGroups(createdAuctionId, policies);
       }
       router.push('/admin/auctions');
     } catch (err) {
@@ -432,8 +461,19 @@ export default function NewAuctionPage() {
       {step === 1 && (
         <AuctionStep1Details
           form={step1}
-          onChange={(u) => setStep1((prev) => ({ ...prev, ...u }))}
+          onChange={(u) => {
+            setStep1((prev) => ({ ...prev, ...u }));
+            const changed = Object.keys(u) as (keyof Step1State)[];
+            if (changed.some((f) => step1Errors[f])) {
+              setStep1Errors((prev) => {
+                const next = { ...prev };
+                changed.forEach((f) => delete next[f]);
+                return next;
+              });
+            }
+          }}
           fieldErrors={step1Errors}
+          generalError={step1GeneralError}
           formats={formats}
           accessibilityTypes={accessibilityTypes}
           directionTypes={directionTypes}
@@ -450,7 +490,17 @@ export default function NewAuctionPage() {
       {step === 2 && (
         <AuctionStep2Units
           form={step2}
-          onChange={(u) => setStep2((prev) => ({ ...prev, ...u }))}
+          onChange={(u) => {
+            setStep2((prev) => ({ ...prev, ...u }));
+            const changed = Object.keys(u);
+            if (changed.some((f) => step2Errors[f])) {
+              setStep2Errors((prev) => {
+                const next = { ...prev };
+                changed.forEach((f) => delete next[f]);
+                return next;
+              });
+            }
+          }}
           fieldErrors={step2Errors}
           generalError={step2GeneralError}
           saving={savingStep2}

@@ -3,7 +3,7 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
 import { FieldError, SelectField, SelectOption } from './AuctionShared';
-import { POLICY_DEFAULTS, ordinalSuffix } from './PolicyShared';
+import { POLICY_DEFAULTS, PolicyInfoButton, ordinalSuffix } from './PolicyShared';
 
 interface WinnerBlockProps {
   title: string;
@@ -17,6 +17,7 @@ interface WinnerBlockProps {
   options: SelectOption[];
   fieldPrefix: string;
   fieldErrors: Record<string, string>;
+  groupDescription?: string;
 }
 
 function WinnerBlock({
@@ -31,6 +32,7 @@ function WinnerBlock({
   options,
   fieldPrefix,
   fieldErrors,
+  groupDescription,
 }: WinnerBlockProps) {
   const added = type !== '';
   const kthNum = parseInt(kth, 10) || 1;
@@ -42,7 +44,10 @@ function WinnerBlock({
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div className="flex items-center justify-between border-b border-border pb-2 mb-4">
-        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          {groupDescription && <PolicyInfoButton description={groupDescription} />}
+        </div>
         {!added ? (
           <button
             type="button"
@@ -153,6 +158,8 @@ interface Props {
   winnerDeterminationOptions: SelectOption[];
   winnerPriceOptions: SelectOption[];
   fieldErrors: Record<string, string>;
+  winnerGroupInfo?: string;
+  winnerPriceGroupInfo?: string;
 }
 
 export function PolicyWinnerSection({
@@ -172,6 +179,8 @@ export function PolicyWinnerSection({
   winnerDeterminationOptions,
   winnerPriceOptions,
   fieldErrors,
+  winnerGroupInfo,
+  winnerPriceGroupInfo,
 }: Props) {
   return (
     <>
@@ -187,6 +196,7 @@ export function PolicyWinnerSection({
         options={winnerDeterminationOptions}
         fieldPrefix="winnerDetermination"
         fieldErrors={fieldErrors}
+        groupDescription={winnerGroupInfo}
       />
       <WinnerBlock
         title="Winner Price Determination"
@@ -200,6 +210,7 @@ export function PolicyWinnerSection({
         options={winnerPriceOptions}
         fieldPrefix="winnerPriceDetermination"
         fieldErrors={fieldErrors}
+        groupDescription={winnerPriceGroupInfo}
       />
     </>
   );
