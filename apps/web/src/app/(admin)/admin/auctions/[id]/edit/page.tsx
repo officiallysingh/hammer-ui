@@ -3,6 +3,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { auctionsApi, AuctionUpdationRQ, AuctionUnitType, PolicyItemRQ } from '@repo/api';
+import { ArrowLeft, Loader2 } from 'lucide-react';
+import { Button } from '@repo/ui';
+import PageHeader from '@/components/common/admin/PageHeader';
+import { parseApiError } from '@/lib/api-errors';
+import { SelectOption } from '../../_components/AuctionShared';
+import { AuctionStepIndicator } from '../../_components/AuctionStepIndicator';
+import { AuctionStep1Details, Step1State } from '../../_components/AuctionStep1Details';
+import { AuctionStep2Units, Step2State } from '../../_components/AuctionStep2Units';
+import { AuctionStep3Policies, initialStep3 } from '../../_components/AuctionStep3Policies';
+import type { Step3State } from '../../_components/AuctionStep3Types';
 
 function buildDurationFromDaysHours(days: string, hours: string): string {
   const d = parseInt(days, 10) || 0;
@@ -18,19 +28,126 @@ function buildWindowDuration(hours: string, minutes: string): string {
   if (m > 0) return `PT${m}M`;
   return 'PT0S';
 }
-import { ArrowLeft, Loader2 } from 'lucide-react';
-import { Button } from '@repo/ui';
-import PageHeader from '@/components/common/admin/PageHeader';
-import { parseApiError } from '@/lib/api-errors';
-import { SelectOption } from '../../_components/AuctionShared';
-import { AuctionStepIndicator } from '../../_components/AuctionStepIndicator';
-import { AuctionStep1Details, Step1State } from '../../_components/AuctionStep1Details';
-import { AuctionStep2Units, Step2State } from '../../_components/AuctionStep2Units';
-import {
-  AuctionStep3Policies,
-  Step3State,
-  initialStep3,
-} from '../../_components/AuctionStep3Policies';
+
+function parseDurationHours(duration: string): { days: string; hours: string } {
+  const match = duration.match(/PT(\d+)H/);
+  return { days: '0', hours: match ? match[1]! : '0' };
+}
+
+function parseDurationWindow(duration: string): { hours: string; minutes: string } {
+  const h = duration.match(/(\d+)H/);
+  const m = duration.match(/(\d+)M/);
+  return { hours: h ? h[1]! : '0', minutes: m ? m[1]! : '0' };
+}
+
+function parseDurationMinutes(duration: string): string {
+  const m = duration.match(/(\d+)M/);
+  return m ? m[1]! : '10';
+}
+
+function mapPoliciesToStep3(groups: Record<string, PolicyItemRQ[]>): Partial<Step3State> {
+  const out: Partial<Step3State> = {};
+
+  const participation = groups['PARTICIPATION_ELIGIBILITY'];
+  if (participation?.length) {
+    out.participationPolicies = participation.map((p) => {
+      const { days, hours } = parseDurationHours(p.preStartDeadlineDuration ?? 'PT0S');
+      return {
+        name: p.name ?? '',
+        description: p.description ?? '',
+        type: p.type,
+        basis: (p.basis ?? '') as 'FIXED_AMOUNT' | 'PERCENTAGE' | '',
+        value: String(p.value ?? ''),
+        deadlineDays: days,
+        deadlineHours: hours,
+      };
+    });
+  }
+
+  const preconditions = groups['PRECONDITION'];
+  if (preconditions?.length) {
+    out.preconditions = preconditions.map((p) => {
+      const { days, hours } = parseDurationHours(p.preStartValidationDuration ?? 'PT0S');
+      return {
+        name: p.name ?? '',
+        description: p.description ?? '',
+        type: p.type,
+        count: String(p.count ?? ''),
+        validationDays: days,
+        validationHours: hours,
+      };
+    });
+  }
+
+  const offerBased = groups['OFFER_BASED_PRICE_CHANGE'];
+  if (offerBased?.length) {
+    out.priceChangePolicies = offerBased.map((p) => {
+      const { hours, minutes } = parseDurationWindow(p.windowDuration ?? 'PT0S');
+      return {
+        name: p.name ?? '',
+        description: p.description ?? '',
+        type: p.type,
+        windowHours: hours,
+        windowMinutes: minutes,
+        steps: p.steps ?? [],
+        value: String(p.value ?? ''),
+      };
+    });
+  }
+
+  const clockBased = groups['CLOCK_BASED_PRICE_CHANGE'];
+  if (clockBased?.length) {
+    out.priceChangePolicyType = clockBased[0]!.type;
+  }
+
+  const extension = groups['EXTENSION'] ?? groups['AUCTION_EXTENSION'];
+  if (extension?.length) {
+    const ext = extension[0]!;
+    out.extensionEnabled = true;
+    out.extensionType = ext.type;
+    out.extensionName = ext.name ?? '';
+    out.extensionDescription = ext.description ?? '';
+    out.extensionReference = ext.reference ?? 'FROM_LATEST_OFFER_TIME';
+    out.extensionDurationMinutes = parseDurationMinutes(ext.duration ?? 'PT10M');
+    out.extensionLimit = String(ext.limit ?? 0);
+  }
+
+  const winnerDet = groups['WINNER_DETERMINATION'];
+  if (winnerDet?.length) {
+    const w = winnerDet[0]!;
+    out.winnerDeterminationType = w.type;
+    out.winnerDeterminationKth = String(w.kth ?? 1);
+    out.winnerDeterminationName = w.name ?? '';
+    out.winnerDeterminationDescription = w.description ?? '';
+  }
+
+  const winnerPrice = groups['WINNER_PRICE_DETERMINATION'];
+  if (winnerPrice?.length) {
+    const w = winnerPrice[0]!;
+    out.winnerPriceDeterminationType = w.type;
+    out.winnerPriceDeterminationKth = String(w.kth ?? 1);
+    out.winnerPriceDeterminationName = w.name ?? '';
+    out.winnerPriceDeterminationDescription = w.description ?? '';
+  }
+
+  const clearing = groups['CLEARING'];
+  if (clearing?.length) {
+    const c = clearing[0]!;
+    out.clearingType = c.type;
+    out.clearingName = c.name ?? '';
+    out.clearingDescription = c.description ?? '';
+  }
+
+  const tieBreaking = groups['TIE_BREAKING'];
+  if (tieBreaking?.length) {
+    const t = tieBreaking[0]!;
+    out.tieBreakingType = t.type;
+    out.tieBreakingName = t.name ?? '';
+    out.tieBreakingDescription = t.description ?? '';
+  }
+
+  return out;
+}
 
 /** Normalises API fields that arrive as either a plain string or { KEY: "Label" } */
 function resolveStr(value: unknown): string {
@@ -41,6 +158,15 @@ function resolveStr(value: unknown): string {
     if (entries.length > 0) return String(entries[0]![0]);
   }
   return String(value);
+}
+
+/** Derives the UI priceProgression value from the stored auction type key */
+function derivePriceProgression(auctionType: string): string {
+  if (auctionType.includes('CLOCK_BASED')) return 'CLOCK_BASED';
+  if (auctionType.includes('STEP_PRICED')) return 'STEP_BASED';
+  if (auctionType.includes('FIXED_PERCENTAGE')) return 'FIXED_PERCENTAGE';
+  if (auctionType.includes('PERCENTAGE_RANGE')) return 'PERCENTAGE_RANGE';
+  return '';
 }
 
 export default function EditAuctionPage() {
@@ -148,8 +274,9 @@ export default function EditAuctionPage() {
       .finally(() => setLoadingUnitTypes(false));
 
     auctionsApi
-      .getAuctionById(id)
+      .getAuctionById(id, ['policies'])
       .then((auction) => {
+        const resolvedType = resolveStr(auction.type);
         const loaded: Step1State = {
           title: auction.title ?? '',
           description: auction.description ?? '',
@@ -157,7 +284,7 @@ export default function EditAuctionPage() {
           format: resolveStr(auction.format),
           accessibility: resolveStr(auction.protocol?.accessibility),
           direction: resolveStr(auction.protocol?.direction),
-          priceProgression: '',
+          priceProgression: derivePriceProgression(resolvedType),
           dimension: resolveStr(auction.protocol?.dimension),
           participantVisibility: resolveStr(auction.protocol?.participantVisibility),
           offerVisibility: resolveStr(auction.protocol?.offerVisibility),
@@ -167,15 +294,27 @@ export default function EditAuctionPage() {
         };
         setStep1(loaded);
         setOriginalStep1(loaded);
-        if (auction.type) setAuctionType(resolveStr(auction.type));
+        if (resolvedType) setAuctionType(resolvedType);
 
-        if (auction.units?.length) {
-          const u = auction.units[0]!;
-          const isSingle = u.type === 'SINGLE_UNIT';
-          const unitType = u.type;
-          const openingPrice = String(u.openingPrice ?? '');
-          const item = isSingle ? (u.item ?? '') : '';
-          const items = isSingle ? [] : (u.items ?? []);
+        // API may return unit as a singular object or as units[] array
+        const rawUnit = auction.unit ?? auction.units?.[0];
+        if (rawUnit) {
+          const unitType = resolveStr(rawUnit.type);
+          const isSingle = unitType === 'SINGLE_UNIT';
+          const openingPrice = String(rawUnit.openingPrice ?? '');
+          // item may arrive as a string id or as an object {id, name, ...}
+          const rawItem = rawUnit.item;
+          const item = isSingle
+            ? typeof rawItem === 'object' && rawItem !== null
+              ? (rawItem as { id: string }).id
+              : ((rawItem as string | undefined) ?? '')
+            : '';
+          const rawItems = rawUnit.items ?? [];
+          const items = isSingle
+            ? []
+            : rawItems.map((it) =>
+                typeof it === 'object' && it !== null ? (it as { id: string }).id : (it as string),
+              );
           setStep2({
             unitType,
             openingPrice,
@@ -183,13 +322,23 @@ export default function EditAuctionPage() {
             itemName: '',
             itemSummary: null,
             items,
-            itemNames: isSingle ? [] : (u.items?.map(() => '') ?? []),
+            itemNames: isSingle ? [] : items.map(() => ''),
             itemSummaries: [],
             categories: [],
             subCategories: [],
             tags: [],
           });
           origStep2Ref.current = { unitType, openingPrice, item, items };
+        }
+
+        // Populate Step 3 from expanded policies (may be under policyGroups or policies)
+        const groups =
+          auction.policyGroups ??
+          (auction.policies && !('basePrice' in auction.policies)
+            ? (auction.policies as unknown as Record<string, PolicyItemRQ[]>)
+            : undefined);
+        if (groups && Object.keys(groups).length > 0) {
+          setStep3((prev) => ({ ...prev, ...mapPoliciesToStep3(groups) }));
         }
       })
       .catch(() => setStep1GeneralError('Failed to load auction.'))
@@ -587,7 +736,7 @@ export default function EditAuctionPage() {
               precision={parseInt(step1.precision, 10) || 0}
               onSubmit={handleStep2Submit}
               onBack={() => setStep(1)}
-              onSkip={!hasStep2Changes ? () => router.push('/admin/auctions') : undefined}
+              onSkip={!hasStep2Changes ? () => setStep(3) : undefined}
               submitLabel="Next"
               submitWithArrow
             />

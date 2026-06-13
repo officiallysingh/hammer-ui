@@ -35,6 +35,15 @@ export interface AuctionUnit {
   items?: string[];
 }
 
+export interface AuctionUnitVM {
+  id?: string;
+  type?: AuctionUnitType | Record<string, string>;
+  openingPrice?: number;
+  standingPrice?: number;
+  item?: string | { id: string; name: string; description?: string };
+  items?: (string | { id: string; name: string; description?: string })[];
+}
+
 export interface AuctionPolicies {
   basePrice?: number;
   stepPrice?: number;
@@ -53,6 +62,8 @@ export interface AuctionVM {
   monetaryOptions?: AuctionMonetaryOptions;
   schedule?: AuctionSchedule;
   policies?: AuctionPolicies;
+  policyGroups?: Record<string, PolicyItemRQ[]>;
+  unit?: AuctionUnitVM;
   units?: AuctionUnit[];
   blobs?: string[];
   createdAt?: string;
@@ -173,8 +184,10 @@ export const auctionsApi = {
     return response.data;
   },
 
-  getAuctionById: async (id: string): Promise<AuctionVM> => {
-    const response = await apiClient.get<AuctionVM>(`/api/v1/auctions/${id}`);
+  getAuctionById: async (id: string, expand?: string[]): Promise<AuctionVM> => {
+    const response = await apiClient.get<AuctionVM>(`/api/v1/auctions/${id}`, {
+      headers: expand?.length ? { 'x-expand': expand } : undefined,
+    });
     return response.data;
   },
 

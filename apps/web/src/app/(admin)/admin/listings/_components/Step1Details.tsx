@@ -77,7 +77,6 @@ export function Step1Details({
             <Label htmlFor="ls-cat">
               Category <span className="text-destructive">*</span>
             </Label>
-            w{' '}
             <select
               id="ls-cat"
               value={values.categoryId}
