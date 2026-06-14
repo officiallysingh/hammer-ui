@@ -167,7 +167,7 @@ export function PolicyPreconditionsSection({
                     </div>
                   )}
                   <DayHourDropdowns
-                    label="Validation Deadline"
+                    label="Check fulfillment before auction starts"
                     daysValue={pc.validationDays}
                     hoursValue={pc.validationHours}
                     onDaysChange={(v) => update(i, { validationDays: v })}

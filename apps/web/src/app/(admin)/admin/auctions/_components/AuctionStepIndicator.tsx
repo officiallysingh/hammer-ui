@@ -9,7 +9,7 @@ export function AuctionStepIndicator({
   onStepClick?: (step: number) => void;
   editMode?: boolean;
 }) {
-  const steps = ['Details', 'Units', 'Policies'];
+  const steps = ['Details', 'Units', 'Media', 'Policies'];
   return (
     <div className="flex items-center gap-2 mb-6">
       {steps.map((label, i) => {

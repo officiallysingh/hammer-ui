@@ -1,6 +1,7 @@
 'use client';
 
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowRight, Loader2, HelpCircle } from 'lucide-react';
 import { Button, Input, Label } from '@repo/ui';
 import {
   FieldError,
@@ -9,6 +10,93 @@ import {
   PRICE_PROGRESSION_OPTIONS,
   SelectOption,
 } from './AuctionShared';
+
+// Short display labels for rounding modes shown in the dropdown
+const ROUNDING_SHORT: Record<string, string> = {
+  UP: 'UP – Away from zero',
+  DOWN: 'DOWN – Towards zero',
+  CEILING: 'CEILING – Towards +∞',
+  FLOOR: 'FLOOR – Towards −∞',
+  HALF_UP: 'HALF_UP – Nearest, ties up',
+  HALF_DOWN: 'HALF_DOWN – Nearest, ties down',
+  HALF_EVEN: 'HALF_EVEN – Nearest, ties to even',
+};
+
+// Tooltip descriptions shown on the ? icon
+const ROUNDING_DETAIL: Record<string, string> = {
+  UP: 'Rounds away from zero. Always increments the digit before a non-zero discarded fraction. Never decreases the magnitude of the calculated value.',
+  DOWN: 'Rounds towards zero (truncates). Never increments the digit before a discarded fraction. Never increases the magnitude of the calculated value.',
+  CEILING:
+    'Rounds towards positive infinity. For positive results behaves like UP; for negative results behaves like DOWN. Never decreases the calculated value.',
+  FLOOR:
+    'Rounds towards negative infinity. For positive results behaves like DOWN; for negative results behaves like UP. Never increases the calculated value.',
+  HALF_UP:
+    'Rounds to the nearest neighbor; ties go UP. Behaves like UP if the discarded fraction is ≥ 0.5, otherwise like DOWN.',
+  HALF_DOWN:
+    'Rounds to the nearest neighbor; ties go DOWN. Behaves like UP if the discarded fraction is > 0.5, otherwise like DOWN.',
+  HALF_EVEN:
+    "Rounds to the nearest neighbor; ties go to the even neighbor (banker's rounding). Behaves like HALF_UP if the digit left of the discarded fraction is odd, like HALF_DOWN if even.",
+};
+
+function RoundingModeField({
+  value,
+  options,
+  onChange,
+  error,
+  loading,
+}: {
+  value: string;
+  options: SelectOption[];
+  onChange: (v: string) => void;
+  error?: string;
+  loading?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const detail = value ? ROUNDING_DETAIL[value] : null;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-1.5">
+        <Label htmlFor="roundingMode" className="text-sm font-medium">
+          Rounding Mode <span className="text-destructive">*</span>
+        </Label>
+        {detail && (
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="Rounding mode details"
+              onClick={() => setOpen((v) => !v)}
+              onBlur={() => setTimeout(() => setOpen(false), 150)}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <HelpCircle className="h-3.5 w-3.5" />
+            </button>
+            {open && (
+              <div className="absolute left-0 top-5 z-50 w-64 rounded-lg border border-border bg-popover p-3 shadow-lg text-xs text-popover-foreground">
+                {detail}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      <select
+        id="roundingMode"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={loading}
+        className="w-full rounded-md border border-input bg-background px-3 py-[7px] text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+      >
+        <option value="">{loading ? 'Loading...' : 'Select rounding mode...'}</option>
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {ROUNDING_SHORT[opt.value] ?? opt.label}
+          </option>
+        ))}
+      </select>
+      <FieldError message={error} />
+    </div>
+  );
+}
 
 export interface Step1State {
   format: string;
@@ -39,7 +127,7 @@ export const initialStep1: Step1State = {
   offerVisibility: '',
   currencyUnit: 'INR',
   precision: '2',
-  roundingMode: '',
+  roundingMode: 'UP',
 };
 
 interface AuctionStep1DetailsProps {
@@ -253,6 +341,7 @@ export function AuctionStep1Details({
               type="number"
               min={0}
               max={3}
+              readOnly
               value={form.precision}
               onChange={(e) => onChange({ precision: e.target.value })}
               placeholder="e.g. 2"
@@ -260,15 +349,11 @@ export function AuctionStep1Details({
             <FieldError message={fieldErrors.precision} />
           </div>
 
-          <SelectField
-            id="roundingMode"
-            label="Rounding Mode"
-            required
+          <RoundingModeField
             value={form.roundingMode}
             options={roundingModes}
             onChange={(v) => onChange({ roundingMode: v })}
             error={fieldErrors.roundingMode}
-            placeholder="Select rounding mode..."
             loading={loadingOptions}
           />
         </div>

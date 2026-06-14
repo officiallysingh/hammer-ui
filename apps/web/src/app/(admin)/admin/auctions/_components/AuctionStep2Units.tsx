@@ -131,6 +131,18 @@ export function AuctionStep2Units({
     listingsApi
       .getListingById(form.item)
       .then((listing) => {
+        // If we don't have a summary yet (e.g. edit mode pre-load), build one from the full listing
+        if (!form.itemSummary) {
+          const thumbnailBlob = listing.blobs?.find((b) => b.metadata?.['thumbnail'] === 'true');
+          const summary: ListingSummaryVM = {
+            id: listing.id,
+            name: listing.name,
+            description: listing.description,
+            availableQuantity: listing.quantity?.available ?? undefined,
+            thumbnailId: thumbnailBlob?.id ?? null,
+          };
+          onChange({ itemSummary: summary, itemName: listing.name });
+        }
         const subCat = listing.subCategory;
         const subCatId =
           typeof subCat === 'object' && subCat

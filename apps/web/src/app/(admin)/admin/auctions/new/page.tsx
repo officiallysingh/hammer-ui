@@ -22,16 +22,17 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
 import { parseApiError } from '@/lib/api-errors';
+import { useAuthStore } from '@/store/authStore';
 import { SelectOption } from '../_components/AuctionShared';
 import { AuctionStepIndicator } from '../_components/AuctionStepIndicator';
 import { AuctionStep1Details, Step1State, initialStep1 } from '../_components/AuctionStep1Details';
 import { AuctionStep2Units, Step2State, initialStep2 } from '../_components/AuctionStep2Units';
+import { AuctionStep3Media, AuctionUploadedFile } from '../_components/AuctionStep3Media';
 import {
   AuctionStep3Policies,
   Step3State,
   initialStep3,
 } from '../_components/AuctionStep3Policies';
-
 function deriveAuctionType(priceProgression: string, unitType: string): string {
   const isAtomic = unitType === 'SINGLE_UNIT' || unitType === 'BUNDLE';
   if (priceProgression === 'STEP_BASED' && isAtomic) {
@@ -42,6 +43,9 @@ function deriveAuctionType(priceProgression: string, unitType: string): string {
 
 export default function NewAuctionPage() {
   const router = useRouter();
+
+  const { user } = useAuthStore();
+  const username = user?.username ?? 'unknown';
 
   const [step, setStep] = useState(1);
 
@@ -59,11 +63,15 @@ export default function NewAuctionPage() {
   // Step 3
   const [createdAuctionId, setCreatedAuctionId] = useState<string | null>(null);
   const [createdAuctionType, setCreatedAuctionType] = useState('');
+
+  // Step 3 – Media
+  const [mediaUploads, setMediaUploads] = useState<AuctionUploadedFile[]>([]);
+
+  // Step 4 – Policies
   const [step3, setStep3] = useState<Step3State>(initialStep3);
   const [step3Errors, setStep3Errors] = useState<Record<string, string>>({});
   const [step3GeneralError, setStep3GeneralError] = useState<string | null>(null);
   const [savingStep3, setSavingStep3] = useState(false);
-
   // Model options
   const [formats, setFormats] = useState<SelectOption[]>([]);
   const [accessibilityTypes, setAccessibilityTypes] = useState<SelectOption[]>([]);
@@ -510,15 +518,29 @@ export default function NewAuctionPage() {
           onSubmit={handleStep2Submit}
           onBack={() => setStep(1)}
           onSkip={JSON.stringify(step2) === JSON.stringify(initialStep2) ? handleSkip : undefined}
-          submitLabel="Save & Finish"
+          submitLabel="Save & Continue"
+          submitWithArrow
         />
       )}
 
-      {step === 3 && (
+      {step === 3 && createdAuctionId && (
+        <AuctionStep3Media
+          auctionId={createdAuctionId}
+          username={username}
+          uploads={mediaUploads}
+          onUploadsChange={setMediaUploads}
+          onNext={() => setStep(4)}
+          onBack={() => setStep(2)}
+        />
+      )}
+
+      {step === 4 && (
         <AuctionStep3Policies
+          auctionId={createdAuctionId ?? undefined}
           form={step3}
           onChange={(u) => setStep3((prev) => ({ ...prev, ...u }))}
           auctionType={createdAuctionType}
+          direction={step1.direction}
           priceProgression={step1.priceProgression}
           openingPrice={parseFloat(step2.openingPrice) || 0}
           precision={parseInt(step1.precision, 10) || 0}
@@ -527,7 +549,7 @@ export default function NewAuctionPage() {
           generalError={step3GeneralError}
           saving={savingStep3}
           onSubmit={handleStep3Submit}
-          onBack={() => setStep(2)}
+          onBack={() => setStep(3)}
           onSkip={JSON.stringify(step3) === JSON.stringify(initialStep3) ? handleSkip : undefined}
         />
       )}

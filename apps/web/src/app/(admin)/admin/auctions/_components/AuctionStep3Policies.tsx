@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
-import { auctionsApi, PolicyGroup } from '@repo/api';
+import { auctionsApi, PolicyGroup, PolicyItemRQ } from '@repo/api';
 import { Button } from '@repo/ui';
 import { SelectOption } from './AuctionShared';
 import { POLICY_DEFAULTS } from './PolicyShared';
@@ -23,12 +23,198 @@ export type {
 } from './AuctionStep3Types';
 export { initialStep3 } from './AuctionStep3Types';
 
-import type { Step3State } from './AuctionStep3Types';
+import type { Step3State, PriceChangeItem } from './AuctionStep3Types';
+
+// ─── helpers to parse durations ──────────────────────────────────────────────
+
+function parseDurationHours(duration: string): { days: string; hours: string } {
+  const match = duration.match(/PT(\d+)H/);
+  return { days: '0', hours: match ? match[1]! : '0' };
+}
+
+function parseDurationWindow(duration: string): { hours: string; minutes: string } {
+  const h = duration.match(/(\d+)H/);
+  const m = duration.match(/(\d+)M/);
+  return { hours: h ? h[1]! : '0', minutes: m ? m[1]! : '0' };
+}
+
+function parseDurationMinutes(duration: string): string {
+  const m = duration.match(/(\d+)M/);
+  return m ? m[1]! : '10';
+}
+
+/** Map saved policy groups from the API into Step3State fields */
+function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partial<Step3State> {
+  const out: Partial<Step3State> = {};
+
+  const participation = groups['PARTICIPATION_ELIGIBILITY'];
+  if (participation?.length) {
+    out.participationPolicies = participation.map((p) => {
+      const { days, hours } = parseDurationHours(p.preStartDeadlineDuration ?? 'PT0S');
+      return {
+        name: p.name ?? '',
+        description: p.description ?? '',
+        type: p.type,
+        basis: (p.basis ?? '') as 'FIXED_AMOUNT' | 'PERCENTAGE' | '',
+        value: String(p.value ?? ''),
+        deadlineDays: days,
+        deadlineHours: hours,
+      };
+    });
+  }
+
+  const preconditions = groups['PRECONDITION'];
+  if (preconditions?.length) {
+    out.preconditions = preconditions.map((p) => {
+      const { days, hours } = parseDurationHours(p.preStartValidationDuration ?? 'PT0S');
+      return {
+        name: p.name ?? '',
+        description: p.description ?? '',
+        type: p.type,
+        count: String(p.count ?? ''),
+        validationDays: days,
+        validationHours: hours,
+      };
+    });
+  }
+
+  const offerBased = groups['OFFER_BASED_PRICE_CHANGE'];
+  if (offerBased?.length) {
+    out.priceChangePolicies = offerBased.map((p) => {
+      const { hours, minutes } = parseDurationWindow(p.windowDuration ?? 'PT0S');
+      return {
+        name: p.name ?? '',
+        description: p.description ?? '',
+        type: p.type,
+        windowHours: hours,
+        windowMinutes: minutes,
+        steps: p.steps ?? [],
+        value: String(p.value ?? ''),
+      };
+    });
+  }
+
+  const clockBased = groups['CLOCK_BASED_PRICE_CHANGE'];
+  if (clockBased?.length) {
+    out.priceChangePolicyType = clockBased[0]!.type;
+  }
+
+  const extension = groups['EXTENSION'] ?? groups['AUCTION_EXTENSION'];
+  if (extension?.length) {
+    const ext = extension[0]!;
+    out.extensionEnabled = true;
+    out.extensionType = ext.type;
+    out.extensionName = ext.name ?? '';
+    out.extensionDescription = ext.description ?? '';
+    out.extensionReference = ext.reference ?? 'FROM_LATEST_OFFER_TIME';
+    out.extensionDurationMinutes = parseDurationMinutes(ext.duration ?? 'PT10M');
+    out.extensionLimit = String(ext.limit ?? 0);
+  }
+
+  const winnerDet = groups['WINNER_DETERMINATION'];
+  if (winnerDet?.length) {
+    const w = winnerDet[0]!;
+    out.winnerDeterminationType = w.type;
+    out.winnerDeterminationKth = String(w.kth ?? 1);
+    out.winnerDeterminationName = w.name ?? '';
+    out.winnerDeterminationDescription = w.description ?? '';
+  }
+
+  const winnerPrice = groups['WINNER_PRICE_DETERMINATION'];
+  if (winnerPrice?.length) {
+    const w = winnerPrice[0]!;
+    out.winnerPriceDeterminationType = w.type;
+    out.winnerPriceDeterminationKth = String(w.kth ?? 1);
+    out.winnerPriceDeterminationName = w.name ?? '';
+    out.winnerPriceDeterminationDescription = w.description ?? '';
+  }
+
+  const clearing = groups['CLEARING'];
+  if (clearing?.length) {
+    const c = clearing[0]!;
+    out.clearingType = c.type;
+    out.clearingName = c.name ?? '';
+    out.clearingDescription = c.description ?? '';
+  }
+
+  const tieBreaking = groups['TIE_BREAKING'];
+  if (tieBreaking?.length) {
+    const t = tieBreaking[0]!;
+    out.tieBreakingType = t.type;
+    out.tieBreakingName = t.name ?? '';
+    out.tieBreakingDescription = t.description ?? '';
+  }
+
+  return out;
+}
+
+/** For mandatory groups: seed one empty item if the group exists but form is empty */
+function seedMandatoryDefaults(current: Step3State, groups: PolicyGroup[]): Partial<Step3State> {
+  const patch: Partial<Step3State> = {};
+  const hasGroup = (name: string) => groups.some((g) => g.name === name);
+  const firstOption = (name: string): string => {
+    const g = groups.find((g) => g.name === name);
+    if (!g?.types.length) return '';
+    return Object.keys(g.types[0]!)[0] ?? '';
+  };
+
+  // Price Progression — mandatory
+  const isStepBased = hasGroup('OFFER_BASED_PRICE_CHANGE');
+  const isClockBased = hasGroup('CLOCK_BASED_PRICE_CHANGE');
+  if (isStepBased && current.priceChangePolicies.length === 0) {
+    const firstType = firstOption('OFFER_BASED_PRICE_CHANGE');
+    const defaults = firstType ? POLICY_DEFAULTS[firstType] : undefined;
+    const item: PriceChangeItem = {
+      type: firstType,
+      name: defaults?.name ?? '',
+      description: defaults?.description ?? '',
+      windowHours: '0',
+      windowMinutes: '0',
+      steps: [],
+      value: '',
+    };
+    patch.priceChangePolicies = [item];
+  }
+  if (isClockBased && !current.priceChangePolicyType) {
+    patch.priceChangePolicyType = firstOption('CLOCK_BASED_PRICE_CHANGE');
+  }
+
+  // Winner Determination — mandatory
+  if (hasGroup('WINNER_DETERMINATION') && !current.winnerDeterminationType) {
+    const firstType = firstOption('WINNER_DETERMINATION');
+    const defaults = firstType ? POLICY_DEFAULTS[firstType] : undefined;
+    patch.winnerDeterminationType = firstType;
+    patch.winnerDeterminationName = defaults?.name ?? '';
+    patch.winnerDeterminationDescription = defaults?.description ?? '';
+  }
+
+  // Winner Price Determination — mandatory
+  if (hasGroup('WINNER_PRICE_DETERMINATION') && !current.winnerPriceDeterminationType) {
+    const firstType = firstOption('WINNER_PRICE_DETERMINATION');
+    const defaults = firstType ? POLICY_DEFAULTS[firstType] : undefined;
+    patch.winnerPriceDeterminationType = firstType;
+    patch.winnerPriceDeterminationName = defaults?.name ?? '';
+    patch.winnerPriceDeterminationDescription = defaults?.description ?? '';
+  }
+
+  // Clearing — mandatory
+  if (hasGroup('CLEARING') && !current.clearingType) {
+    const firstType = firstOption('CLEARING');
+    const defaults = firstType ? POLICY_DEFAULTS[firstType] : undefined;
+    patch.clearingType = firstType;
+    patch.clearingName = defaults?.name ?? '';
+    patch.clearingDescription = defaults?.description ?? '';
+  }
+
+  return patch;
+}
 
 interface AuctionStep3PoliciesProps {
+  auctionId?: string;
   form: Step3State;
   onChange: (updates: Partial<Step3State>) => void;
   auctionType: string;
+  direction: string;
   priceProgression: string;
   openingPrice: number;
   precision: number;
@@ -43,9 +229,11 @@ interface AuctionStep3PoliciesProps {
 }
 
 export function AuctionStep3Policies({
+  auctionId,
   form,
   onChange,
   auctionType,
+  direction,
   priceProgression,
   openingPrice,
   precision,
@@ -60,15 +248,43 @@ export function AuctionStep3Policies({
 }: AuctionStep3PoliciesProps) {
   const [groups, setGroups] = useState<PolicyGroup[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
+  // Track whether we've already seeded defaults so we only do it once
+  const seededRef = useRef(false);
 
   useEffect(() => {
     if (!auctionType) return;
-    auctionsApi
-      .getPolicyGroups(auctionType)
-      .then(setGroups)
+    seededRef.current = false;
+
+    Promise.all([
+      auctionsApi.getPolicyGroups(auctionType),
+      // Fetch saved policies if we have an auctionId (create flow: auction was just saved)
+      auctionId
+        ? auctionsApi.getAuctionById(auctionId, ['policies']).catch(() => null)
+        : Promise.resolve(null),
+    ])
+      .then(([fetchedGroups, auction]) => {
+        setGroups(fetchedGroups);
+
+        if (seededRef.current) return;
+        seededRef.current = true;
+
+        let patch: Partial<Step3State> = {};
+
+        // If the auction has saved policy groups, restore them
+        const savedGroups = auction?.policyGroups;
+        if (savedGroups && Object.keys(savedGroups).length > 0) {
+          patch = mapSavedPolicies(savedGroups);
+        }
+
+        // Then seed any mandatory groups that are still empty after restore
+        const merged: Step3State = { ...form, ...patch };
+        const mandatoryPatch = seedMandatoryDefaults(merged, fetchedGroups);
+        onChange({ ...patch, ...mandatoryPatch });
+      })
       .catch(() => setGroups([]))
       .finally(() => setLoadingGroups(false));
-  }, [auctionType]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auctionType, auctionId]);
 
   const getGroupOptions = (groupName: string): SelectOption[] => {
     const group = groups.find((g) => g.name === groupName);
@@ -187,6 +403,7 @@ export function AuctionStep3Policies({
       {/* Winner Determination + Winner Price Determination */}
       {(hasGroup('WINNER_DETERMINATION') || hasGroup('WINNER_PRICE_DETERMINATION')) && (
         <PolicyWinnerSection
+          direction={direction}
           winnerDeterminationType={form.winnerDeterminationType}
           winnerDeterminationKth={form.winnerDeterminationKth}
           winnerDeterminationName={form.winnerDeterminationName}

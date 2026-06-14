@@ -95,6 +95,15 @@ export function ordinalSuffix(n: string): string {
   return `${num}th`;
 }
 
+/** Direction-aware rank label: FORWARD = "Highest", "2nd Highest"…  REVERSE = "Lowest", "2nd Lowest"… */
+export function ordinalLabel(n: number, direction: string): string {
+  const isForward = direction !== 'REVERSE';
+  const base = isForward ? 'Highest' : 'Lowest';
+  if (n === 1) return base;
+  const suffix = n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`;
+  return `${suffix} ${base}`;
+}
+
 export function SortButtons({
   index,
   total,

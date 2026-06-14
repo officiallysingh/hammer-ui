@@ -216,14 +216,16 @@ export function PolicyParticipationSection({
 
                     {isLast ? (
                       <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Pre-start Deadline</Label>
+                        <Label className="text-xs font-medium">
+                          Deadline before auction starts
+                        </Label>
                         <p className="text-xs text-muted-foreground py-[7px]">
                           No deadline — applies until auction start
                         </p>
                       </div>
                     ) : (
                       <DayHourDropdowns
-                        label="Pre-start Deadline"
+                        label="Deadline before auction starts"
                         daysValue={pp.deadlineDays}
                         hoursValue={pp.deadlineHours}
                         onDaysChange={(v) => update(i, { deadlineDays: v })}

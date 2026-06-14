@@ -172,14 +172,14 @@ export function PolicyPriceProgressionSection({
 
                   {isLast ? (
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Window Duration</Label>
+                      <Label className="text-xs font-medium">Applicable Duration</Label>
                       <p className="text-xs text-muted-foreground py-[7px]">
                         Covers rest of auction
                       </p>
                     </div>
                   ) : (
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Window Duration</Label>
+                      <Label className="text-xs font-medium">Applicable Duration</Label>
                       <div className="flex items-center gap-2 flex-wrap">
                         <select
                           value={pc.windowHours}

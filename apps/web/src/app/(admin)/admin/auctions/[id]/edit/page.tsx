@@ -7,10 +7,12 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
 import { parseApiError } from '@/lib/api-errors';
+import { useAuthStore } from '@/store/authStore';
 import { SelectOption } from '../../_components/AuctionShared';
 import { AuctionStepIndicator } from '../../_components/AuctionStepIndicator';
 import { AuctionStep1Details, Step1State } from '../../_components/AuctionStep1Details';
 import { AuctionStep2Units, Step2State } from '../../_components/AuctionStep2Units';
+import { AuctionStep3Media, AuctionUploadedFile } from '../../_components/AuctionStep3Media';
 import { AuctionStep3Policies, initialStep3 } from '../../_components/AuctionStep3Policies';
 import type { Step3State } from '../../_components/AuctionStep3Types';
 
@@ -173,6 +175,9 @@ export default function EditAuctionPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
+  const { user } = useAuthStore();
+  const username = user?.username ?? 'unknown';
+
   const [pageLoading, setPageLoading] = useState(true);
   const [step, setStep] = useState(1);
 
@@ -230,12 +235,14 @@ export default function EditAuctionPage() {
   const [step2GeneralError, setStep2GeneralError] = useState<string | null>(null);
   const [savingStep2, setSavingStep2] = useState(false);
 
-  // Step 3
+  // Step 3 – Media
+  const [mediaUploads, setMediaUploads] = useState<AuctionUploadedFile[]>([]);
+
+  // Step 4 – Policies
   const [step3, setStep3] = useState<Step3State>(initialStep3);
   const [step3Errors, setStep3Errors] = useState<Record<string, string>>({});
   const [step3GeneralError, setStep3GeneralError] = useState<string | null>(null);
   const [savingStep3, setSavingStep3] = useState(false);
-
   // Model options
   const [formats, setFormats] = useState<SelectOption[]>([]);
   const [accessibilityTypes, setAccessibilityTypes] = useState<SelectOption[]>([]);
@@ -743,14 +750,27 @@ export default function EditAuctionPage() {
           );
         })()}
 
-      {step === 3 &&
+      {step === 3 && (
+        <AuctionStep3Media
+          auctionId={id}
+          username={username}
+          uploads={mediaUploads}
+          onUploadsChange={setMediaUploads}
+          onNext={() => setStep(4)}
+          onBack={() => setStep(2)}
+        />
+      )}
+
+      {step === 4 &&
         (() => {
           const hasStep3Changes = JSON.stringify(step3) !== JSON.stringify(initialStep3);
           return (
             <AuctionStep3Policies
+              auctionId={id}
               form={step3}
               onChange={(u) => setStep3((prev) => ({ ...prev, ...u }))}
               auctionType={auctionType}
+              direction={step1.direction}
               priceProgression={step1.priceProgression}
               openingPrice={parseFloat(step2.openingPrice) || 0}
               precision={parseInt(step1.precision, 10) || 0}
@@ -759,7 +779,7 @@ export default function EditAuctionPage() {
               generalError={step3GeneralError}
               saving={savingStep3}
               onSubmit={handleStep3Submit}
-              onBack={() => setStep(2)}
+              onBack={() => setStep(3)}
               onSkip={!hasStep3Changes ? () => router.push('/admin/auctions') : undefined}
             />
           );
