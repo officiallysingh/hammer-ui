@@ -655,7 +655,7 @@ export function Step2Media({
         const blob = await blobsApi.upload(item.file, {
           bucket: username,
           entityId: listingId,
-          classifier: 'LISTING',
+          classifier: item.classifier === 'DOCUMENT' ? 'LISTING_DOC' : 'LISTING_MEDIA',
           metadata: { thumbnail: 'false' },
         } satisfies BlobProperties);
         // Use uploadsRef.current so any blobMeta edits made during upload are preserved

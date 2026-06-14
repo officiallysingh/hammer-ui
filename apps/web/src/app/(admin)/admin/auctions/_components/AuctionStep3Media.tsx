@@ -641,7 +641,7 @@ export function AuctionStep3Media({
         const blob = await blobsApi.upload(item.file, {
           bucket: username,
           entityId: auctionId,
-          classifier: 'AUCTION',
+          classifier: item.classifier === 'DOCUMENT' ? 'AUCTION_DOC' : 'AUCTION_MEDIA',
           metadata: { thumbnail: 'false' },
         } satisfies BlobProperties);
         onUploadsChange(
