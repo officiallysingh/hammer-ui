@@ -148,13 +148,44 @@ export default function NewAuctionPage() {
 
   const validateStep2 = (): Record<string, string> => {
     const errs: Record<string, string> = {};
-    if (!step2.unitType) errs.unitType = 'Unit type is required.';
+    if (!step2.unitCategory) errs.unitType = 'Unit type is required.';
     if (!step2.openingPrice || isNaN(parseFloat(step2.openingPrice)))
       errs.openingPrice = 'Opening price is required.';
-    if (step2.unitType === 'SINGLE_UNIT' && !step2.item) errs.item = 'A listing is required.';
-    if (step2.unitType && step2.unitType !== 'SINGLE_UNIT' && step2.items.length === 0)
+    if (step2.unitCategory === 'ATOMIC' && step2.items.length === 0)
+      errs.item = 'At least one listing is required.';
+    if (
+      (step2.unitCategory === 'MULTI_UNIT' || step2.unitCategory === 'LOT') &&
+      step2.multiItems.length === 0
+    )
       errs.item = 'At least one listing is required.';
     return errs;
+  };
+
+  const buildUnitBody = () => {
+    if (step2.unitCategory === 'ATOMIC') {
+      const isSingle = step2.unitType === 'SINGLE_UNIT';
+      if (isSingle) {
+        return {
+          type: 'SINGLE_UNIT' as AuctionUnitType,
+          openingPrice: parseFloat(step2.openingPrice),
+          item: step2.item,
+          quantity: parseInt(step2.itemQuantity || '1', 10),
+        };
+      }
+      return {
+        type: 'BUNDLE' as AuctionUnitType,
+        openingPrice: parseFloat(step2.openingPrice),
+        items: step2.items.map((id, i) => ({
+          id,
+          quantity: parseInt(step2.itemQuantities[i] || '1', 10),
+        })),
+      };
+    }
+    return {
+      type: step2.unitType as AuctionUnitType,
+      openingPrice: parseFloat(step2.openingPrice),
+      items: step2.multiItems.map((id) => ({ id, quantity: 1 })),
+    };
   };
 
   const handleStep2Submit = async (e: React.FormEvent) => {
@@ -168,8 +199,8 @@ export default function NewAuctionPage() {
     setStep2Errors({});
     setSavingStep2(true);
     try {
-      const isSingle = step2.unitType === 'SINGLE_UNIT';
-      const auctionType = deriveAuctionType(step1.priceProgression, step2.unitType);
+      const effectiveUnitType = step2.unitType || step2.unitCategory;
+      const auctionType = deriveAuctionType(step1.priceProgression, effectiveUnitType);
       if (!auctionType) {
         setStep2GeneralError(
           'This price progression and unit type combination is not yet supported.',
@@ -177,6 +208,7 @@ export default function NewAuctionPage() {
         setSavingStep2(false);
         return;
       }
+      const unitBody = buildUnitBody();
       let auctionId = createdAuctionId;
       if (!auctionId) {
         const payload: AuctionCreationRQ = {
@@ -199,26 +231,17 @@ export default function NewAuctionPage() {
           },
           tags: step2.tags.length ? step2.tags : undefined,
           subCategories: step2.subCategories.length ? step2.subCategories : undefined,
-          unit: {
-            type: step2.unitType as AuctionUnitType,
-            openingPrice: parseFloat(step2.openingPrice),
-            ...(isSingle ? { item: step2.item } : { items: step2.items }),
-          },
+          unit: unitBody,
         };
         auctionId = await auctionsApi.createAuction(payload);
         setCreatedAuctionId(auctionId);
         setCreatedAuctionType(auctionType);
       } else {
-        const updatePayload = {
+        await auctionsApi.updateAuction(auctionId, {
           tags: step2.tags.length ? step2.tags : undefined,
           subCategories: step2.subCategories.length ? step2.subCategories : undefined,
-          unit: {
-            type: step2.unitType as AuctionUnitType,
-            openingPrice: parseFloat(step2.openingPrice),
-            ...(isSingle ? { item: step2.item } : { items: step2.items }),
-          },
-        };
-        await auctionsApi.updateAuction(auctionId, updatePayload);
+          unit: unitBody,
+        });
       }
       setStep(3);
     } catch (err) {

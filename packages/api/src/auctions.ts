@@ -21,11 +21,17 @@ export interface AuctionSchedule {
 
 export type AuctionUnitType = 'SINGLE_UNIT' | 'BUNDLE' | 'MULTI_UNIT' | 'LOT';
 
+export interface AuctionUnitItemBody {
+  id: string;
+  quantity: number;
+}
+
 export interface AuctionUnitBody {
   type: AuctionUnitType;
   openingPrice: number;
+  quantity?: number;
   item?: string; // SINGLE_UNIT
-  items?: string[]; // BUNDLE / MULTI_UNIT / LOT
+  items?: AuctionUnitItemBody[]; // BUNDLE / MULTI_UNIT / LOT
 }
 
 export interface AuctionUnit {
