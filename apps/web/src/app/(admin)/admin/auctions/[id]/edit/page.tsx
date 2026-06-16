@@ -438,13 +438,10 @@ export default function EditAuctionPage() {
         title: step1.title.trim(),
         description: step1.description.trim() || undefined,
         referenceId: step1.referenceId.trim() || undefined,
-        protocol: {
-          accessibility: step1.accessibility,
-          direction: step1.direction,
-          dimension: step1.dimension,
-          participantVisibility: step1.participantVisibility,
-          offerVisibility: step1.offerVisibility,
-        },
+        accessibility: step1.accessibility,
+        direction: step1.direction,
+        participantVisibility: step1.participantVisibility,
+        offerVisibility: step1.offerVisibility,
         monetaryOptions: {
           currencyUnit: step1.currencyUnit.trim().toUpperCase(),
           precision: parseInt(step1.precision, 10),
