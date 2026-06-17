@@ -104,13 +104,6 @@ export interface AuctionCreationRQ {
   policies?: Record<string, PolicyItemRQ[]>;
 }
 
-export interface BlobPropertyRQ {
-  bucket: string;
-  classifier: string;
-  entityId: string;
-  metadata?: Record<string, string>;
-}
-
 export interface AuctionUpdationRQ {
   title?: string;
   description?: string;
@@ -121,8 +114,6 @@ export interface AuctionUpdationRQ {
   offerVisibility?: string;
   monetaryOptions?: Partial<AuctionMonetaryOptions>;
   unit?: AuctionUnitBody;
-  blobs?: string[];
-  blobProperties?: Record<string, BlobPropertyRQ>;
   subCategories?: string[];
   tags?: string[];
 }

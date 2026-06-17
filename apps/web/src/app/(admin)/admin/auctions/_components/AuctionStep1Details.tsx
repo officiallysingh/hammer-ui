@@ -40,10 +40,6 @@ const ROUNDING_DETAIL: Record<string, string> = {
 
 function RoundingModeField({
   value,
-  options,
-  onChange,
-  error,
-  loading,
 }: {
   value: string;
   options: SelectOption[];
@@ -58,7 +54,7 @@ function RoundingModeField({
     <div className="space-y-1.5">
       <div className="flex items-center gap-1.5">
         <Label htmlFor="roundingMode" className="text-sm font-medium">
-          Rounding Mode <span className="text-destructive">*</span>
+          Rounding Mode
         </Label>
         {detail && (
           <div className="relative">
@@ -79,21 +75,13 @@ function RoundingModeField({
           </div>
         )}
       </div>
-      <select
+      <input
         id="roundingMode"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={loading}
-        className="w-full rounded-md border border-input bg-background px-3 py-[7px] text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
-      >
-        <option value="">{loading ? 'Loading...' : 'Select rounding mode...'}</option>
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {ROUNDING_SHORT[opt.value] ?? opt.label}
-          </option>
-        ))}
-      </select>
-      <FieldError message={error} />
+        type="text"
+        readOnly
+        value={ROUNDING_SHORT[value] ?? value}
+        className="w-full rounded-md border border-input bg-muted px-3 py-[7px] text-sm text-muted-foreground cursor-default"
+      />
     </div>
   );
 }

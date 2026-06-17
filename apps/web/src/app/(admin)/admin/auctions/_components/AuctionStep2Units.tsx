@@ -226,44 +226,34 @@ export function AuctionStep2Units({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.items.join(',')]);
 
-  // ── Pre-populate for non-atomic listings ──────────────────────────────────
-  useEffect(() => {
-    if (!form.multiItems.length) return;
-    const last = form.multiItems[form.multiItems.length - 1];
-    if (!last) return;
-    listingsApi
-      .getListingById(last)
-      .then((listing) => {
-        const subCat = listing.subCategory;
-        const subCatId =
-          typeof subCat === 'object' && subCat
-            ? subCat.id
-            : typeof subCat === 'string'
-              ? subCat
-              : '';
-        onChange({
-          categories: listing.category?.id
-            ? [...new Set([...form.categories, listing.category.id])]
-            : form.categories,
-          subCategories: subCatId
-            ? [...new Set([...form.subCategories, subCatId])]
-            : form.subCategories,
-          tags: [...new Set([...form.tags, ...(listing.tags ?? [])])],
-        });
-      })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.multiItems.length]);
-
   // ── Atomic helpers ─────────────────────────────────────────────────────────
 
   /** Add a listing to the atomic bundle list */
-  const addAtomicItem = (id: string, name: string, summary: ListingSummaryVM, quantity = '1') => {
+  const addAtomicItem = async (
+    id: string,
+    name: string,
+    summary: ListingSummaryVM,
+    quantity = '1',
+  ) => {
     if (form.items.includes(id)) return;
     const newItems = [...form.items, id];
     const newNames = [...form.itemNames, name];
     const newSummaries = [...form.itemSummaries, summary];
     const newQtys = [...form.itemQuantities, quantity];
+
+    let cats = [...form.categories];
+    let subCats = [...form.subCategories];
+    let tags = [...form.tags];
+    try {
+      const listing = await listingsApi.getListingById(id);
+      if (listing.category?.id) cats = [...new Set([...cats, listing.category.id])];
+      const subCat = listing.subCategory;
+      const subCatId =
+        typeof subCat === 'object' && subCat ? subCat.id : typeof subCat === 'string' ? subCat : '';
+      if (subCatId) subCats = [...new Set([...subCats, subCatId])];
+      tags = [...new Set([...tags, ...(listing.tags ?? [])])];
+    } catch {}
+
     onChange({
       item: newItems[0] ?? '',
       itemName: newNames[0] ?? '',
@@ -274,6 +264,9 @@ export function AuctionStep2Units({
       itemSummaries: newSummaries,
       itemQuantities: newQtys,
       unitType: deriveAtomicType(newItems.length),
+      categories: cats,
+      subCategories: subCats,
+      tags,
     });
   };
 
@@ -297,12 +290,29 @@ export function AuctionStep2Units({
 
   // ── Non-atomic helpers ─────────────────────────────────────────────────────
 
-  const addMultiItem = (id: string, name: string, summary: ListingSummaryVM) => {
+  const addMultiItem = async (id: string, name: string, summary: ListingSummaryVM) => {
     if (form.multiItems.includes(id)) return;
+
+    let cats = [...form.categories];
+    let subCats = [...form.subCategories];
+    let tags = [...form.tags];
+    try {
+      const listing = await listingsApi.getListingById(id);
+      if (listing.category?.id) cats = [...new Set([...cats, listing.category.id])];
+      const subCat = listing.subCategory;
+      const subCatId =
+        typeof subCat === 'object' && subCat ? subCat.id : typeof subCat === 'string' ? subCat : '';
+      if (subCatId) subCats = [...new Set([...subCats, subCatId])];
+      tags = [...new Set([...tags, ...(listing.tags ?? [])])];
+    } catch {}
+
     onChange({
       multiItems: [...form.multiItems, id],
       multiItemNames: [...form.multiItemNames, name],
       multiItemSummaries: [...form.multiItemSummaries, summary],
+      categories: cats,
+      subCategories: subCats,
+      tags,
     });
   };
 

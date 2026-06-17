@@ -9,10 +9,16 @@ import {
   ListingVM,
   ListingBlobRef,
   CategoryVM,
-  SubCategoryVM,
 } from '@repo/api';
-import { Search, X, ChevronDown, Loader2, Eye, Package, Tag } from 'lucide-react';
+import { Search, X, Loader2, Eye, Package, Tag } from 'lucide-react';
 import { Input, Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@repo/ui';
+import Select from 'react-select';
+import type { MultiValue } from 'react-select';
+import {
+  GroupedSubcategorySelect,
+  makeReactSelectStyles,
+} from '@/components/common/admin/GroupedSubcategorySelect';
+import { SelectOption } from './AuctionShared';
 
 interface Props {
   /** Currently selected listing ID (ignored in addMode) */
@@ -206,7 +212,7 @@ function AddListingModal({
                       { label: 'In Auction', value: qty_.inAuction },
                       { label: 'Sold', value: qty_.sold },
                     ]
-                      .filter((r) => r.value != null)
+                      .filter((r) => typeof r.value === 'number')
                       .map((r) => (
                         <div key={r.label} className="flex justify-between px-3 py-1.5">
                           <span className="text-muted-foreground">{r.label}</span>
@@ -292,31 +298,19 @@ export function ListingSearchField({
 
   // Filters
   const [categories, setCategories] = useState<CategoryVM[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [subCategories, setSubCategories] = useState<SubCategoryVM[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<SelectOption[]>([]);
   const [selectedSubCats, setSelectedSubCats] = useState<string[]>([]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load categories once
+  // Load categories (with subcategories) once
   useEffect(() => {
     masterApi
-      .getCategories()
+      .getCategories(true)
       .then(setCategories)
       .catch(() => {});
   }, []);
-
-  // Load subcategories when category changes
-  useEffect(() => {
-    setSelectedSubCats([]);
-    setSubCategories([]);
-    if (!selectedCategory) return;
-    masterApi
-      .getSubCategoriesByCategory(selectedCategory)
-      .then(setSubCategories)
-      .catch(() => {});
-  }, [selectedCategory]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -351,27 +345,45 @@ export function ListingSearchField({
   const handleQueryChange = (q: string) => {
     setQuery(q);
     setOpen(true);
-    runSearch(q, selectedCategory ? [selectedCategory] : [], selectedSubCats);
+    runSearch(
+      q,
+      selectedCategories.map((c) => c.value),
+      selectedSubCats,
+    );
   };
 
-  const handleCategoryChange = (catId: string) => {
-    setSelectedCategory(catId);
-    setSelectedSubCats([]);
-    runSearch(query, catId ? [catId] : [], []);
+  const handleCategoriesChange = (vals: SelectOption[]) => {
+    setSelectedCategories(vals);
+    const catIds = new Set(vals.map((v) => v.value));
+    const newSubCats = selectedSubCats.filter((id) => {
+      const ownerCat = categories.find((c) => c.subCategories?.some((sc) => sc.id === id));
+      return ownerCat && catIds.has(ownerCat.id);
+    });
+    setSelectedSubCats(newSubCats);
+    runSearch(
+      query,
+      vals.map((v) => v.value),
+      newSubCats,
+    );
   };
 
-  const toggleSubCat = (id: string) => {
-    const next = selectedSubCats.includes(id)
-      ? selectedSubCats.filter((x) => x !== id)
-      : [...selectedSubCats, id];
-    setSelectedSubCats(next);
-    runSearch(query, selectedCategory ? [selectedCategory] : [], next);
+  const handleSubCatsChange = (ids: string[]) => {
+    setSelectedSubCats(ids);
+    runSearch(
+      query,
+      selectedCategories.map((c) => c.value),
+      ids,
+    );
   };
 
   const handleFocus = () => {
     setOpen(true);
     if (!results.length) {
-      runSearch(query, selectedCategory ? [selectedCategory] : [], selectedSubCats);
+      runSearch(
+        query,
+        selectedCategories.map((c) => c.value),
+        selectedSubCats,
+      );
     }
   };
 
@@ -431,47 +443,34 @@ export function ListingSearchField({
 
       <div ref={containerRef} className="space-y-2">
         {/* Filters */}
-        <div className="flex gap-2">
-          {/* Category */}
-          <div className="relative flex-1">
-            <select
-              value={selectedCategory}
-              onChange={(e) => handleCategoryChange(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-[6px] text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="">All categories</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+        <div className="flex gap-2 flex-col sm:flex-row">
+          {/* Categories */}
+          <div className="flex-1">
+            <Select<SelectOption, true>
+              isMulti
+              options={categories.map((c) => ({ value: c.id, label: c.name }))}
+              value={selectedCategories}
+              onChange={(vals: MultiValue<SelectOption>) => handleCategoriesChange([...vals])}
+              placeholder="All categories"
+              styles={makeReactSelectStyles<true>() as never}
+              menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+            />
+          </div>
+          {/* Sub-categories */}
+          <div className="flex-1">
+            <GroupedSubcategorySelect
+              isMulti
+              categories={
+                selectedCategories.length > 0
+                  ? categories.filter((c) => selectedCategories.some((s) => s.value === c.id))
+                  : categories
+              }
+              value={selectedSubCats}
+              onChange={handleSubCatsChange}
+              placeholder="All sub-categories"
+            />
           </div>
         </div>
-
-        {/* Sub-categories (multi-pill) */}
-        {subCategories.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {subCategories.map((sc) => {
-              const sel = selectedSubCats.includes(sc.id);
-              return (
-                <button
-                  key={sc.id}
-                  type="button"
-                  onClick={() => toggleSubCat(sc.id)}
-                  className={`px-2 py-0.5 rounded-full text-xs border transition-colors ${
-                    sel
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-border bg-background text-foreground hover:border-primary/50'
-                  }`}
-                >
-                  {sc.name}
-                </button>
-              );
-            })}
-          </div>
-        )}
 
         {/* Search input */}
         <div className="relative">
