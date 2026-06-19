@@ -29,7 +29,10 @@ import type { Step3State, PriceChangeItem } from './AuctionStep3Types';
 
 function parseDurationHours(duration: string): { days: string; hours: string } {
   const match = duration.match(/PT(\d+)H/);
-  return { days: '0', hours: match ? match[1]! : '0' };
+  const totalHours = match ? parseInt(match[1]!, 10) : 0;
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  return { days: days > 0 ? String(days) : '', hours: String(hours) };
 }
 
 function parseDurationWindow(duration: string): { hours: string; minutes: string } {
@@ -43,6 +46,17 @@ function parseDurationMinutes(duration: string): string {
   return m ? m[1]! : '10';
 }
 
+/** Normalise a field that the API may return as either a plain string or { KEY: "Label" } */
+function resolveType(value: unknown): string {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length > 0) return String(entries[0]![0]);
+  }
+  return String(value);
+}
+
 /** Map saved policy groups from the API into Step3State fields */
 function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partial<Step3State> {
   const out: Partial<Step3State> = {};
@@ -54,8 +68,8 @@ function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partial<Step3
       return {
         name: p.name ?? '',
         description: p.description ?? '',
-        type: p.type,
-        basis: (p.basis ?? '') as 'FIXED_AMOUNT' | 'PERCENTAGE' | '',
+        type: resolveType(p.type),
+        basis: resolveType(p.basis) as 'FIXED_AMOUNT' | 'PERCENTAGE' | '',
         value: String(p.value ?? ''),
         deadlineDays: days,
         deadlineHours: hours,
@@ -70,7 +84,7 @@ function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partial<Step3
       return {
         name: p.name ?? '',
         description: p.description ?? '',
-        type: p.type,
+        type: resolveType(p.type),
         count: String(p.count ?? ''),
         validationDays: days,
         validationHours: hours,
@@ -85,7 +99,7 @@ function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partial<Step3
       return {
         name: p.name ?? '',
         description: p.description ?? '',
-        type: p.type,
+        type: resolveType(p.type),
         windowHours: hours,
         windowMinutes: minutes,
         steps: p.steps ?? [],
@@ -96,17 +110,17 @@ function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partial<Step3
 
   const clockBased = groups['CLOCK_BASED_PRICE_CHANGE'];
   if (clockBased?.length) {
-    out.priceChangePolicyType = clockBased[0]!.type;
+    out.priceChangePolicyType = resolveType(clockBased[0]!.type);
   }
 
   const extension = groups['EXTENSION'] ?? groups['AUCTION_EXTENSION'];
   if (extension?.length) {
     const ext = extension[0]!;
     out.extensionEnabled = true;
-    out.extensionType = ext.type;
+    out.extensionType = resolveType(ext.type);
     out.extensionName = ext.name ?? '';
     out.extensionDescription = ext.description ?? '';
-    out.extensionReference = ext.reference ?? 'FROM_LATEST_OFFER_TIME';
+    out.extensionReference = resolveType(ext.reference) || 'FROM_LATEST_OFFER_TIME';
     out.extensionDurationMinutes = parseDurationMinutes(ext.duration ?? 'PT10M');
     out.extensionLimit = String(ext.limit ?? 0);
   }
@@ -114,7 +128,7 @@ function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partial<Step3
   const winnerDet = groups['WINNER_DETERMINATION'];
   if (winnerDet?.length) {
     const w = winnerDet[0]!;
-    out.winnerDeterminationType = w.type;
+    out.winnerDeterminationType = resolveType(w.type);
     out.winnerDeterminationKth = String(w.kth ?? 1);
     out.winnerDeterminationName = w.name ?? '';
     out.winnerDeterminationDescription = w.description ?? '';
@@ -123,7 +137,7 @@ function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partial<Step3
   const winnerPrice = groups['WINNER_PRICE_DETERMINATION'];
   if (winnerPrice?.length) {
     const w = winnerPrice[0]!;
-    out.winnerPriceDeterminationType = w.type;
+    out.winnerPriceDeterminationType = resolveType(w.type);
     out.winnerPriceDeterminationKth = String(w.kth ?? 1);
     out.winnerPriceDeterminationName = w.name ?? '';
     out.winnerPriceDeterminationDescription = w.description ?? '';
@@ -132,7 +146,7 @@ function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partial<Step3
   const clearing = groups['CLEARING'];
   if (clearing?.length) {
     const c = clearing[0]!;
-    out.clearingType = c.type;
+    out.clearingType = resolveType(c.type);
     out.clearingName = c.name ?? '';
     out.clearingDescription = c.description ?? '';
   }
@@ -140,7 +154,7 @@ function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partial<Step3
   const tieBreaking = groups['TIE_BREAKING'];
   if (tieBreaking?.length) {
     const t = tieBreaking[0]!;
-    out.tieBreakingType = t.type;
+    out.tieBreakingType = resolveType(t.type);
     out.tieBreakingName = t.name ?? '';
     out.tieBreakingDescription = t.description ?? '';
   }
@@ -257,12 +271,11 @@ export function AuctionStep3Policies({
 
     Promise.all([
       auctionsApi.getPolicyGroups(auctionType),
-      // Fetch saved policies if we have an auctionId (create flow: auction was just saved)
       auctionId
-        ? auctionsApi.getAuctionById(auctionId, ['policies']).catch(() => null)
+        ? auctionsApi.getAuctionPolicies(auctionId).catch(() => null)
         : Promise.resolve(null),
     ])
-      .then(([fetchedGroups, auction]) => {
+      .then(([fetchedGroups, savedGroups]) => {
         setGroups(fetchedGroups);
 
         if (seededRef.current) return;
@@ -270,8 +283,6 @@ export function AuctionStep3Policies({
 
         let patch: Partial<Step3State> = {};
 
-        // If the auction has saved policy groups, restore them
-        const savedGroups = auction?.policyGroups;
         if (savedGroups && Object.keys(savedGroups).length > 0) {
           patch = mapSavedPolicies(savedGroups);
         }

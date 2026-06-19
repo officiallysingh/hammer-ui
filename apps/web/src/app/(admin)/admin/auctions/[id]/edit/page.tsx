@@ -11,7 +11,7 @@ import { useAuthStore } from '@/store/authStore';
 import { SelectOption } from '../../_components/AuctionShared';
 import { AuctionStepIndicator } from '../../_components/AuctionStepIndicator';
 import { AuctionStep1Details, Step1State } from '../../_components/AuctionStep1Details';
-import { AuctionStep2Units, Step2State } from '../../_components/AuctionStep2Units';
+import { AuctionStep2Units, Step2State, initialStep2 } from '../../_components/AuctionStep2Units';
 import { AuctionStep3Media, AuctionUploadedFile } from '../../_components/AuctionStep3Media';
 import { AuctionStep3Policies, initialStep3 } from '../../_components/AuctionStep3Policies';
 import type { Step3State } from '../../_components/AuctionStep3Types';
@@ -33,7 +33,10 @@ function buildWindowDuration(hours: string, minutes: string): string {
 
 function parseDurationHours(duration: string): { days: string; hours: string } {
   const match = duration.match(/PT(\d+)H/);
-  return { days: '0', hours: match ? match[1]! : '0' };
+  const totalHours = match ? parseInt(match[1]!, 10) : 0;
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  return { days: days > 0 ? String(days) : '', hours: String(hours) };
 }
 
 function parseDurationWindow(duration: string): { hours: string; minutes: string } {
@@ -57,8 +60,8 @@ function mapPoliciesToStep3(groups: Record<string, PolicyItemRQ[]>): Partial<Ste
       return {
         name: p.name ?? '',
         description: p.description ?? '',
-        type: p.type,
-        basis: (p.basis ?? '') as 'FIXED_AMOUNT' | 'PERCENTAGE' | '',
+        type: resolveStr(p.type),
+        basis: resolveStr(p.basis) as 'FIXED_AMOUNT' | 'PERCENTAGE' | '',
         value: String(p.value ?? ''),
         deadlineDays: days,
         deadlineHours: hours,
@@ -73,7 +76,7 @@ function mapPoliciesToStep3(groups: Record<string, PolicyItemRQ[]>): Partial<Ste
       return {
         name: p.name ?? '',
         description: p.description ?? '',
-        type: p.type,
+        type: resolveStr(p.type),
         count: String(p.count ?? ''),
         validationDays: days,
         validationHours: hours,
@@ -88,7 +91,7 @@ function mapPoliciesToStep3(groups: Record<string, PolicyItemRQ[]>): Partial<Ste
       return {
         name: p.name ?? '',
         description: p.description ?? '',
-        type: p.type,
+        type: resolveStr(p.type),
         windowHours: hours,
         windowMinutes: minutes,
         steps: p.steps ?? [],
@@ -99,17 +102,17 @@ function mapPoliciesToStep3(groups: Record<string, PolicyItemRQ[]>): Partial<Ste
 
   const clockBased = groups['CLOCK_BASED_PRICE_CHANGE'];
   if (clockBased?.length) {
-    out.priceChangePolicyType = clockBased[0]!.type;
+    out.priceChangePolicyType = resolveStr(clockBased[0]!.type);
   }
 
   const extension = groups['EXTENSION'] ?? groups['AUCTION_EXTENSION'];
   if (extension?.length) {
     const ext = extension[0]!;
     out.extensionEnabled = true;
-    out.extensionType = ext.type;
+    out.extensionType = resolveStr(ext.type);
     out.extensionName = ext.name ?? '';
     out.extensionDescription = ext.description ?? '';
-    out.extensionReference = ext.reference ?? 'FROM_LATEST_OFFER_TIME';
+    out.extensionReference = resolveStr(ext.reference) || 'FROM_LATEST_OFFER_TIME';
     out.extensionDurationMinutes = parseDurationMinutes(ext.duration ?? 'PT10M');
     out.extensionLimit = String(ext.limit ?? 0);
   }
@@ -117,7 +120,7 @@ function mapPoliciesToStep3(groups: Record<string, PolicyItemRQ[]>): Partial<Ste
   const winnerDet = groups['WINNER_DETERMINATION'];
   if (winnerDet?.length) {
     const w = winnerDet[0]!;
-    out.winnerDeterminationType = w.type;
+    out.winnerDeterminationType = resolveStr(w.type);
     out.winnerDeterminationKth = String(w.kth ?? 1);
     out.winnerDeterminationName = w.name ?? '';
     out.winnerDeterminationDescription = w.description ?? '';
@@ -126,7 +129,7 @@ function mapPoliciesToStep3(groups: Record<string, PolicyItemRQ[]>): Partial<Ste
   const winnerPrice = groups['WINNER_PRICE_DETERMINATION'];
   if (winnerPrice?.length) {
     const w = winnerPrice[0]!;
-    out.winnerPriceDeterminationType = w.type;
+    out.winnerPriceDeterminationType = resolveStr(w.type);
     out.winnerPriceDeterminationKth = String(w.kth ?? 1);
     out.winnerPriceDeterminationName = w.name ?? '';
     out.winnerPriceDeterminationDescription = w.description ?? '';
@@ -135,7 +138,7 @@ function mapPoliciesToStep3(groups: Record<string, PolicyItemRQ[]>): Partial<Ste
   const clearing = groups['CLEARING'];
   if (clearing?.length) {
     const c = clearing[0]!;
-    out.clearingType = c.type;
+    out.clearingType = resolveStr(c.type);
     out.clearingName = c.name ?? '';
     out.clearingDescription = c.description ?? '';
   }
@@ -143,7 +146,7 @@ function mapPoliciesToStep3(groups: Record<string, PolicyItemRQ[]>): Partial<Ste
   const tieBreaking = groups['TIE_BREAKING'];
   if (tieBreaking?.length) {
     const t = tieBreaking[0]!;
-    out.tieBreakingType = t.type;
+    out.tieBreakingType = resolveStr(t.type);
     out.tieBreakingName = t.name ?? '';
     out.tieBreakingDescription = t.description ?? '';
   }
@@ -208,19 +211,7 @@ export default function EditAuctionPage() {
   const [auctionType, setAuctionType] = useState('');
 
   // Step 2
-  const [step2, setStep2] = useState<Step2State>({
-    unitType: '',
-    openingPrice: '',
-    item: '',
-    itemName: '',
-    itemSummary: null,
-    items: [],
-    itemNames: [],
-    itemSummaries: [],
-    categories: [],
-    subCategories: [],
-    tags: [],
-  });
+  const [step2, setStep2] = useState<Step2State>(initialStep2);
   const [step2Errors, setStep2Errors] = useState<Record<string, string>>({});
   const [step2GeneralError, setStep2GeneralError] = useState<string | null>(null);
   const [savingStep2, setSavingStep2] = useState(false);
@@ -270,9 +261,11 @@ export default function EditAuctionPage() {
       .then((types) => setUnitTypes(types))
       .finally(() => setLoadingUnitTypes(false));
 
-    auctionsApi
-      .getAuctionById(id, ['policies'])
-      .then((auction) => {
+    Promise.all([
+      auctionsApi.getAuctionById(id),
+      auctionsApi.getAuctionPolicies(id).catch(() => null),
+    ])
+      .then(([auction, savedPolicies]) => {
         const resolvedType = resolveStr(auction.type);
         const loaded: Step1State = {
           title: auction.title ?? '',
@@ -373,14 +366,8 @@ export default function EditAuctionPage() {
           }
         }
 
-        // Populate Step 3 from expanded policies (may be under policyGroups or policies)
-        const groups =
-          auction.policyGroups ??
-          (auction.policies && !('basePrice' in auction.policies)
-            ? (auction.policies as unknown as Record<string, PolicyItemRQ[]>)
-            : undefined);
-        if (groups && Object.keys(groups).length > 0) {
-          setStep3((prev) => ({ ...prev, ...mapPoliciesToStep3(groups) }));
+        if (savedPolicies && Object.keys(savedPolicies).length > 0) {
+          setStep3((prev) => ({ ...prev, ...mapPoliciesToStep3(savedPolicies) }));
         }
       })
       .catch(() => setStep1GeneralError('Failed to load auction.'))

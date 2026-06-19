@@ -262,6 +262,11 @@ export const auctionsApi = {
     return response.data;
   },
 
+  getAuctionPolicies: async (id: string): Promise<AuctionPoliciesGroupRQ> => {
+    const response = await apiClient.get<AuctionPoliciesGroupRQ>(`/api/v1/auctions/${id}/policies`);
+    return response.data;
+  },
+
   setAuctionPolicyGroups: async (id: string, data: AuctionPoliciesGroupRQ): Promise<void> => {
     await apiClient.put(`/api/v1/auctions/${id}/policies`, data);
   },
