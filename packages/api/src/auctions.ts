@@ -136,7 +136,7 @@ export interface AuctionUnitCreationRQ {
 }
 
 export interface AuctionBlobsCreationRQ {
-  blobIds: string[];
+  blobs: string[];
 }
 
 export interface PolicyGroup {

@@ -182,17 +182,7 @@ export default function EditAuctionPage() {
   const [step, setStep] = useState(1);
 
   const [originalStep1, setOriginalStep1] = useState<Step1State | null>(null);
-  const origStep2Ref = useRef<{
-    unitType: string;
-    openingPrice: string;
-    item: string;
-    items: string[];
-  }>({
-    unitType: '',
-    openingPrice: '',
-    item: '',
-    items: [],
-  });
+  const origStep2Ref = useRef({ unitType: '', openingPrice: '', item: '', items: [] as string[] });
 
   // Step 1
   const [step1, setStep1] = useState<Step1State>({
@@ -353,6 +343,12 @@ export default function EditAuctionPage() {
               subCategories: [],
               tags: [],
             });
+            origStep2Ref.current = {
+              unitType,
+              openingPrice,
+              item: atomicItems[0] ?? '',
+              items: atomicItems,
+            };
           } else {
             setStep2({
               unitCategory: unitType as 'MULTI_UNIT' | 'LOT',
@@ -373,8 +369,8 @@ export default function EditAuctionPage() {
               subCategories: [],
               tags: [],
             });
+            origStep2Ref.current = { unitType, openingPrice, item: '', items: itemIds };
           }
-          origStep2Ref.current = { unitType, openingPrice, item, items: itemIds };
         }
 
         // Populate Step 3 from expanded policies (may be under policyGroups or policies)
@@ -462,7 +458,35 @@ export default function EditAuctionPage() {
 
   // ── Step 2 ─────────────────────────────────────────────────────────────────
 
-  const validateStep2 = (): Record<string, string> => {
+  const buildUnitBodyEdit = () => {
+    if (step2.unitCategory === 'ATOMIC') {
+      if (step2.unitType === 'SINGLE_UNIT') {
+        return {
+          type: 'SINGLE_UNIT' as AuctionUnitType,
+          openingPrice: parseFloat(step2.openingPrice),
+          item: step2.item,
+          quantity: parseInt(step2.itemQuantity || '1', 10),
+        };
+      }
+      return {
+        type: 'BUNDLE' as AuctionUnitType,
+        openingPrice: parseFloat(step2.openingPrice),
+        items: step2.items.map((itemId, i) => ({
+          id: itemId,
+          quantity: parseInt(step2.itemQuantities[i] || '1', 10),
+        })),
+      };
+    }
+    return {
+      type: step2.unitType as AuctionUnitType,
+      openingPrice: parseFloat(step2.openingPrice),
+      items: step2.multiItems.map((itemId) => ({ id: itemId, quantity: 1 })),
+    };
+  };
+
+  const handleStep2Submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStep2GeneralError(null);
     const errs: Record<string, string> = {};
     if (!step2.unitCategory) errs.unitType = 'Unit type is required.';
     if (!step2.openingPrice || isNaN(parseFloat(step2.openingPrice)))
@@ -474,66 +498,34 @@ export default function EditAuctionPage() {
       step2.multiItems.length === 0
     )
       errs.item = 'At least one listing is required.';
-    return errs;
-  };
-
-  const buildUnitBodyEdit = () => {
-    if (step2.unitCategory === 'ATOMIC') {
-      const isSingle = step2.unitType === 'SINGLE_UNIT';
-      if (isSingle) {
-        return {
-          type: 'SINGLE_UNIT' as AuctionUnitType,
-          openingPrice: parseFloat(step2.openingPrice),
-          item: step2.item,
-          quantity: parseInt(step2.itemQuantity || '1', 10),
-        };
-      }
-      return {
-        type: 'BUNDLE' as AuctionUnitType,
-        openingPrice: parseFloat(step2.openingPrice),
-        items: step2.items.map((id, i) => ({
-          id,
-          quantity: parseInt(step2.itemQuantities[i] || '1', 10),
-        })),
-      };
-    }
-    return {
-      type: step2.unitType as AuctionUnitType,
-      openingPrice: parseFloat(step2.openingPrice),
-      items: step2.multiItems.map((id) => ({ id, quantity: 1 })),
-    };
-  };
-
-  const handleStep2Submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setStep2GeneralError(null);
-    const errs = validateStep2();
     if (Object.keys(errs).length) {
       setStep2Errors(errs);
       return;
     }
     setStep2Errors({});
+
     const orig = origStep2Ref.current;
-    const itemsChanged =
+    const unitChanged =
       step2.unitType !== orig.unitType ||
       step2.openingPrice !== orig.openingPrice ||
       (step2.unitCategory === 'ATOMIC'
         ? step2.item !== orig.item || step2.items.length !== orig.items.length
         : step2.multiItems.length !== orig.items.length);
 
-    if (!itemsChanged) {
+    if (!unitChanged) {
       setStep(3);
       return;
     }
 
     setSavingStep2(true);
     try {
-      await auctionsApi.updateAuction(id, {
-        tags: step2.tags.length ? step2.tags : undefined,
-        subCategories: step2.subCategories.length ? step2.subCategories : undefined,
-        unit: buildUnitBodyEdit(),
-      });
-
+      await auctionsApi.updateAuction(id, { unit: buildUnitBodyEdit() });
+      origStep2Ref.current = {
+        unitType: step2.unitType,
+        openingPrice: step2.openingPrice,
+        item: step2.item,
+        items: step2.items,
+      };
       setStep(3);
     } catch (err) {
       const parsed = parseApiError(err);
@@ -806,7 +798,7 @@ export default function EditAuctionPage() {
               onSubmit={handleStep2Submit}
               onBack={() => setStep(1)}
               onSkip={!hasStep2Changes ? () => setStep(3) : undefined}
-              submitLabel="Next"
+              submitLabel="Save & Continue"
               submitWithArrow
             />
           );

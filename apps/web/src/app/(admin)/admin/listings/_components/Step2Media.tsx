@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useEffect, useLayoutEffect } from 'react';
+import { useRef, useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import Image from 'next/image';
 import {
   ArrowLeft,
@@ -97,23 +97,25 @@ function BlobMetaEditor({
   meta,
   onChange,
   onRegisterFlush,
+  editorKey,
+  onPendingChange,
 }: {
   meta: Record<string, string>;
   onChange: (meta: Record<string, string>) => void;
   onRegisterFlush?: (flush: () => void) => void;
+  editorKey?: string;
+  onPendingChange?: (key: string, hasPending: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newKey, setNewKey] = useState('');
   const [newVal, setNewVal] = useState('');
 
-  // Keep a ref to the latest values so the flush callback is always current
   const pendingRef = useRef({ newKey, newVal, meta, onChange });
   useLayoutEffect(() => {
     pendingRef.current = { newKey, newVal, meta, onChange };
   });
 
-  // Register a flush function with the parent so it can commit pending input before saving
   useEffect(() => {
     onRegisterFlush?.(() => {
       const { newKey: k, newVal: v, meta: m, onChange: cb } = pendingRef.current;
@@ -122,6 +124,23 @@ function BlobMetaEditor({
       cb({ ...m, [trimmed]: v.trim() });
     });
   }, [onRegisterFlush]);
+
+  const onPendingChangeRef = useRef(onPendingChange);
+  useLayoutEffect(() => {
+    onPendingChangeRef.current = onPendingChange;
+  });
+
+  useEffect(() => {
+    if (!editorKey) return;
+    onPendingChangeRef.current?.(editorKey, adding && newKey.trim().length > 0);
+  }, [adding, newKey, editorKey]);
+
+  useEffect(() => {
+    if (!editorKey) return;
+    return () => {
+      onPendingChangeRef.current?.(editorKey, false);
+    };
+  }, [editorKey]);
 
   const entries = Object.entries(meta).filter(([k]) => k !== 'thumbnail');
 
@@ -256,6 +275,7 @@ interface MediaBlockProps {
   onSetUploadMeta: (idx: number, meta: Record<string, string>) => void;
   onSetExistingMeta: (id: string, meta: Record<string, string>) => void;
   flushRegistry: React.MutableRefObject<Map<string, () => void>>;
+  onPendingChange: (key: string, hasPending: boolean) => void;
 }
 
 function MediaBlock({
@@ -270,6 +290,7 @@ function MediaBlock({
   onSetUploadMeta,
   onSetExistingMeta,
   flushRegistry,
+  onPendingChange,
 }: MediaBlockProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -414,6 +435,8 @@ function MediaBlock({
                       )}
                       onChange={(m) => onSetExistingMeta(blob.id, m)}
                       onRegisterFlush={(fn) => flushRegistry.current.set(`existing-${blob.id}`, fn)}
+                      editorKey={`existing-${blob.id}`}
+                      onPendingChange={onPendingChange}
                     />
                   </div>
                 </div>
@@ -489,6 +512,8 @@ function MediaBlock({
                     onRegisterFlush={(fn) =>
                       flushRegistry.current.set(`upload-${u.originalIdx}`, fn)
                     }
+                    editorKey={`upload-${u.originalIdx}`}
+                    onPendingChange={onPendingChange}
                   />
                 </div>
               </div>
@@ -563,6 +588,16 @@ export function Step2Media({
   const [loadingBlobs, setLoadingBlobs] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [pendingEditors, setPendingEditors] = useState<Set<string>>(new Set());
+
+  const handlePendingChange = useCallback((key: string, hasPending: boolean) => {
+    setPendingEditors((prev) => {
+      const next = new Set(prev);
+      if (hasPending) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (!listingId) return;
@@ -831,6 +866,7 @@ export function Step2Media({
   const anyUploading = uploads.some((u) => u.uploading);
 
   const hasMediaChanges =
+    pendingEditors.size > 0 ||
     uploads.length > 0 ||
     originalBlobs.length !== existingBlobs.length ||
     originalBlobs.some((o) => !existingBlobs.some((b) => b.id === o.id)) ||
@@ -848,6 +884,7 @@ export function Step2Media({
     onSetUploadMeta: handleSetUploadMeta,
     onSetExistingMeta: handleSetExistingMeta,
     flushRegistry,
+    onPendingChange: handlePendingChange,
   });
 
   return (
