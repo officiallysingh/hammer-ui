@@ -33,6 +33,7 @@ import {
   Step3State,
   initialStep3,
 } from '../_components/AuctionStep3Policies';
+import { AuctionStep5Workflow } from '../_components/AuctionStep5Workflow';
 function deriveAuctionType(priceProgression: string, unitType: string): string {
   const isAtomic = unitType === 'SINGLE_UNIT' || unitType === 'BUNDLE';
   if (priceProgression === 'STEP_BASED' && isAtomic) {
@@ -462,7 +463,7 @@ export default function NewAuctionPage() {
       if (Object.keys(policies).length > 0) {
         await auctionsApi.setAuctionPolicyGroups(createdAuctionId, policies);
       }
-      router.push('/admin/auctions');
+      setStep(5);
     } catch (err) {
       const parsed = parseApiError(err);
       if (Object.keys(parsed.fieldErrors).length) setStep3Errors(parsed.fieldErrors);
@@ -574,6 +575,13 @@ export default function NewAuctionPage() {
           onSubmit={handleStep3Submit}
           onBack={() => setStep(3)}
           onSkip={JSON.stringify(step3) === JSON.stringify(initialStep3) ? handleSkip : undefined}
+        />
+      )}
+
+      {step === 5 && (
+        <AuctionStep5Workflow
+          onBack={() => setStep(4)}
+          onFinish={() => router.push('/admin/auctions')}
         />
       )}
     </div>

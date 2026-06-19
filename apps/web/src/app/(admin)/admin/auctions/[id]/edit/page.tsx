@@ -14,6 +14,7 @@ import { AuctionStep1Details, Step1State } from '../../_components/AuctionStep1D
 import { AuctionStep2Units, Step2State, initialStep2 } from '../../_components/AuctionStep2Units';
 import { AuctionStep3Media, AuctionUploadedFile } from '../../_components/AuctionStep3Media';
 import { AuctionStep3Policies, initialStep3 } from '../../_components/AuctionStep3Policies';
+import { AuctionStep5Workflow } from '../../_components/AuctionStep5Workflow';
 import type { Step3State } from '../../_components/AuctionStep3Types';
 
 function buildDurationFromDaysHours(days: string, hours: string): string {
@@ -702,7 +703,7 @@ export default function EditAuctionPage() {
       if (Object.keys(policies).length > 0) {
         await auctionsApi.setAuctionPolicyGroups(id, policies);
       }
-      router.push('/admin/auctions');
+      setStep(5);
     } catch (err) {
       const parsed = parseApiError(err);
       if (Object.keys(parsed.fieldErrors).length) setStep3Errors(parsed.fieldErrors);
@@ -821,10 +822,17 @@ export default function EditAuctionPage() {
               saving={savingStep3}
               onSubmit={handleStep3Submit}
               onBack={() => setStep(3)}
-              onSkip={!hasStep3Changes ? () => router.push('/admin/auctions') : undefined}
+              onSkip={!hasStep3Changes ? () => setStep(5) : undefined}
             />
           );
         })()}
+
+      {step === 5 && (
+        <AuctionStep5Workflow
+          onBack={() => setStep(4)}
+          onFinish={() => router.push('/admin/auctions')}
+        />
+      )}
     </div>
   );
 }
