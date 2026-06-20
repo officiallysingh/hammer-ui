@@ -411,12 +411,17 @@ export function AuctionStep2Units({
         {isAtomic && (
           <div className="space-y-2">
             <Label className="text-sm font-medium">
-              Listing{form.items.length !== 1 ? 's' : ''}{' '}
-              <span className="text-destructive">*</span>
+              Listing <span className="text-destructive">*</span>
               <span className="ml-1 text-xs font-normal text-muted-foreground">
                 (1 item = Single Unit · 2+ items = Bundle)
               </span>
             </Label>
+
+            {/* Search to add more */}
+            <ListingSearchField
+              addMode
+              onSelect={(id, name, summary, quantity) => addAtomicItem(id, name, summary, quantity)}
+            />
 
             {/* Selected items table */}
             {form.items.length > 0 && (
@@ -500,12 +505,6 @@ export function AuctionStep2Units({
               </div>
             )}
 
-            {/* Search to add more */}
-            <ListingSearchField
-              addMode
-              onSelect={(id, name, summary, quantity) => addAtomicItem(id, name, summary, quantity)}
-            />
-
             <FieldError message={fieldErrors.item} />
           </div>
         )}
@@ -516,6 +515,11 @@ export function AuctionStep2Units({
             <Label className="text-sm font-medium">
               Listings <span className="text-destructive">*</span>
             </Label>
+
+            <ListingSearchField
+              addMode
+              onSelect={(id, name, summary) => addMultiItem(id, name, summary)}
+            />
 
             {form.multiItems.length > 0 && (
               <div className="rounded-lg border border-border overflow-hidden">
@@ -599,10 +603,6 @@ export function AuctionStep2Units({
               </div>
             )}
 
-            <ListingSearchField
-              addMode
-              onSelect={(id, name, summary) => addMultiItem(id, name, summary)}
-            />
             <FieldError message={fieldErrors.item} />
           </div>
         )}

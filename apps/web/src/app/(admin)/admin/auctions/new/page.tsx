@@ -308,6 +308,8 @@ export default function NewAuctionPage() {
     step3.priceChangePolicies.forEach((p, i) => {
       if (!p.type) {
         errs[`priceChange_type_${i}`] = 'Please select a policy type.';
+      } else if (!p.steps || p.steps.length === 0) {
+        errs[`priceChange_steps_${i}`] = 'At least one step multiplier is required.';
       } else if (!p.value || isNaN(parseFloat(p.value)) || parseFloat(p.value) <= 0) {
         errs[`priceChange_value_${i}`] = 'A positive step value is required.';
       }

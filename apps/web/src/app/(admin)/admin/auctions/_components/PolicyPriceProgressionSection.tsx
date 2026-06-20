@@ -1,6 +1,7 @@
 'use client';
 
-import { Plus, Trash2 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
 import ReactSelect from 'react-select';
 import { makeReactSelectStyles } from '@/components/common/admin/GroupedSubcategorySelect';
@@ -54,6 +55,10 @@ export function PolicyPriceProgressionSection({
   groupDescription,
 }: Props) {
   const isStepBased = auctionType === 'STEP_BASED';
+
+  const dragIndexRef = useRef<number | null>(null);
+  const dragHandleActiveRef = useRef(false);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const add = () => {
     const firstType = stepBasedOptions[0]?.value ?? '';
@@ -117,9 +122,49 @@ export function PolicyPriceProgressionSection({
           {priceChangePolicies.map((pc, i) => {
             const isLast = i === priceChangePolicies.length - 1;
             return (
-              <div key={i} className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-3">
+              <div
+                key={i}
+                draggable
+                onDragStart={(e) => {
+                  if (!dragHandleActiveRef.current) {
+                    e.preventDefault();
+                    return;
+                  }
+                  dragIndexRef.current = i;
+                  e.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOverIdx(i);
+                }}
+                onDragLeave={() => setDragOverIdx(null)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const from = dragIndexRef.current;
+                  if (from !== null && from !== i) {
+                    const updated = [...priceChangePolicies];
+                    const [moved] = updated.splice(from, 1);
+                    updated.splice(i, 0, moved!);
+                    onPoliciesChange(updated);
+                  }
+                  dragIndexRef.current = null;
+                  setDragOverIdx(null);
+                }}
+                onDragEnd={() => {
+                  dragHandleActiveRef.current = false;
+                  dragIndexRef.current = null;
+                  setDragOverIdx(null);
+                }}
+                className={`rounded-lg border bg-muted/20 p-3 space-y-3 ${dragOverIdx === i ? 'border-primary shadow-sm' : 'border-border/70'}`}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
+                    <GripVertical
+                      className="h-4 w-4 text-muted-foreground cursor-grab shrink-0"
+                      onPointerDown={() => {
+                        dragHandleActiveRef.current = true;
+                      }}
+                    />
                     <SortButtons
                       index={i}
                       total={priceChangePolicies.length}
@@ -127,7 +172,6 @@ export function PolicyPriceProgressionSection({
                     />
                     <span className="text-xs font-medium text-muted-foreground">
                       Window {i + 1}
-                      <span className="ml-1 text-muted-foreground/50">· priority {i + 1}</span>
                       {isLast && (
                         <span className="ml-1 text-muted-foreground/50">· rest of auction</span>
                       )}
@@ -172,14 +216,18 @@ export function PolicyPriceProgressionSection({
 
                   {isLast ? (
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Applicable Duration</Label>
+                      <Label className="text-xs font-medium">Time Window</Label>
                       <p className="text-xs text-muted-foreground py-[7px]">
-                        Covers rest of auction
+                        {priceChangePolicies.length === 1
+                          ? 'Applicable for whole auction duration'
+                          : 'Applicable for rest of auction duration'}
                       </p>
                     </div>
                   ) : (
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Applicable Duration</Label>
+                      <Label className="text-xs font-medium">
+                        Time Window <span className="text-destructive">*</span>
+                      </Label>
                       <div className="flex items-center gap-2 flex-wrap">
                         <select
                           value={pc.windowHours}
@@ -215,10 +263,7 @@ export function PolicyPriceProgressionSection({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-medium">
-                        Step Multipliers{' '}
-                        <span className="text-muted-foreground text-[10px]">
-                          (1–10, leave empty for all)
-                        </span>
+                        Step Multipliers <span className="text-destructive">*</span>
                       </Label>
                       <ReactSelect
                         isMulti

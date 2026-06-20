@@ -1,6 +1,7 @@
 'use client';
 
-import { Plus, Trash2 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
 import { FieldError, SelectOption } from './AuctionShared';
 import { PreconditionItem } from './AuctionStep3Types';
@@ -39,6 +40,10 @@ export function PolicyPreconditionsSection({
   groupDescription,
 }: Props) {
   const usedTypes = preconditions.map((p) => p.type).filter(Boolean);
+
+  const dragIndexRef = useRef<number | null>(null);
+  const dragHandleActiveRef = useRef(false);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const add = () => {
     const availableType = options.find((opt) => !usedTypes.includes(opt.value));
@@ -82,10 +87,50 @@ export function PolicyPreconditionsSection({
       ) : (
         <div className="space-y-3">
           {preconditions.map((pc, i) => (
-            <div key={i} className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-3">
+            <div
+              key={i}
+              draggable
+              onDragStart={(e) => {
+                if (!dragHandleActiveRef.current) {
+                  e.preventDefault();
+                  return;
+                }
+                dragIndexRef.current = i;
+                e.dataTransfer.effectAllowed = 'move';
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOverIdx(i);
+              }}
+              onDragLeave={() => setDragOverIdx(null)}
+              onDrop={(e) => {
+                e.preventDefault();
+                const from = dragIndexRef.current;
+                if (from !== null && from !== i) {
+                  const updated = [...preconditions];
+                  const [moved] = updated.splice(from, 1);
+                  updated.splice(i, 0, moved!);
+                  onChange(updated);
+                }
+                dragIndexRef.current = null;
+                setDragOverIdx(null);
+              }}
+              onDragEnd={() => {
+                dragHandleActiveRef.current = false;
+                dragIndexRef.current = null;
+                setDragOverIdx(null);
+              }}
+              className={`rounded-lg border bg-muted/20 p-3 space-y-3 ${dragOverIdx === i ? 'border-primary shadow-sm' : 'border-border/70'}`}
+            >
               {/* Header */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
+                  <GripVertical
+                    className="h-4 w-4 text-muted-foreground cursor-grab shrink-0"
+                    onPointerDown={() => {
+                      dragHandleActiveRef.current = true;
+                    }}
+                  />
                   <SortButtons
                     index={i}
                     total={preconditions.length}
@@ -93,7 +138,6 @@ export function PolicyPreconditionsSection({
                   />
                   <span className="text-xs font-medium text-muted-foreground">
                     Precondition {i + 1}
-                    <span className="ml-1 text-muted-foreground/50">· priority {i + 1}</span>
                   </span>
                 </div>
                 <button
@@ -158,6 +202,7 @@ export function PolicyPreconditionsSection({
                       <Input
                         type="number"
                         min={1}
+                        required
                         value={pc.count}
                         onChange={(e) => update(i, { count: e.target.value })}
                         placeholder="e.g. 5"

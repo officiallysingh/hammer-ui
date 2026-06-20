@@ -5,7 +5,7 @@ import { Input, Label } from '@repo/ui';
 import { FieldError, SelectField, SelectOption } from './AuctionShared';
 import { POLICY_DEFAULTS, PolicyInfoButton, ordinalLabel } from './PolicyShared';
 
-const KTH_OPTIONS = [1, 2, 3, 4, 5];
+const KTH_OPTIONS = [1, 2, 3];
 
 interface WinnerBlockProps {
   title: string;
@@ -114,19 +114,25 @@ function WinnerBlock({
 
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">
-              {kthMode === 'rank' ? 'Winner Rank' : 'Price Paid'}
+              {kthMode === 'rank' ? 'Winner Rank' : 'Price Payable'}
             </Label>
-            <select
-              value={kth}
-              onChange={(e) => onFieldChange(`${fieldPrefix}Kth`, e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-[7px] text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              {KTH_OPTIONS.map((k) => (
-                <option key={k} value={String(k)}>
-                  {ordinalLabel(k, direction)}
-                </option>
-              ))}
-            </select>
+            {kthMode === 'rank' ? (
+              <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-[7px] text-sm text-muted-foreground cursor-not-allowed">
+                {ordinalLabel(1, direction)}
+              </div>
+            ) : (
+              <select
+                value={kth}
+                onChange={(e) => onFieldChange(`${fieldPrefix}Kth`, e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-[7px] text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {KTH_OPTIONS.map((k) => (
+                  <option key={k} value={String(k)}>
+                    {ordinalLabel(k, direction)}
+                  </option>
+                ))}
+              </select>
+            )}
             <FieldError message={fieldErrors[`${fieldPrefix}Kth`]} />
           </div>
         </div>
@@ -179,39 +185,43 @@ export function PolicyWinnerSection({
   winnerPriceGroupInfo,
 }: PolicyWinnerSectionProps) {
   return (
-    <div className="rounded-xl border border-border bg-card p-6 space-y-6">
-      <WinnerBlock
-        title="Winner Determination"
-        type={winnerDeterminationType}
-        kth={winnerDeterminationKth}
-        name={winnerDeterminationName}
-        description={winnerDeterminationDescription}
-        direction={direction}
-        onFieldChange={onFieldChange}
-        onAdd={onWinnerAdd}
-        onRemove={onWinnerRemove}
-        options={winnerDeterminationOptions}
-        fieldPrefix="winnerDetermination"
-        kthMode="rank"
-        fieldErrors={fieldErrors}
-        groupDescription={winnerGroupInfo}
-      />
-      <WinnerBlock
-        title="Winner Price Determination"
-        type={winnerPriceDeterminationType}
-        kth={winnerPriceDeterminationKth}
-        name={winnerPriceDeterminationName}
-        description={winnerPriceDeterminationDescription}
-        direction={direction}
-        onFieldChange={onFieldChange}
-        onAdd={onWinnerPriceAdd}
-        onRemove={onWinnerPriceRemove}
-        options={winnerPriceOptions}
-        fieldPrefix="winnerPriceDetermination"
-        kthMode="pays"
-        fieldErrors={fieldErrors}
-        groupDescription={winnerPriceGroupInfo}
-      />
+    <div className="space-y-4">
+      <div className="rounded-xl border border-border bg-card p-6">
+        <WinnerBlock
+          title="Winner Determination"
+          type={winnerDeterminationType}
+          kth={winnerDeterminationKth}
+          name={winnerDeterminationName}
+          description={winnerDeterminationDescription}
+          direction={direction}
+          onFieldChange={onFieldChange}
+          onAdd={onWinnerAdd}
+          onRemove={onWinnerRemove}
+          options={winnerDeterminationOptions}
+          fieldPrefix="winnerDetermination"
+          kthMode="rank"
+          fieldErrors={fieldErrors}
+          groupDescription={winnerGroupInfo}
+        />
+      </div>
+      <div className="rounded-xl border border-border bg-card p-6">
+        <WinnerBlock
+          title="Winner Price Determination"
+          type={winnerPriceDeterminationType}
+          kth={winnerPriceDeterminationKth}
+          name={winnerPriceDeterminationName}
+          description={winnerPriceDeterminationDescription}
+          direction={direction}
+          onFieldChange={onFieldChange}
+          onAdd={onWinnerPriceAdd}
+          onRemove={onWinnerPriceRemove}
+          options={winnerPriceOptions}
+          fieldPrefix="winnerPriceDetermination"
+          kthMode="pays"
+          fieldErrors={fieldErrors}
+          groupDescription={winnerPriceGroupInfo}
+        />
+      </div>
     </div>
   );
 }

@@ -11,7 +11,7 @@ import {
   CategoryVM,
 } from '@repo/api';
 import { Search, X, Loader2, Eye, Package, Tag } from 'lucide-react';
-import { Input, Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@repo/ui';
+import { Input, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Label } from '@repo/ui';
 import Select from 'react-select';
 import type { MultiValue } from 'react-select';
 import {
@@ -445,7 +445,8 @@ export function ListingSearchField({
         {/* Filters */}
         <div className="flex gap-2 flex-col sm:flex-row">
           {/* Categories */}
-          <div className="flex-1">
+          <div className="flex-1 space-y-1">
+            <Label className="text-xs font-medium text-muted-foreground">Categories</Label>
             <Select<SelectOption, true>
               isMulti
               options={categories.map((c) => ({ value: c.id, label: c.name }))}
@@ -457,7 +458,8 @@ export function ListingSearchField({
             />
           </div>
           {/* Sub-categories */}
-          <div className="flex-1">
+          <div className="flex-1 space-y-1">
+            <Label className="text-xs font-medium text-muted-foreground">Sub-categories</Label>
             <GroupedSubcategorySelect
               isMulti
               categories={
@@ -473,18 +475,21 @@ export function ListingSearchField({
         </div>
 
         {/* Search input */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-          <Input
-            value={query}
-            onChange={(e) => handleQueryChange(e.target.value)}
-            onFocus={handleFocus}
-            placeholder="Search listing by name..."
-            className="pl-8 text-sm"
-          />
-          {searching && (
-            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground animate-spin" />
-          )}
+        <div className="space-y-1">
+          <Label className="text-xs font-medium text-muted-foreground">Listing to be added</Label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              value={query}
+              onChange={(e) => handleQueryChange(e.target.value)}
+              onFocus={handleFocus}
+              placeholder="Search listing by name..."
+              className="pl-8 text-sm"
+            />
+            {searching && (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground animate-spin" />
+            )}
+          </div>
         </div>
 
         {/* Results table */}
