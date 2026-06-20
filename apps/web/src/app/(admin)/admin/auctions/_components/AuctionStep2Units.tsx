@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { ArrowLeft, ArrowRight, Eye, Loader2, Package, Trash2 } from 'lucide-react';
 import { listingsApi, blobsApi, AuctionUnitType, ListingSummaryVM } from '@repo/api';
 import { Button, Input, Label } from '@repo/ui';
-import { FieldError, SectionHeading, SelectOption } from './AuctionShared';
+import { DismissibleError, FieldError, SectionHeading, SelectOption } from './AuctionShared';
 import { ListingSearchField } from './ListingSearchField';
 import { TagsCategorySection } from './TagsCategorySection';
 
@@ -39,7 +39,7 @@ export interface Step2State {
 }
 
 export const initialStep2: Step2State = {
-  unitCategory: '',
+  unitCategory: 'ATOMIC',
   unitType: '',
   openingPrice: '',
   item: '',
@@ -61,66 +61,6 @@ export const initialStep2: Step2State = {
 /** Derives the real AuctionUnitType from the atomic item list length */
 function deriveAtomicType(itemCount: number): AuctionUnitType {
   return itemCount <= 1 ? 'SINGLE_UNIT' : 'BUNDLE';
-}
-
-// ─── ListingCard ──────────────────────────────────────────────────────────────
-
-function ListingCard({
-  summary,
-  listingId,
-  onClear,
-}: {
-  summary: ListingSummaryVM;
-  listingId?: string;
-  onClear?: () => void;
-}) {
-  return (
-    <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 flex items-start gap-3">
-      {summary.thumbnailId ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={blobsApi.getDownloadUrl(summary.thumbnailId)}
-          alt=""
-          className="w-14 h-14 rounded-lg object-cover border border-border shrink-0"
-        />
-      ) : (
-        <div className="w-14 h-14 rounded-lg bg-muted border border-border flex items-center justify-center shrink-0">
-          <Package className="h-6 w-6 text-muted-foreground" />
-        </div>
-      )}
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-foreground text-sm truncate">{summary.name}</p>
-        {summary.description && (
-          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{summary.description}</p>
-        )}
-        <p className="text-xs text-muted-foreground mt-1">
-          Available:{' '}
-          <span className="font-medium text-foreground">{summary.availableQuantity ?? '—'}</span>
-        </p>
-      </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <a
-          href={`/admin/listings/${listingId ?? summary.id}/view`}
-          target="_blank"
-          rel="noreferrer"
-          className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
-          title="View listing"
-        >
-          <Eye className="h-4 w-4" />
-        </a>
-        {onClear && (
-          <button
-            type="button"
-            onClick={onClear}
-            className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
-            title="Remove"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-    </div>
-  );
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -328,11 +268,7 @@ export function AuctionStep2Units({
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      {generalError && (
-        <div className="py-2 px-3 bg-destructive/10 text-destructive text-sm rounded-md">
-          {generalError}
-        </div>
-      )}
+      <DismissibleError message={generalError} />
 
       <div className="rounded-xl border border-border bg-card p-6 space-y-4">
         <SectionHeading>Auction Unit</SectionHeading>
@@ -366,9 +302,8 @@ export function AuctionStep2Units({
               disabled={loadingUnitTypes}
               className="w-full rounded-md border border-input bg-background px-3 py-[7px] text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
             >
-              <option value="">{loadingUnitTypes ? 'Loading...' : 'Select type...'}</option>
               {uiOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
+                <option key={opt.value} value={opt.value} disabled={opt.value !== 'ATOMIC'}>
                   {opt.label}
                 </option>
               ))}
@@ -409,7 +344,7 @@ export function AuctionStep2Units({
 
         {/* ── Atomic items ─────────────────────────────────────────────────── */}
         {isAtomic && (
-          <div className="space-y-2">
+          <div className="space-y-4">
             <Label className="text-sm font-medium">
               Listing <span className="text-destructive">*</span>
               <span className="ml-1 text-xs font-normal text-muted-foreground">
@@ -511,7 +446,7 @@ export function AuctionStep2Units({
 
         {/* ── Non-atomic (MULTI_UNIT / LOT) items ──────────────────────────── */}
         {isNonAtomic && (
-          <div className="space-y-2">
+          <div className="space-y-4">
             <Label className="text-sm font-medium">
               Listings <span className="text-destructive">*</span>
             </Label>

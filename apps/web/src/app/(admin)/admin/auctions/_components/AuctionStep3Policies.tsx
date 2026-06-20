@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
 import { auctionsApi, PolicyGroup, PolicyItemRQ } from '@repo/api';
 import { Button } from '@repo/ui';
-import { SelectOption } from './AuctionShared';
+import { DismissibleError, SelectOption } from './AuctionShared';
 import { POLICY_DEFAULTS } from './PolicyShared';
 import { PolicyParticipationSection } from './PolicyParticipationSection';
 import { PolicyPreconditionsSection } from './PolicyPreconditionsSection';
@@ -23,7 +23,11 @@ export type {
 } from './AuctionStep3Types';
 export { initialStep3 } from './AuctionStep3Types';
 
-import type { Step3State, PriceChangeItem } from './AuctionStep3Types';
+import type {
+  Step3State,
+  PriceChangeItem,
+  ParticipationEligibilityItem,
+} from './AuctionStep3Types';
 
 // ─── helpers to parse durations ──────────────────────────────────────────────
 
@@ -172,6 +176,20 @@ function seedMandatoryDefaults(current: Step3State, groups: PolicyGroup[]): Part
     return Object.keys(g.types[0]!)[0] ?? '';
   };
 
+  // Participation Eligibility — seed one "Any one can participate" item if none exist
+  if (hasGroup('PARTICIPATION_ELIGIBILITY') && current.participationPolicies.length === 0) {
+    const emptyParticipation: ParticipationEligibilityItem = {
+      name: '',
+      description: '',
+      type: '',
+      basis: '',
+      value: '',
+      deadlineDays: '',
+      deadlineHours: '0',
+    };
+    patch.participationPolicies = [emptyParticipation];
+  }
+
   // Price Progression — mandatory
   const isStepBased = hasGroup('OFFER_BASED_PRICE_CHANGE');
   const isClockBased = hasGroup('CLOCK_BASED_PRICE_CHANGE');
@@ -229,7 +247,6 @@ interface AuctionStep3PoliciesProps {
   onChange: (updates: Partial<Step3State>) => void;
   auctionType: string;
   direction: string;
-  priceProgression: string;
   openingPrice: number;
   precision: number;
   currencyUnit: string;
@@ -248,7 +265,6 @@ export function AuctionStep3Policies({
   onChange,
   auctionType,
   direction,
-  priceProgression,
   openingPrice,
   precision,
   currencyUnit,
@@ -331,11 +347,7 @@ export function AuctionStep3Policies({
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      {generalError && (
-        <div className="py-2 px-3 bg-destructive/10 text-destructive text-sm rounded-md">
-          {generalError}
-        </div>
-      )}
+      <DismissibleError message={generalError} />
 
       {/* Participation Eligibility */}
       <PolicyParticipationSection

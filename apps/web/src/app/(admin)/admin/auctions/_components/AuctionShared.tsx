@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import { X } from 'lucide-react';
 import { Label } from '@repo/ui';
 
 export interface SelectOption {
@@ -21,6 +23,26 @@ export const PRICE_PROGRESSION_OPTIONS: Record<string, SelectOption[]> = {
     { value: 'CLOCK_BASED', label: 'Clock based descending price' },
   ],
 };
+
+export function DismissibleError({ message }: { message?: string | null }) {
+  const [dismissedMessage, setDismissedMessage] = useState<string | null>(null);
+
+  if (!message || message === dismissedMessage) return null;
+
+  return (
+    <div className="flex items-start justify-between gap-2 py-2 px-3 bg-destructive/10 text-destructive text-sm rounded-md">
+      <span>{message}</span>
+      <button
+        type="button"
+        onClick={() => setDismissedMessage(message)}
+        className="shrink-0 p-0.5 hover:opacity-70 transition-opacity"
+        aria-label="Dismiss error"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
 
 export function FieldError({ message }: { message?: string }) {
   if (!message) return null;

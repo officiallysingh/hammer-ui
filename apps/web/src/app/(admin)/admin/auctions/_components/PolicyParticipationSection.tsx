@@ -47,6 +47,7 @@ export function PolicyParticipationSection({
   groupDescription,
 }: Props) {
   const usedTypes = policies.map((p) => p.type).filter(Boolean);
+  const hasAnyOneParticipates = policies.some((p) => p.type === '');
 
   const dragIndexRef = useRef<number | null>(null);
   const dragHandleActiveRef = useRef(false);
@@ -79,7 +80,7 @@ export function PolicyParticipationSection({
           </h3>
           {groupDescription && <PolicyInfoButton description={groupDescription} />}
         </div>
-        {usedTypes.length < options.length && (
+        {!hasAnyOneParticipates && usedTypes.length < options.length && (
           <button
             type="button"
             onClick={add}
@@ -97,6 +98,7 @@ export function PolicyParticipationSection({
         <div className="space-y-3">
           {policies.map((pp, i) => {
             const isLast = i === policies.length - 1;
+            const isAnyOne = pp.type === '';
             const pct =
               pp.basis === 'PERCENTAGE' && pp.value
                 ? (openingPrice * parseFloat(pp.value)) / 100
@@ -140,75 +142,82 @@ export function PolicyParticipationSection({
                 {/* Header */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <GripVertical
-                      className="h-4 w-4 text-muted-foreground cursor-grab shrink-0"
-                      onPointerDown={() => {
-                        dragHandleActiveRef.current = true;
-                      }}
-                    />
-                    <SortButtons index={i} total={policies.length} onMove={(dir) => move(i, dir)} />
+                    {policies.length > 1 && (
+                      <>
+                        <GripVertical
+                          className="h-4 w-4 text-muted-foreground cursor-grab shrink-0"
+                          onPointerDown={() => {
+                            dragHandleActiveRef.current = true;
+                          }}
+                        />
+                        <SortButtons
+                          index={i}
+                          total={policies.length}
+                          onMove={(dir) => move(i, dir)}
+                        />
+                      </>
+                    )}
                     <span className="text-xs font-medium text-muted-foreground">
                       Policy {i + 1}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => remove(i)}
-                    className="p-1 text-muted-foreground hover:text-destructive transition-colors"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {!isAnyOne && (
+                    <button
+                      type="button"
+                      onClick={() => remove(i)}
+                      className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
 
-                <NameDescriptionFields
-                  name={pp.name}
-                  description={pp.description}
-                  nameId={`p_name_${i}`}
-                  descId={`p_desc_${i}`}
-                  onNameChange={(v) => update(i, { name: v })}
-                  onDescriptionChange={(v) => update(i, { description: v })}
-                />
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-medium">
-                      Type <span className="text-destructive">*</span>
-                    </Label>
-                    <select
-                      value={pp.type}
-                      onChange={(e) => {
-                        const t = e.target.value;
-                        const defaults = POLICY_DEFAULTS[t];
-                        update(i, {
-                          type: t,
-                          basis: '',
-                          value: '',
-                          name: pp.name || defaults?.name || '',
-                          description: pp.description || defaults?.description || '',
-                        });
-                      }}
-                      className={SELECT_CLS}
-                    >
-                      <option
-                        value=""
-                        disabled={policies.some((p, idx) => p.type === '' && idx !== i)}
-                      >
-                        Any one can participate
-                      </option>
-                      {options.map((opt) => (
-                        <option
-                          key={opt.value}
-                          value={opt.value}
-                          disabled={usedTypes.includes(opt.value) && opt.value !== pp.type}
-                        >
+                {/* Type select */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">
+                    Type {!isAnyOne && <span className="text-destructive">*</span>}
+                  </Label>
+                  <select
+                    value={pp.type}
+                    onChange={(e) => {
+                      const t = e.target.value;
+                      const defaults = POLICY_DEFAULTS[t];
+                      update(i, {
+                        type: t,
+                        basis: '',
+                        value: '',
+                        name: pp.name || defaults?.name || '',
+                        description: pp.description || defaults?.description || '',
+                      });
+                    }}
+                    className={SELECT_CLS}
+                  >
+                    {i === 0 && <option value="">Any one can participate</option>}
+                    {options
+                      .filter((opt) => !usedTypes.includes(opt.value) || opt.value === pp.type)
+                      .map((opt) => (
+                        <option key={opt.value} value={opt.value}>
                           {opt.label}
                         </option>
                       ))}
-                    </select>
-                    <FieldError message={fieldErrors[`participation_type_${i}`]} />
-                  </div>
+                  </select>
+                  <FieldError message={fieldErrors[`participation_type_${i}`]} />
+                </div>
 
-                  {pp.type && (
+                {/* Name / description — only when a real type is chosen */}
+                {pp.type && (
+                  <NameDescriptionFields
+                    name={pp.name}
+                    description={pp.description}
+                    nameId={`p_name_${i}`}
+                    descId={`p_desc_${i}`}
+                    onNameChange={(v) => update(i, { name: v })}
+                    onDescriptionChange={(v) => update(i, { description: v })}
+                  />
+                )}
+
+                {pp.type && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <SelectField
                       id={`participation_basis_${i}`}
                       label="Basis"
@@ -224,8 +233,8 @@ export function PolicyParticipationSection({
                       error={fieldErrors[`participation_basis_${i}`]}
                       placeholder="Select basis..."
                     />
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {pp.basis && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ArrowRight, Loader2, HelpCircle } from 'lucide-react';
 import { Button, Input, Label } from '@repo/ui';
 import {
+  DismissibleError,
   FieldError,
   SectionHeading,
   SelectField,
@@ -159,11 +160,7 @@ export function AuctionStep1Details({
 }: AuctionStep1DetailsProps) {
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      {generalError && (
-        <div className="py-2 px-3 bg-destructive/10 text-destructive text-sm rounded-md">
-          {generalError}
-        </div>
-      )}
+      <DismissibleError message={generalError} />
 
       {/* Basic Information */}
       <div className="rounded-xl border border-border bg-card p-6">
