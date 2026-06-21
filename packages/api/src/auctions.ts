@@ -19,6 +19,20 @@ export interface AuctionSchedule {
   endTime?: string;
 }
 
+export interface AuctionWorkflowStep {
+  id: string;
+  type?: string | Record<string, string>;
+  name?: string;
+  description?: string;
+  order?: number;
+  policies?: PolicyItemRQ[];
+  implicit?: boolean;
+  status?: {
+    type?: string | Record<string, string>;
+    updatedAt?: string | null;
+  };
+}
+
 export type AuctionUnitType = 'SINGLE_UNIT' | 'BUNDLE' | 'MULTI_UNIT' | 'LOT';
 
 export interface AuctionUnitItemBody {
@@ -206,6 +220,11 @@ export const auctionsApi = {
 
   scheduleAuction: async (id: string, data: AuctionScheduleRQ): Promise<void> => {
     await apiClient.put(`/api/v1/auctions/${id}/schedule`, data);
+  },
+
+  getAuctionWorkflow: async (id: string): Promise<AuctionWorkflowStep[]> => {
+    const response = await apiClient.get<AuctionWorkflowStep[]>(`/api/v1/auctions/${id}/workflow`);
+    return response.data;
   },
 
   setAuctionPolicies: async (id: string, data: AuctionPoliciesCreationRQ): Promise<void> => {

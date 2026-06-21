@@ -11,7 +11,6 @@ import {
   NameDescriptionFields,
   POLICY_DEFAULTS,
   PolicyInfoButton,
-  SELECT_CLS,
   SortButtons,
   moveItem,
 } from './PolicyShared';
@@ -29,7 +28,7 @@ interface Props {
 }
 
 const STEP_OPTIONS = Array.from({ length: 10 }, (_, i) => ({
-  value: i + 1,
+  value: String(i + 1),
   label: String(i + 1),
 }));
 
@@ -268,8 +267,10 @@ export function PolicyPriceProgressionSection({
                       <ReactSelect
                         isMulti
                         options={STEP_OPTIONS}
-                        value={STEP_OPTIONS.filter((o) => pc.steps.includes(o.value))}
-                        onChange={(selected) => update(i, { steps: selected.map((s) => s.value) })}
+                        value={STEP_OPTIONS.filter((o) => pc.steps.includes(Number(o.value)))}
+                        onChange={(selected) =>
+                          update(i, { steps: selected.map((s) => Number(s.value)) })
+                        }
                         placeholder="Select steps..."
                         menuPortalTarget={
                           typeof document !== 'undefined' ? document.body : undefined

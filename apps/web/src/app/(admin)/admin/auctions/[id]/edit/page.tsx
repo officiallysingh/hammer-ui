@@ -830,6 +830,7 @@ export default function EditAuctionPage() {
 
       {step === 5 && (
         <AuctionStep5Workflow
+          auctionId={id}
           onBack={() => setStep(4)}
           onFinish={() => router.push('/admin/auctions')}
         />

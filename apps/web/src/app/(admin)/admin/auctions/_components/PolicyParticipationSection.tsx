@@ -97,7 +97,6 @@ export function PolicyParticipationSection({
       ) : (
         <div className="space-y-3">
           {policies.map((pp, i) => {
-            const isLast = i === policies.length - 1;
             const isAnyOne = pp.type === '';
             const pct =
               pp.basis === 'PERCENTAGE' && pp.value
@@ -267,24 +266,13 @@ export function PolicyParticipationSection({
                       <FieldError message={fieldErrors[`participation_value_${i}`]} />
                     </div>
 
-                    {isLast ? (
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">
-                          Deadline before auction starts
-                        </Label>
-                        <p className="text-xs text-muted-foreground py-[7px]">
-                          No deadline — applies until auction start
-                        </p>
-                      </div>
-                    ) : (
-                      <DayHourDropdowns
-                        label="Deadline before auction starts"
-                        daysValue={pp.deadlineDays}
-                        hoursValue={pp.deadlineHours}
-                        onDaysChange={(v) => update(i, { deadlineDays: v })}
-                        onHoursChange={(v) => update(i, { deadlineHours: v })}
-                      />
-                    )}
+                    <DayHourDropdowns
+                      label="Deadline before auction starts"
+                      daysValue={pp.deadlineDays}
+                      hoursValue={pp.deadlineHours}
+                      onDaysChange={(v) => update(i, { deadlineDays: v })}
+                      onHoursChange={(v) => update(i, { deadlineHours: v })}
+                    />
                   </div>
                 )}
               </div>

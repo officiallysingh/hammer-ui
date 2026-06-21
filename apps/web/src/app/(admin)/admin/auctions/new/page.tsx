@@ -579,8 +579,9 @@ export default function NewAuctionPage() {
         />
       )}
 
-      {step === 5 && (
+      {step === 5 && createdAuctionId && (
         <AuctionStep5Workflow
+          auctionId={createdAuctionId}
           onBack={() => setStep(4)}
           onFinish={() => router.push('/admin/auctions')}
         />

@@ -63,6 +63,15 @@ function deriveAtomicType(itemCount: number): AuctionUnitType {
   return itemCount <= 1 ? 'SINGLE_UNIT' : 'BUNDLE';
 }
 
+function clampQuantity(value: string, min = 1, max?: number): string {
+  const parsed = parseInt(value, 10);
+  if (Number.isNaN(parsed)) return String(min);
+  if (max !== undefined) {
+    return String(Math.min(Math.max(parsed, min), max));
+  }
+  return String(Math.max(parsed, min));
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface AuctionStep2UnitsProps {
@@ -87,8 +96,6 @@ export function AuctionStep2Units({
   fieldErrors,
   generalError,
   saving,
-  unitTypes,
-  loadingUnitTypes,
   precision,
   onSubmit,
   onBack,
@@ -96,13 +103,6 @@ export function AuctionStep2Units({
   submitLabel = 'Save & Continue',
   submitWithArrow = false,
 }: AuctionStep2UnitsProps) {
-  // Build the UI option list:
-  // Replace SINGLE_UNIT + BUNDLE with a single "Atomic" option.
-  const uiOptions: SelectOption[] = [
-    { value: 'ATOMIC', label: 'Atomic (single item or bundle)' },
-    ...unitTypes.filter((o) => o.value !== 'SINGLE_UNIT' && o.value !== 'BUNDLE'),
-  ];
-
   // ── Hydrate summaries/names for all atomic items that are missing one ────────
   // Covers edit mode (items loaded from API with no summaries) and the normal
   // add flow (addAtomicItem already sets summaries, so nothing is fetched).
@@ -265,6 +265,20 @@ export function AuctionStep2Units({
 
   const isAtomic = form.unitCategory === 'ATOMIC';
   const isNonAtomic = form.unitCategory === 'MULTI_UNIT' || form.unitCategory === 'LOT';
+  const selectedUnitLabel =
+    form.unitCategory === 'ATOMIC'
+      ? 'Atomic (single item or bundle)'
+      : (unitTypes.find((opt) => opt.value === form.unitCategory)?.label ?? form.unitCategory);
+
+  const updateAtomicQuantity = (idx: number, delta: number) => {
+    const current = parseInt(form.itemQuantities[idx] ?? '1', 10);
+    const max = form.itemSummaries[idx]?.availableQuantity;
+    const next = clampQuantity(String(current + delta), 1, max);
+    const nextQuantities = [...form.itemQuantities];
+    nextQuantities[idx] = next;
+    onChange({ itemQuantities: nextQuantities });
+    if (idx === 0) onChange({ itemQuantity: next });
+  };
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
@@ -279,35 +293,12 @@ export function AuctionStep2Units({
             <Label className="text-sm font-medium">
               Unit Type <span className="text-destructive">*</span>
             </Label>
-            <select
-              value={form.unitCategory}
-              onChange={(e) => {
-                const cat = e.target.value as UiUnitCategory;
-                onChange({
-                  unitCategory: cat,
-                  unitType: cat === 'ATOMIC' ? '' : (cat as AuctionUnitType),
-                  item: '',
-                  itemName: '',
-                  itemSummary: null,
-                  itemQuantity: '1',
-                  items: [],
-                  itemNames: [],
-                  itemSummaries: [],
-                  itemQuantities: [],
-                  multiItems: [],
-                  multiItemNames: [],
-                  multiItemSummaries: [],
-                });
-              }}
-              disabled={loadingUnitTypes}
-              className="w-full rounded-md border border-input bg-background px-3 py-[7px] text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
-            >
-              {uiOptions.map((opt) => (
-                <option key={opt.value} value={opt.value} disabled={opt.value !== 'ATOMIC'}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            <input
+              type="text"
+              readOnly
+              value={selectedUnitLabel}
+              className="w-full rounded-md border border-input bg-muted px-3 py-[7px] text-sm text-muted-foreground cursor-default"
+            />
             {/* Show derived type badge for Atomic */}
             {isAtomic && form.unitType && (
               <p className="text-[11px] text-muted-foreground">
@@ -411,7 +402,30 @@ export function AuctionStep2Units({
                             </p>
                           </td>
                           <td className="px-3 py-2 text-center">
-                            <span className="text-sm font-medium text-foreground">{qty}</span>
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => updateAtomicQuantity(i, -1)}
+                                disabled={parseInt(qty, 10) <= 1}
+                                className="h-6 w-6 rounded border border-border text-sm disabled:opacity-40"
+                              >
+                                −
+                              </button>
+                              <span className="min-w-6 text-sm font-medium text-foreground">
+                                {qty}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => updateAtomicQuantity(i, 1)}
+                                disabled={
+                                  s?.availableQuantity !== undefined &&
+                                  parseInt(qty, 10) >= s.availableQuantity
+                                }
+                                className="h-6 w-6 rounded border border-border text-sm disabled:opacity-40"
+                              >
+                                +
+                              </button>
+                            </div>
                           </td>
                           <td className="px-2 py-2">
                             <div className="flex items-center justify-end gap-1">
