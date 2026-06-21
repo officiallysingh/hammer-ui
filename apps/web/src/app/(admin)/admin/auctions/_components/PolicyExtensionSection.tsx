@@ -23,7 +23,7 @@ interface Props {
 
 const REFERENCE_OPTIONS: SelectOption[] = [
   { value: 'FROM_LATEST_OFFER_TIME', label: 'From Latest Offer Time' },
-  { value: 'FROM_CLOSING_TIME', label: 'From Closing Time' },
+  { value: 'FROM_CLOSING_TIME', label: 'From Auction End Time' },
 ];
 
 export function PolicyExtensionSection({
