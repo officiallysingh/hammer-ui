@@ -20,6 +20,7 @@ import {
   List,
   Database,
   Gavel,
+  Puzzle,
 } from 'lucide-react';
 import {
   Button,
@@ -34,11 +35,19 @@ import {
 import { authApi } from '@repo/api';
 import { ThemeToggle } from '@/components/common/Header/ThemeToggle';
 
-interface NavItem {
+interface NavSubItem {
   href: string;
+  label: string;
+  description: string;
+  icon?: React.ElementType;
+}
+
+interface NavItem {
+  href?: string;
   label: string;
   icon: React.ElementType;
   description: string;
+  subItems?: NavSubItem[];
 }
 
 interface NavGroup {
@@ -81,10 +90,23 @@ const navGroups: NavGroup[] = [
     label: 'Listings',
     items: [
       {
-        href: '/admin/metadata',
         label: 'Metadata',
         icon: Database,
-        description: 'Type definitions',
+        description: 'Manage metadata & components',
+        subItems: [
+          {
+            href: '/admin/metadata/components',
+            label: 'Components',
+            description: 'Reusable property groups',
+            icon: Puzzle,
+          },
+          {
+            href: '/admin/metadata',
+            label: 'Metadata',
+            description: 'Type definitions',
+            icon: Database,
+          },
+        ],
       },
       { href: '/admin/listings', label: 'Listings', icon: List, description: 'Auction listings' },
     ],
@@ -103,7 +125,25 @@ const navGroups: NavGroup[] = [
 ];
 
 // Flat list for topbar label lookup
-const allNavItems = navGroups.flatMap((g) => g.items);
+const allNavItems = navGroups.flatMap((g) =>
+  g.items.flatMap((item) =>
+    item.subItems
+      ? item.subItems.map((sub) => ({
+          href: sub.href,
+          label: sub.label,
+          description: sub.description,
+          icon: sub.icon || item.icon,
+        }))
+      : [
+          {
+            href: item.href || '',
+            label: item.label,
+            description: item.description,
+            icon: item.icon,
+          },
+        ],
+  ),
+);
 
 // Sub-route title overrides
 const subRouteTitles: { match: RegExp; label: string; description: string }[] = [
@@ -158,6 +198,16 @@ const subRouteTitles: { match: RegExp; label: string; description: string }[] = 
     description: 'Update type definition',
   },
   {
+    match: /\/admin\/metadata\/components\/new$/,
+    label: 'New component',
+    description: 'Create a reusable property group',
+  },
+  {
+    match: /\/admin\/metadata\/components\/.+\/edit$/,
+    label: 'Edit component',
+    description: 'Update component definition',
+  },
+  {
     match: /\/admin\/auctions\/new$/,
     label: 'New auction',
     description: 'Create a new auction',
@@ -182,6 +232,47 @@ interface SidebarContentProps {
 }
 
 function SidebarContent({ pathname, username, onNavClick, onSignOut }: SidebarContentProps) {
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    navGroups.forEach((group) => {
+      group.items.forEach((item) => {
+        if (item.subItems) {
+          const hasActiveSub = item.subItems.some((sub) => {
+            return sub.href === '/admin/metadata'
+              ? pathname.startsWith(sub.href) && !pathname.startsWith('/admin/metadata/components')
+              : pathname.startsWith(sub.href);
+          });
+          if (hasActiveSub) {
+            initial[item.label] = true;
+          }
+        }
+      });
+    });
+    return initial;
+  });
+
+  // Keep groups open if navigation happens externally
+  React.useEffect(() => {
+    navGroups.forEach((group) => {
+      group.items.forEach((item) => {
+        if (item.subItems) {
+          const hasActiveSub = item.subItems.some((sub) => {
+            return sub.href === '/admin/metadata'
+              ? pathname.startsWith(sub.href) && !pathname.startsWith('/admin/metadata/components')
+              : pathname.startsWith(sub.href);
+          });
+          if (hasActiveSub) {
+            setOpenGroups((prev) => ({ ...prev, [item.label]: true }));
+          }
+        }
+      });
+    });
+  }, [pathname]);
+
+  const toggleGroup = (label: string) => {
+    setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+  };
+
   return (
     <>
       {/* Brand */}
@@ -206,12 +297,88 @@ function SidebarContent({ pathname, username, onNavClick, onSignOut }: SidebarCo
               {group.label}
             </p>
             <div className="space-y-0.5">
-              {group.items.map(({ href, label, icon: Icon, description }) => {
-                const active = pathname.startsWith(href);
+              {group.items.map((item) => {
+                const { href, label, icon: Icon, description, subItems } = item;
+
+                if (subItems) {
+                  const isOpen = !!openGroups[label];
+                  const hasActiveSub = subItems.some((sub) => {
+                    return sub.href === '/admin/metadata'
+                      ? pathname.startsWith(sub.href) &&
+                          !pathname.startsWith('/admin/metadata/components')
+                      : pathname.startsWith(sub.href);
+                  });
+
+                  return (
+                    <div key={label} className="space-y-0.5">
+                      <button
+                        onClick={() => toggleGroup(label)}
+                        className={`group flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left outline-none ${
+                          hasActiveSub
+                            ? 'text-foreground bg-secondary/40'
+                            : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                        }`}
+                      >
+                        <Icon
+                          className={`h-4 w-4 shrink-0 transition-colors ${hasActiveSub ? 'text-primary' : ''}`}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-body font-medium">{label}</div>
+                          <div className="font-body text-[10px] truncate text-muted-foreground">
+                            {description}
+                          </div>
+                        </div>
+                        <ChevronRight
+                          className={`h-4 w-4 shrink-0 transition-transform duration-200 opacity-70 ${
+                            isOpen ? 'rotate-90' : ''
+                          }`}
+                        />
+                      </button>
+
+                      {isOpen && (
+                        <div className="pl-6 space-y-0.5 mt-1 border-l border-border/60 ml-5">
+                          {subItems.map((sub) => {
+                            const subActive =
+                              sub.href === '/admin/metadata'
+                                ? pathname.startsWith(sub.href) &&
+                                  !pathname.startsWith('/admin/metadata/components')
+                                : pathname.startsWith(sub.href);
+                            const SubIcon = sub.icon || Icon;
+                            return (
+                              <Link
+                                key={sub.href}
+                                href={sub.href}
+                                onClick={onNavClick}
+                                className={`group flex items-center gap-3 px-3 py-2 rounded-md text-xs font-medium transition-all ${
+                                  subActive
+                                    ? 'bg-primary/10 text-primary font-semibold'
+                                    : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                                }`}
+                              >
+                                <SubIcon
+                                  className={`h-3.5 w-3.5 shrink-0 ${
+                                    subActive
+                                      ? 'text-primary'
+                                      : 'text-muted-foreground/75 group-hover:text-foreground'
+                                  }`}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-body">{sub.label}</div>
+                                </div>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                const active = href ? pathname.startsWith(href) : false;
                 return (
                   <Link
                     key={href}
-                    href={href}
+                    href={href || '#'}
                     onClick={onNavClick}
                     className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                       active

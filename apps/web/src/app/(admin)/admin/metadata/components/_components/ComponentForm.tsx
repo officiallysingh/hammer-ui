@@ -1,0 +1,427 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { metadataApi, PropertyDef } from '@repo/api';
+import { Loader2, ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import { Button, Input, Label } from '@repo/ui';
+import PageHeader from '@/components/common/admin/PageHeader';
+import ErrorAlert from '@/components/common/admin/ErrorAlert';
+import { parseApiError } from '@/lib/api-errors';
+import { PropertyBuilder } from '../../_components/PropertyBuilder';
+import { TagInput } from '@/components/common/admin/TagInput';
+import type { KV } from '../../_components/types';
+
+export interface ComponentFormValues {
+  name: string;
+  description: string;
+  properties: PropertyDef[];
+  tags: string[];
+}
+
+const EMPTY: ComponentFormValues = {
+  name: '',
+  description: '',
+  properties: [],
+  tags: [],
+};
+
+interface ComponentFormProps {
+  initialValues?: Partial<ComponentFormValues>;
+  original?: ComponentFormValues;
+  title: string;
+  description: string;
+  submitLabel: string;
+  onSubmit: (values: ComponentFormValues, original?: ComponentFormValues) => Promise<void>;
+}
+
+// ── Step indicator ─────────────────────────────────────────────────────────────
+function StepIndicator({
+  step,
+  onStepClick,
+  editMode,
+}: {
+  step: 1 | 2;
+  onStepClick?: (s: 1 | 2) => void;
+  editMode?: boolean;
+}) {
+  const STEPS = ['Details', 'Properties'];
+  return (
+    <div className="flex items-center mb-8 px-8 max-w-lg">
+      {STEPS.map((label, i) => {
+        const s = (i + 1) as 1 | 2;
+        const done = s < step;
+        const active = s === step;
+        const clickable = !!onStepClick && (editMode ? !active : done);
+        return (
+          <div key={s} className="flex items-center flex-1 last:flex-none">
+            <div className="flex flex-col items-center gap-1.5">
+              <div
+                role={clickable ? 'button' : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                onClick={clickable ? () => onStepClick(s) : undefined}
+                onKeyDown={
+                  clickable
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') onStepClick(s);
+                      }
+                    : undefined
+                }
+                className={`flex items-center justify-center h-9 w-9 rounded-full text-sm font-semibold transition-colors ${
+                  done
+                    ? 'bg-emerald-500 text-white'
+                    : active
+                      ? 'bg-primary text-primary-foreground ring-4 ring-primary/20'
+                      : 'bg-muted text-muted-foreground'
+                } ${clickable ? 'cursor-pointer hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-emerald-400/40' : ''}`}
+              >
+                {done ? <Check className="h-4 w-4" /> : s}
+              </div>
+              <span
+                className={`text-xs font-medium whitespace-nowrap ${active ? 'text-foreground' : 'text-muted-foreground'}`}
+              >
+                {label}
+              </span>
+            </div>
+            {i < STEPS.length - 1 && (
+              <div
+                className={`flex-1 h-0.5 mx-4 mb-5 transition-colors ${done ? 'bg-emerald-500' : 'bg-muted'}`}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Validation ─────────────────────────────────────────────────────────────────
+const NEEDS_MIN = new Set(['MIN', 'SIZE']);
+const NEEDS_MAX = new Set(['MAX', 'SIZE']);
+const NEEDS_REGEX = new Set(['REGEX_PATTERN']);
+
+function validateProperties(properties: PropertyDef[], path = 'Property'): string | null {
+  for (let i = 0; i < properties.length; i++) {
+    const prop = properties[i]!;
+    const label = `${path} ${i + 1}`;
+    if (!prop.name?.trim()) return `${label}: name is required.`;
+    if (!prop.label?.trim()) return `${label} ("${prop.name}"): label is required.`;
+
+    for (const v of prop.validators ?? []) {
+      const t = typeof v.type === 'string' ? v.type : String(v.type ?? '');
+      if (NEEDS_MIN.has(t) && (v.min === undefined || v.min === ''))
+        return `${label} ("${prop.name}"): validator ${t} requires a Min value.`;
+      if (NEEDS_MAX.has(t) && (v.max === undefined || v.max === ''))
+        return `${label} ("${prop.name}"): validator ${t} requires a Max value.`;
+      if (NEEDS_REGEX.has(t) && !v.regex?.trim())
+        return `${label} ("${prop.name}"): validator REGEX_PATTERN requires a Pattern.`;
+    }
+
+    if (prop.value?.length) {
+      const childError = validateProperties(prop.value, `${label} > child`);
+      if (childError) return childError;
+    }
+    if (prop.subProperties) {
+      if (!prop.subProperties.name?.trim())
+        return `${label} ("${prop.name}") sub-property: name is required.`;
+      if (!prop.subProperties.label?.trim())
+        return `${label} ("${prop.name}") sub-property: label is required.`;
+    }
+  }
+  return null;
+}
+
+// ── Component ──────────────────────────────────────────────────────────────────
+export function ComponentForm({
+  initialValues,
+  original,
+  title,
+  description,
+  submitLabel,
+  onSubmit,
+}: ComponentFormProps) {
+  const router = useRouter();
+  const [step, setStep] = useState<1 | 2>(1);
+  const [form, setForm] = useState<ComponentFormValues>({ ...EMPTY, ...initialValues });
+  const [metaTypeOptions, setMetaTypeOptions] = useState<KV[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(true);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const appliedRef = useRef(false);
+
+  useEffect(() => {
+    metadataApi
+      .getMetaTypes()
+      .then(setMetaTypeOptions)
+      .catch(() => {})
+      .finally(() => setLoadingOptions(false));
+  }, []);
+
+  useEffect(() => {
+    if (initialValues && !appliedRef.current) {
+      appliedRef.current = true;
+      setForm((prev) => ({ ...prev, ...initialValues }));
+    }
+  }, [initialValues]);
+
+  const set = <K extends keyof ComponentFormValues>(key: K, value: ComponentFormValues[K]) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
+
+  const clearErr = (f: string) =>
+    setFieldErrors((p) => {
+      const n = { ...p };
+      delete n[f];
+      return n;
+    });
+
+  const handleNext = (e: React.FormEvent) => {
+    e.preventDefault();
+    const errs: Record<string, string> = {};
+    if (!form.name.trim()) errs.name = 'Name is required.';
+    if (!form.description.trim()) errs.description = 'Description is required.';
+    if (Object.keys(errs).length) {
+      setFieldErrors(errs);
+      return;
+    }
+    setFieldErrors({});
+    setStep(2);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setFieldErrors({});
+    if (form.properties.length === 0) {
+      setError('At least one property is required.');
+      return;
+    }
+    const propError = validateProperties(form.properties);
+    if (propError) {
+      setError(propError);
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSubmit(form, original);
+      router.push('/admin/metadata/components');
+    } catch (err) {
+      const parsed = parseApiError(err);
+      if (Object.keys(parsed.fieldErrors).length > 0) {
+        setFieldErrors(parsed.fieldErrors);
+        const step1Fields = ['name', 'description'];
+        const hasStep1Errors = Object.keys(parsed.fieldErrors).some((k) => step1Fields.includes(k));
+        if (hasStep1Errors) {
+          setError('Some errors are in the Details step. Please go back and fix them.');
+        }
+      } else {
+        setError(parsed.general ?? 'Failed to save.');
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loadingOptions) {
+    return (
+      <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        <span className="text-sm">Loading...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title={title}
+        description={description}
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push('/admin/metadata/components')}
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+        }
+      />
+
+      <StepIndicator step={step} onStepClick={setStep} editMode={!!original} />
+
+      {/* ── Step 1: Details ── */}
+      {step === 1 && (
+        <form onSubmit={handleNext} className="space-y-6">
+          <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+            <h3 className="text-sm font-semibold text-foreground">Component details</h3>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="comp-name" className={fieldErrors.name ? 'text-destructive' : ''}>
+                Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="comp-name"
+                value={form.name}
+                onChange={(e) => {
+                  set('name', e.target.value);
+                  clearErr('name');
+                }}
+                placeholder="Address Block"
+                autoComplete="off"
+                className={
+                  fieldErrors.name ? 'border-destructive focus-visible:ring-destructive' : ''
+                }
+              />
+              {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="comp-desc"
+                className={fieldErrors.description ? 'text-destructive' : ''}
+              >
+                Description <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="comp-desc"
+                value={form.description}
+                onChange={(e) => {
+                  set('description', e.target.value);
+                  clearErr('description');
+                }}
+                placeholder="Reusable address component for shipping and billing"
+                className={
+                  fieldErrors.description ? 'border-destructive focus-visible:ring-destructive' : ''
+                }
+              />
+              {fieldErrors.description && (
+                <p className="text-xs text-destructive">{fieldErrors.description}</p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>
+                Tags <span className="text-muted-foreground font-normal">(optional, max 5)</span>
+              </Label>
+              <TagInput value={form.tags} onChange={(tags) => set('tags', tags)} max={5} />
+            </div>
+          </div>
+
+          {(() => {
+            const hasStep1Changes =
+              !original ||
+              form.name !== original.name ||
+              form.description !== original.description ||
+              JSON.stringify(form.tags) !== JSON.stringify(original.tags);
+            return (
+              <div className="flex justify-between gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => router.push('/admin/metadata/components')}
+                >
+                  Cancel
+                </Button>
+                {original && !hasStep1Changes ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setStep(2)}
+                    className="gap-2"
+                  >
+                    Skip <ArrowRight className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button type="submit" className="gap-2">
+                    Continue <ArrowRight className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            );
+          })()}
+        </form>
+      )}
+
+      {/* ── Step 2: Properties ── */}
+      {step === 2 && (
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {(error || Object.keys(fieldErrors).length > 0) && (
+            <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 space-y-2">
+              {error && <p className="text-sm font-medium text-destructive">{error}</p>}
+              {Object.entries(fieldErrors).map(([field, msg]) => (
+                <p key={field} className="text-sm text-destructive">
+                  <span className="font-medium capitalize">{field}</span>: {msg}
+                </p>
+              ))}
+              {Object.keys(fieldErrors).some((k) => ['name', 'description'].includes(k)) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep(1);
+                    setError(null);
+                  }}
+                  className="text-sm text-destructive underline underline-offset-2 hover:text-destructive/80 font-medium"
+                >
+                  ← Go back to Details to fix
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">Properties</h3>
+              <span className="text-xs text-muted-foreground">{form.name}</span>
+            </div>
+            <PropertyBuilder
+              properties={form.properties}
+              onChange={(properties) => set('properties', properties)}
+              metaTypes={metaTypeOptions}
+            />
+          </div>
+
+          {(() => {
+            const hasStep2Changes =
+              !original || JSON.stringify(form.properties) !== JSON.stringify(original.properties);
+            return (
+              <div className="flex justify-between gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setStep(1)}
+                  disabled={saving}
+                >
+                  <ArrowLeft className="h-4 w-4 mr-1" />
+                  Back
+                </Button>
+                {original && !hasStep2Changes ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => router.push('/admin/metadata/components')}
+                    disabled={saving}
+                    className="gap-2"
+                  >
+                    Skip <ArrowRight className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button type="submit" disabled={saving} className="gap-2">
+                    {saving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      submitLabel
+                    )}
+                  </Button>
+                )}
+              </div>
+            );
+          })()}
+        </form>
+      )}
+    </div>
+  );
+}

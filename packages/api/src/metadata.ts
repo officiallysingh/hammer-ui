@@ -127,6 +127,42 @@ function normalizePairs(data: Record<string, string>[]): { key: string; value: s
   });
 }
 
+// ── Component types ────────────────────────────────────────────────────────────
+
+export interface ComponentVM {
+  id: string;
+  name: string;
+  description?: string;
+  properties?: PropertyDef[];
+  tags?: string[];
+}
+
+export interface PaginatedComponents {
+  content?: ComponentVM[];
+  page?: {
+    currentPage: number;
+    pageSize: number;
+    totalPages: number;
+    totalRecords: number;
+    hasNext: boolean;
+    hasPrevious: boolean;
+  };
+}
+
+export interface ComponentCreationReq {
+  name: string;
+  description: string;
+  properties: PropertyDef[];
+  tags?: string[];
+}
+
+export interface ComponentUpdationReq {
+  name?: string;
+  description?: string;
+  properties?: PropertyDef[];
+  tags?: string[];
+}
+
 export const metadataApi = {
   // GET /api/v1/meta-data/managed-types (updated path)
   getManagedTypes: async (params?: {
@@ -217,5 +253,46 @@ export const metadataApi = {
       `/api/v1/meta-data/model/meta-types/${metaType}/validators`,
     );
     return normalizePairs(response.data);
+  },
+
+  // ── Component methods ──────────────────────────────────────────────────────
+
+  // GET /api/v1/meta-data/components
+  getComponents: async (params?: {
+    phrases?: string[];
+    page?: number;
+    size?: number;
+  }): Promise<PaginatedComponents> => {
+    const response = await apiClient.get<PaginatedComponents>('/api/v1/meta-data/components', {
+      params: {
+        ...(params?.phrases?.length ? { phrases: params.phrases } : {}),
+        page: params?.page ?? 0,
+        size: params?.size ?? 16,
+      },
+    });
+    return response.data;
+  },
+
+  // GET /api/v1/meta-data/components/{id}
+  getComponentById: async (id: string): Promise<ComponentVM> => {
+    const response = await apiClient.get<ComponentVM>(`/api/v1/meta-data/components/${id}`);
+    return response.data;
+  },
+
+  // POST /api/v1/meta-data/components
+  createComponent: async (data: ComponentCreationReq): Promise<void> => {
+    await apiClient.post('/api/v1/meta-data/components', data);
+  },
+
+  // PATCH /api/v1/meta-data/components/{id}
+  updateComponent: async (id: string, data: ComponentUpdationReq): Promise<void> => {
+    await apiClient.patch(`/api/v1/meta-data/components/${id}`, data, {
+      params: { id },
+    });
+  },
+
+  // DELETE /api/v1/meta-data/components/{id}
+  deleteComponent: async (id: string): Promise<void> => {
+    await apiClient.delete(`/api/v1/meta-data/components/${id}`);
   },
 };

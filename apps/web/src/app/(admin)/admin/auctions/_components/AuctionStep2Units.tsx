@@ -96,6 +96,7 @@ export function AuctionStep2Units({
   fieldErrors,
   generalError,
   saving,
+  unitTypes,
   precision,
   onSubmit,
   onBack,
