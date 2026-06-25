@@ -18,11 +18,13 @@ Keys follow the format `namespace:key`. The frontend reads them to choose which 
 
 ## Namespaces
 
-| Namespace | Purpose                                                                       |
-| --------- | ----------------------------------------------------------------------------- |
-| `html`    | Passed directly to the underlying HTML element (placeholder, min, max, …)     |
-| `ui`      | Controls which React component renders the field and how it displays in views |
-| `style`   | Provides data that drives visual options (selectable values, colors, …)       |
+| Namespace | Purpose                                                                        |
+| --------- | ------------------------------------------------------------------------------ |
+| `html`    | Passed directly to the underlying HTML element (placeholder, min, max, …)      |
+| `ui`      | Controls which React component renders the field and how it displays in views  |
+| `style`   | Provides data that drives visual options (selectable values, colors, …)        |
+| `form`    | Controls how the field **input** renders inside a form (size, variant, layout) |
+| `list`    | Controls how the stored **value** renders in listing / detail views            |
 
 ---
 
@@ -719,8 +721,156 @@ curl -s -X PATCH "http://localhost:8090/api/v1/listings/$LISTING2_ID" \
 
 ---
 
+---
+
+## `form:*` — Form input rendering
+
+Controls how the **input widget** for this field looks when embedded inside a form.
+These are independent from `html:*` (which sets HTML element behaviour) and `ui:component` (which picks the widget type).
+
+### Layout & sizing
+
+| Key                   | Type   | Options / Format                                         | Effect                                        |
+| --------------------- | ------ | -------------------------------------------------------- | --------------------------------------------- |
+| `form:size`           | select | `sm` · `md` · `lg` · `xl`                                | Overall size of the input widget              |
+| `form:variant`        | select | `default` · `outline` · `ghost` · `filled` · `underline` | Visual style of the input container           |
+| `form:width`          | select | `full` · `auto` · `fixed`                                | How wide the input stretches in its container |
+| `form:layout`         | select | `vertical` · `horizontal` · `inline`                     | Stack direction of label + input              |
+| `form:label.position` | select | `top` · `left` · `floating` · `hidden`                   | Where the label appears relative to the input |
+| `form:helper-text`    | text   | any string                                               | Small hint line rendered below the field      |
+
+---
+
+## `list:*` — Listing / detail view rendering
+
+Controls how the **stored value** appears when shown to a user in card, table, or detail views.
+
+### Common display properties
+
+| Key             | Type   | Options / Format                                                                                 | Effect                                      |
+| --------------- | ------ | ------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| `list:display`  | select | `text` · `badge` · `pill` · `color-swatch` · `image` · `icon` · `price` · `rating` · `truncated` | Primary render mode for the value           |
+| `list:prefix`   | text   | any string (e.g. `₹`, `#`, `+`)                                                                  | Static text prepended to the value          |
+| `list:suffix`   | text   | any string (e.g. `%`, `kg`, `hrs`)                                                               | Static text appended to the value           |
+| `list:truncate` | number | max character count (`0` = no truncation)                                                        | Truncates long text with `…`                |
+| `list:format`   | select | `raw` · `date` · `datetime` · `currency` · `percentage`                                          | Formats the raw stored value before display |
+
+---
+
+### Blocks — composite display properties
+
+A **block** is a named cluster of `list:*` keys that only make sense together.
+Sub-keys use dot notation: `list:<block>.<property>`.
+A block activates when its **trigger key** reaches the required value.
+
+#### `list:badge` block — activates when `list:display = badge`
+
+| Key                  | Type   | Options                                                   | Effect                             |
+| -------------------- | ------ | --------------------------------------------------------- | ---------------------------------- |
+| `list:badge.color`   | color  | `primary` · `success` · `warning` · `danger` · any `#hex` | Background / border color of badge |
+| `list:badge.size`    | select | `sm` · `md` · `lg`                                        | Badge size                         |
+| `list:badge.variant` | select | `solid` · `outline` · `soft`                              | Fill style of the badge            |
+
+#### `list:image` block — activates when `list:display = image`
+
+| Key                | Type   | Options                            | Effect                              |
+| ------------------ | ------ | ---------------------------------- | ----------------------------------- |
+| `list:image.size`  | select | `xs` · `sm` · `md` · `lg` · `full` | Rendered size of the image          |
+| `list:image.shape` | select | `square` · `rounded` · `circle`    | Corner radius / crop shape          |
+| `list:image.fit`   | select | `cover` · `contain` · `fill`       | CSS object-fit applied to the image |
+
+#### `list:price` block — activates when `list:display = price`
+
+| Key                   | Type   | Options                                  | Effect                                  |
+| --------------------- | ------ | ---------------------------------------- | --------------------------------------- |
+| `list:price.currency` | select | `USD` · `GBP` · `EUR` · `INR` · `custom` | Currency to show alongside the value    |
+| `list:price.format`   | select | `symbol` · `code` · `name`               | How the currency identifier is rendered |
+| `list:price.size`     | select | `sm` · `md` · `lg`                       | Text size of the price display          |
+
+---
+
+## Complete examples (form + list attributes)
+
+### Coloured status badge
+
+```
+metaType:       STRING
+style:options   →  Active:active,Inactive:inactive,Pending:pending
+ui:component    →  option-pills
+list:display    →  badge
+list:badge.color   →  success        (active), warning (pending), danger (inactive)
+list:badge.variant →  soft
+list:badge.size    →  sm
+```
+
+### Product image thumbnail
+
+```
+metaType:       FILE
+html:accept     →  image/*
+list:display    →  image
+list:image.size →  md
+list:image.shape →  rounded
+list:image.fit  →  cover
+```
+
+### Price with currency symbol
+
+```
+metaType:           INTEGER
+ui:component        →  slider
+html:min            →  0
+html:max            →  100000
+html:step           →  500
+list:display        →  price
+list:price.currency →  INR
+list:price.format   →  symbol
+list:price.size     →  md
+```
+
+### Compact form input (horizontal label)
+
+```
+metaType:           STRING
+html:placeholder    →  e.g. SKU-001-BLK
+form:size           →  sm
+form:variant        →  outline
+form:width          →  full
+form:label.position →  left
+```
+
+### Percentage field with suffix
+
+```
+metaType:      FLOAT
+html:min       →  0
+html:max       →  100
+html:step      →  0.5
+list:display   →  text
+list:suffix    →  %
+list:format    →  percentage
+```
+
+---
+
+## Block trigger rules
+
+When `list:display` changes, only the matching block's sub-keys are active.
+Setting `list:display = badge` makes `list:badge.*` keys apply; `list:image.*` and `list:price.*` keys are ignored even if present.
+
+| `list:display` value                                      | Active block                                                 |
+| --------------------------------------------------------- | ------------------------------------------------------------ |
+| `badge`                                                   | `list:badge.*`                                               |
+| `pill`                                                    | `list:badge.*` (shares badge styling)                        |
+| `image`                                                   | `list:image.*`                                               |
+| `price`                                                   | `list:price.*`                                               |
+| `text` / `truncated` / `icon` / `rating` / `color-swatch` | no block — use `list:prefix`, `list:suffix`, `list:truncate` |
+
+---
+
 ## Adding new protocol keys
 
 1. Open [attribute-protocol.ts](<hammer-ui/apps/web/src/app/(admin)/admin/metadata/_components/attribute-protocol.ts>) and add an entry to `ATTRIBUTE_PROTOCOL`.
-2. If the new key needs a new UI widget, add the renderer inside `ScalarField` in [Step3Catalog.tsx](<hammer-ui/apps/web/src/app/(admin)/admin/listings/_components/Step3Catalog.tsx>).
-3. The `AttributeEditor` dropdown in [PropertyRow.tsx](<hammer-ui/apps/web/src/app/(admin)/admin/metadata/_components/PropertyRow.tsx>) picks up new keys automatically from the protocol array — no extra wiring needed.
+2. For `form:*` or `list:*` keys that belong to a block, also add the block definition to `ATTR_BLOCKS` and set the `block` and `showWhen` fields on the key entry.
+3. If the new key needs a new UI widget, add the renderer inside `ScalarField` in [Step3Catalog.tsx](<hammer-ui/apps/web/src/app/(admin)/admin/listings/_components/Step3Catalog.tsx>).
+4. The `AttributeEditor` dropdown in [PropertyRow.tsx](<hammer-ui/apps/web/src/app/(admin)/admin/metadata/_components/PropertyRow.tsx>) picks up new keys automatically from the protocol array — no extra wiring needed.
