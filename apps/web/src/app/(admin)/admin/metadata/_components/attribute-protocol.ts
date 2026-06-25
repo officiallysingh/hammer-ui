@@ -1,4 +1,8 @@
-export type AttrValueType = 'text' | 'number' | 'select' | 'tags';
+import type { PropertyType } from '@repo/api';
+
+export type AttrValueType = 'text' | 'number' | 'select' | 'tags' | 'color';
+
+export type AttrSurface = 'form' | 'list' | 'both';
 
 export interface AttrKeyDef {
   key: string;
@@ -6,13 +10,77 @@ export interface AttrKeyDef {
   description: string;
   valueType: AttrValueType;
   options?: string[];
-  group: 'html' | 'ui' | 'style';
+  surface: AttrSurface;
+  group: 'html' | 'ui' | 'style' | 'form' | 'list';
+  block?: string;
+  showWhen?: { key: string; equals: string };
+  appliesTo?: PropertyType[];
 }
+
+export interface AttrBlockDef {
+  name: string;
+  label: string;
+  surface: AttrSurface;
+  trigger?: { key: string; equals: string };
+  triggerPropType?: PropertyType;
+  keys: string[];
+}
+
+export const ATTR_BLOCKS: AttrBlockDef[] = [
+  {
+    name: 'badge',
+    label: 'Badge style',
+    surface: 'list',
+    trigger: { key: 'list:display', equals: 'badge' },
+    keys: ['list:badge.color', 'list:badge.size', 'list:badge.variant'],
+  },
+  {
+    name: 'pill',
+    label: 'Pill style',
+    surface: 'list',
+    trigger: { key: 'list:display', equals: 'pill' },
+    keys: ['list:badge.color', 'list:badge.size', 'list:badge.variant'],
+  },
+  {
+    name: 'image',
+    label: 'Image display',
+    surface: 'list',
+    trigger: { key: 'list:display', equals: 'image' },
+    keys: ['list:image.size', 'list:image.shape', 'list:image.fit'],
+  },
+  {
+    name: 'price',
+    label: 'Price display',
+    surface: 'list',
+    trigger: { key: 'list:display', equals: 'price' },
+    keys: ['list:price.currency', 'list:price.format', 'list:price.size'],
+  },
+  {
+    name: 'composite-layout',
+    label: 'Composite layout',
+    surface: 'list',
+    triggerPropType: 'COMPOSITE_PROPERTY',
+    keys: [
+      'list:composite.layout',
+      'list:composite.columns',
+      'list:composite.gap',
+      'list:composite.label-width',
+    ],
+  },
+  {
+    name: 'list-layout',
+    label: 'List layout',
+    surface: 'list',
+    triggerPropType: 'LIST_PROPERTY',
+    keys: ['list:list.layout', 'list:list.item-style'],
+  },
+];
 
 export const ATTRIBUTE_PROTOCOL: AttrKeyDef[] = [
   // ── html ──────────────────────────────────────────────────────────────────
   {
     key: 'html:placeholder',
+    surface: 'both',
     group: 'html',
     label: 'Placeholder',
     description: 'Placeholder text shown inside the input',
@@ -20,6 +88,7 @@ export const ATTRIBUTE_PROTOCOL: AttrKeyDef[] = [
   },
   {
     key: 'html:min',
+    surface: 'both',
     group: 'html',
     label: 'Min',
     description: 'Minimum numeric value or string length',
@@ -27,6 +96,7 @@ export const ATTRIBUTE_PROTOCOL: AttrKeyDef[] = [
   },
   {
     key: 'html:max',
+    surface: 'both',
     group: 'html',
     label: 'Max',
     description: 'Maximum numeric value or string length',
@@ -34,6 +104,7 @@ export const ATTRIBUTE_PROTOCOL: AttrKeyDef[] = [
   },
   {
     key: 'html:step',
+    surface: 'both',
     group: 'html',
     label: 'Step',
     description: 'Numeric step increment',
@@ -41,6 +112,7 @@ export const ATTRIBUTE_PROTOCOL: AttrKeyDef[] = [
   },
   {
     key: 'html:pattern',
+    surface: 'both',
     group: 'html',
     label: 'Pattern',
     description: 'Regex validation pattern applied to the input',
@@ -48,6 +120,7 @@ export const ATTRIBUTE_PROTOCOL: AttrKeyDef[] = [
   },
   {
     key: 'html:accept',
+    surface: 'both',
     group: 'html',
     label: 'Accept',
     description: 'File input MIME filter, e.g. image/* or application/pdf',
@@ -59,12 +132,11 @@ export const ATTRIBUTE_PROTOCOL: AttrKeyDef[] = [
       'application/msword',
       'application/rtf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/x-tika-msoffice',
-      'application/x-tika-ooxml',
     ],
   },
   {
     key: 'html:type',
+    surface: 'both',
     group: 'html',
     label: 'Input type',
     description: 'Override the HTML input type',
@@ -75,6 +147,7 @@ export const ATTRIBUTE_PROTOCOL: AttrKeyDef[] = [
   // ── ui ────────────────────────────────────────────────────────────────────
   {
     key: 'ui:component',
+    surface: 'both',
     group: 'ui',
     label: 'Component',
     description: 'Override the default UI widget for this field',
@@ -92,6 +165,7 @@ export const ATTRIBUTE_PROTOCOL: AttrKeyDef[] = [
   },
   {
     key: 'ui:display',
+    surface: 'both',
     group: 'ui',
     label: 'Display mode',
     description: 'How the stored value appears in listing/detail views',
@@ -100,6 +174,7 @@ export const ATTRIBUTE_PROTOCOL: AttrKeyDef[] = [
   },
   {
     key: 'ui:multiline',
+    surface: 'both',
     group: 'ui',
     label: 'Multiline',
     description: 'Render a STRING field as a resizable textarea',
@@ -108,6 +183,7 @@ export const ATTRIBUTE_PROTOCOL: AttrKeyDef[] = [
   },
   {
     key: 'ui:rows',
+    surface: 'both',
     group: 'ui',
     label: 'Rows',
     description: 'Row count when ui:multiline or ui:component=textarea',
@@ -117,6 +193,7 @@ export const ATTRIBUTE_PROTOCOL: AttrKeyDef[] = [
   // ── style ─────────────────────────────────────────────────────────────────
   {
     key: 'style:options',
+    surface: 'both',
     group: 'style',
     label: 'Options',
     description: 'Comma-separated select options. Format: Label:value or just value',
@@ -124,10 +201,293 @@ export const ATTRIBUTE_PROTOCOL: AttrKeyDef[] = [
   },
   {
     key: 'style:color-options',
+    surface: 'both',
     group: 'style',
     label: 'Color options',
     description: 'Comma-separated color names or hex values shown as clickable swatches',
     valueType: 'tags',
+  },
+
+  // ── form ──────────────────────────────────────────────────────────────────
+  {
+    key: 'form:size',
+    surface: 'form',
+    group: 'form',
+    label: 'Size',
+    description: 'Overall size of the input widget',
+    valueType: 'select',
+    options: ['sm', 'md', 'lg', 'xl'],
+  },
+  {
+    key: 'form:variant',
+    surface: 'form',
+    group: 'form',
+    label: 'Variant',
+    description: 'Visual style of the input container',
+    valueType: 'select',
+    options: ['default', 'outline', 'ghost', 'filled', 'underline'],
+  },
+  {
+    key: 'form:width',
+    surface: 'form',
+    group: 'form',
+    label: 'Width',
+    description: 'How wide the input stretches in its container',
+    valueType: 'select',
+    options: ['full', 'auto', 'fixed'],
+  },
+  {
+    key: 'form:layout',
+    surface: 'form',
+    group: 'form',
+    label: 'Layout',
+    description: 'Stack direction of label + input',
+    valueType: 'select',
+    options: ['vertical', 'horizontal', 'inline'],
+  },
+  {
+    key: 'form:label.position',
+    surface: 'form',
+    group: 'form',
+    label: 'Label position',
+    description: 'Where the label appears relative to the input',
+    valueType: 'select',
+    options: ['top', 'left', 'floating', 'hidden'],
+  },
+  {
+    key: 'form:helper-text',
+    surface: 'form',
+    group: 'form',
+    label: 'Helper text',
+    description: 'Small hint line rendered below the field',
+    valueType: 'text',
+  },
+
+  // ── list (common) ─────────────────────────────────────────────────────────
+  {
+    key: 'list:display',
+    surface: 'list',
+    group: 'list',
+    label: 'List display',
+    description: 'Primary render mode for the stored value',
+    valueType: 'select',
+    options: [
+      'text',
+      'badge',
+      'pill',
+      'color-swatch',
+      'image',
+      'icon',
+      'price',
+      'rating',
+      'truncated',
+    ],
+  },
+  {
+    key: 'list:prefix',
+    surface: 'list',
+    group: 'list',
+    label: 'Prefix',
+    description: 'Static text prepended to the value',
+    valueType: 'text',
+  },
+  {
+    key: 'list:suffix',
+    surface: 'list',
+    group: 'list',
+    label: 'Suffix',
+    description: 'Static text appended to the value',
+    valueType: 'text',
+  },
+  {
+    key: 'list:truncate',
+    surface: 'list',
+    group: 'list',
+    label: 'Truncate',
+    description: 'Max character count (0 = no truncation)',
+    valueType: 'number',
+  },
+  {
+    key: 'list:format',
+    surface: 'list',
+    group: 'list',
+    label: 'Format',
+    description: 'Value formatting before display',
+    valueType: 'select',
+    options: ['raw', 'date', 'datetime', 'currency', 'percentage'],
+  },
+
+  // ── list:badge block ──────────────────────────────────────────────────────
+  {
+    key: 'list:badge.color',
+    surface: 'list',
+    group: 'list',
+    label: 'Badge color',
+    description: 'Background / border color of badge',
+    valueType: 'select',
+    options: ['primary', 'success', 'warning', 'danger'],
+    block: 'badge',
+    showWhen: { key: 'list:display', equals: 'badge' },
+  },
+  {
+    key: 'list:badge.size',
+    surface: 'list',
+    group: 'list',
+    label: 'Badge size',
+    description: 'Badge size',
+    valueType: 'select',
+    options: ['sm', 'md', 'lg'],
+    block: 'badge',
+    showWhen: { key: 'list:display', equals: 'badge' },
+  },
+  {
+    key: 'list:badge.variant',
+    surface: 'list',
+    group: 'list',
+    label: 'Badge variant',
+    description: 'Fill style of the badge',
+    valueType: 'select',
+    options: ['solid', 'outline', 'soft'],
+    block: 'badge',
+    showWhen: { key: 'list:display', equals: 'badge' },
+  },
+
+  // ── list:image block ──────────────────────────────────────────────────────
+  {
+    key: 'list:image.size',
+    surface: 'list',
+    group: 'list',
+    label: 'Image size',
+    description: 'Rendered size of the image',
+    valueType: 'select',
+    options: ['xs', 'sm', 'md', 'lg', 'full'],
+    block: 'image',
+    showWhen: { key: 'list:display', equals: 'image' },
+  },
+  {
+    key: 'list:image.shape',
+    surface: 'list',
+    group: 'list',
+    label: 'Image shape',
+    description: 'Corner radius / crop shape',
+    valueType: 'select',
+    options: ['square', 'rounded', 'circle'],
+    block: 'image',
+    showWhen: { key: 'list:display', equals: 'image' },
+  },
+  {
+    key: 'list:image.fit',
+    surface: 'list',
+    group: 'list',
+    label: 'Image fit',
+    description: 'CSS object-fit applied to the image',
+    valueType: 'select',
+    options: ['cover', 'contain', 'fill'],
+    block: 'image',
+    showWhen: { key: 'list:display', equals: 'image' },
+  },
+
+  // ── list:price block ──────────────────────────────────────────────────────
+  {
+    key: 'list:price.currency',
+    surface: 'list',
+    group: 'list',
+    label: 'Price currency',
+    description: 'Currency to show alongside the value',
+    valueType: 'select',
+    options: ['USD', 'GBP', 'EUR', 'INR', 'custom'],
+    block: 'price',
+    showWhen: { key: 'list:display', equals: 'price' },
+  },
+  {
+    key: 'list:price.format',
+    surface: 'list',
+    group: 'list',
+    label: 'Price format',
+    description: 'How the currency identifier is rendered',
+    valueType: 'select',
+    options: ['symbol', 'code', 'name'],
+    block: 'price',
+    showWhen: { key: 'list:display', equals: 'price' },
+  },
+  {
+    key: 'list:price.size',
+    surface: 'list',
+    group: 'list',
+    label: 'Price size',
+    description: 'Text size of the price display',
+    valueType: 'select',
+    options: ['sm', 'md', 'lg'],
+    block: 'price',
+    showWhen: { key: 'list:display', equals: 'price' },
+  },
+
+  // ── list:composite block (type-triggered) ──────────────────────────────────
+  {
+    key: 'list:composite.layout',
+    surface: 'list',
+    group: 'list',
+    label: 'Composite layout',
+    description: 'How composite renders in listing view',
+    valueType: 'select',
+    options: ['table', 'inline', 'card', 'grid', 'definition', 'hidden'],
+    block: 'composite-layout',
+    appliesTo: ['COMPOSITE_PROPERTY'],
+  },
+  {
+    key: 'list:composite.columns',
+    surface: 'list',
+    group: 'list',
+    label: 'Grid columns',
+    description: 'Number of columns for grid layout',
+    valueType: 'number',
+    block: 'composite-layout',
+    appliesTo: ['COMPOSITE_PROPERTY'],
+  },
+  {
+    key: 'list:composite.gap',
+    surface: 'list',
+    group: 'list',
+    label: 'Gap',
+    description: 'Spacing between items',
+    valueType: 'select',
+    options: ['tight', 'normal', 'loose'],
+    block: 'composite-layout',
+    appliesTo: ['COMPOSITE_PROPERTY'],
+  },
+  {
+    key: 'list:composite.label-width',
+    surface: 'list',
+    group: 'list',
+    label: 'Label width',
+    description: 'Fixed label width (Tailwind class, e.g. w-32)',
+    valueType: 'text',
+    block: 'composite-layout',
+    appliesTo: ['COMPOSITE_PROPERTY'],
+  },
+
+  // ── list:list block (type-triggered for LIST/SET) ──────────────────────────
+  {
+    key: 'list:list.layout',
+    surface: 'list',
+    group: 'list',
+    label: 'List layout',
+    description: 'How list items render',
+    valueType: 'select',
+    options: ['cards', 'table', 'inline', 'compact'],
+    block: 'list-layout',
+    appliesTo: ['LIST_PROPERTY'],
+  },
+  {
+    key: 'list:list.item-style',
+    surface: 'list',
+    group: 'list',
+    label: 'Item style',
+    description: 'Item border / card style',
+    valueType: 'select',
+    options: ['flat', 'card', 'bordered', 'separated'],
+    block: 'list-layout',
+    appliesTo: ['LIST_PROPERTY'],
   },
 ];
 
@@ -135,5 +495,33 @@ export const ATTR_PROTOCOL_MAP: Record<string, AttrKeyDef> = Object.fromEntries(
   ATTRIBUTE_PROTOCOL.map((d) => [d.key, d]),
 );
 
-export const ATTR_GROUPS = ['html', 'ui', 'style'] as const;
+export const ATTR_GROUPS = ['html', 'ui', 'style', 'form', 'list'] as const;
 export type AttrGroup = (typeof ATTR_GROUPS)[number];
+
+export function resolveAttrs(
+  attrs: Record<string, string> | undefined,
+  surface: AttrSurface,
+  propType?: PropertyType,
+): Record<string, string> {
+  if (!attrs) return {};
+  const out: Record<string, string> = {};
+  for (const def of ATTRIBUTE_PROTOCOL) {
+    if (def.surface !== 'both' && def.surface !== surface) continue;
+    if (def.appliesTo && propType && !def.appliesTo.includes(propType)) continue;
+    if (def.showWhen && attrs[def.showWhen.key] !== def.showWhen.equals) continue;
+    if (def.key in attrs) out[def.key] = attrs[def.key]!;
+  }
+  return out;
+}
+
+export function isBlockActive(
+  blockName: string,
+  attrs: Record<string, string>,
+  propType?: PropertyType,
+): boolean {
+  const block = ATTR_BLOCKS.find((b) => b.name === blockName);
+  if (!block) return false;
+  if (block.trigger && attrs[block.trigger.key] === block.trigger.equals) return true;
+  if (block.triggerPropType && propType === block.triggerPropType) return true;
+  return false;
+}

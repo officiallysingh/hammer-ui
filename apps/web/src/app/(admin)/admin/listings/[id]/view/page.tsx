@@ -10,6 +10,7 @@ import {
   ListingBlobRef,
   ManagedTypeVM,
   PropertyDef,
+  PropertyType,
 } from '@repo/api';
 import {
   ArrowLeft,
@@ -26,6 +27,7 @@ import {
 import { Button, Badge } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
 import { ICON_REGISTRY } from '@/components/common/iconRegistry';
+import { resolveAttrs } from '../../../metadata/_components/attribute-protocol';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -88,10 +90,161 @@ function PropValue({ prop, def }: { prop: EmbeddedProp; def?: PropertyDef }) {
   }
 
   const strVal = String(val);
+  const listAttrs = resolveAttrs(attrs, 'list', def?.type as PropertyType | undefined);
+  const listPrefix = listAttrs['list:prefix'];
+  const listSuffix = listAttrs['list:suffix'];
+  const listTruncate = listAttrs['list:truncate'];
+  const listFormat = listAttrs['list:format'];
+  const listDisplay = listAttrs['list:display'] || uiDisplay;
+  const displayValue =
+    listTruncate && Number(listTruncate) > 0 && strVal.length > Number(listTruncate)
+      ? strVal.slice(0, Number(listTruncate)) + '…'
+      : strVal;
 
-  // COMPOSITE — nested table (used when composite is inside another composite)
+  function withModifiers(content: React.ReactNode): React.ReactNode {
+    if (!listPrefix && !listSuffix) return content;
+    return (
+      <span className="inline-flex items-center gap-0.5">
+        {listPrefix && <span className="text-muted-foreground text-xs">{listPrefix}</span>}
+        {content}
+        {listSuffix && <span className="text-muted-foreground text-xs">{listSuffix}</span>}
+      </span>
+    );
+  }
+
+  function applyFormat(raw: string, format?: string): string {
+    if (!format || format === 'raw') return raw;
+    try {
+      if (format === 'date') return new Date(raw).toLocaleDateString();
+      if (format === 'datetime') return new Date(raw).toLocaleString();
+    } catch {}
+    if (format === 'currency') {
+      const num = Number(raw);
+      return isNaN(num) ? raw : `$${num.toLocaleString()}`;
+    }
+    if (format === 'percentage') {
+      const num = Number(raw);
+      return isNaN(num) ? raw : `${num}%`;
+    }
+    return raw;
+  }
+
+  // COMPOSITE — supports list:composite.layout block
   if (prop.type === 'COMPOSITE_PROPERTY' && Array.isArray(val)) {
     const children = val as EmbeddedProp[];
+    const compositeLayout = listAttrs['list:composite.layout'] ?? 'table';
+    const compositeGap = listAttrs['list:composite.gap'] ?? 'normal';
+    const compositeLabelWidth = listAttrs['list:composite.label-width'] ?? 'w-28';
+
+    // hidden — skip rendering entirely
+    if (compositeLayout === 'hidden') return null;
+
+    // inline — comma-separated label: value
+    if (compositeLayout === 'inline') {
+      return withModifiers(
+        <span className="text-sm text-foreground">
+          {children
+            .filter((c) => c.value !== undefined && c.value !== null && c.value !== '')
+            .map((c, i) => {
+              const childDef = def?.value ? findPropDef(def.value, c.name ?? '') : undefined;
+              return (
+                <span key={c.name}>
+                  {i > 0 && <span className="text-muted-foreground mx-1">·</span>}
+                  <span className="font-medium">{c.label ?? c.name}: </span>
+                  <PropValue prop={c} def={childDef} />
+                </span>
+              );
+            })}
+        </span>,
+      );
+    }
+
+    // card — each child as a standalone card
+    if (compositeLayout === 'card') {
+      return (
+        <div
+          className={`grid grid-cols-1 sm:grid-cols-2 gap-${compositeGap === 'tight' ? '2' : compositeGap === 'loose' ? '4' : '3'}`}
+        >
+          {children.map((child) => {
+            const childDef = def?.value ? findPropDef(def.value, child.name ?? '') : undefined;
+            const isEmpty = child.value === undefined || child.value === null || child.value === '';
+            return (
+              <div
+                key={child.name}
+                className="rounded-lg border border-border/60 p-3 bg-card space-y-1"
+              >
+                <span className="text-xs font-medium text-muted-foreground block">
+                  {child.label ?? child.name}
+                </span>
+                {isEmpty ? (
+                  <span className="text-sm text-muted-foreground">—</span>
+                ) : (
+                  <PropValue prop={child} def={childDef} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // grid — items laid out in CSS grid
+    if (compositeLayout === 'grid') {
+      const columns = listAttrs['list:composite.columns'] ?? '2';
+      return (
+        <div
+          className="grid gap-3"
+          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        >
+          {children.map((child) => {
+            const childDef = def?.value ? findPropDef(def.value, child.name ?? '') : undefined;
+            const isEmpty = child.value === undefined || child.value === null || child.value === '';
+            return (
+              <div key={child.name} className="space-y-0.5">
+                <span className="text-xs font-medium text-muted-foreground block">
+                  {child.label ?? child.name}
+                </span>
+                {isEmpty ? (
+                  <span className="text-sm text-muted-foreground">—</span>
+                ) : (
+                  <PropValue prop={child} def={childDef} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // definition — definition list style (dt/dd)
+    if (compositeLayout === 'definition') {
+      return (
+        <dl className="space-y-1.5">
+          {children.map((child) => {
+            const childDef = def?.value ? findPropDef(def.value, child.name ?? '') : undefined;
+            const isEmpty = child.value === undefined || child.value === null || child.value === '';
+            return (
+              <div key={child.name} className="flex items-baseline gap-2">
+                <dt
+                  className={`text-xs font-medium text-muted-foreground ${compositeLabelWidth} shrink-0`}
+                >
+                  {child.label ?? child.name}
+                </dt>
+                <dd className="text-sm text-foreground">
+                  {isEmpty ? (
+                    <span className="text-muted-foreground">—</span>
+                  ) : (
+                    <PropValue prop={child} def={childDef} />
+                  )}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      );
+    }
+
+    // table — default: rows with alternating background
     return (
       <div className="rounded-lg border border-border/60 overflow-hidden">
         {children.map((child, i) => {
@@ -101,7 +254,9 @@ function PropValue({ prop, def }: { prop: EmbeddedProp; def?: PropertyDef }) {
               key={child.name}
               className={`flex items-start gap-4 px-3 py-2 ${i % 2 === 0 ? 'bg-muted/30' : 'bg-transparent'}`}
             >
-              <span className="text-xs text-muted-foreground w-28 shrink-0 pt-0.5">
+              <span
+                className={`text-xs text-muted-foreground ${compositeLabelWidth} shrink-0 pt-0.5`}
+              >
                 {child.label ?? child.name}
               </span>
               <PropValue prop={child} def={childDef} />
@@ -140,12 +295,110 @@ function PropValue({ prop, def }: { prop: EmbeddedProp; def?: PropertyDef }) {
     }
   }
 
-  // ui:display = badge
-  if (uiDisplay === 'badge') {
+  // ui:display = badge (or list:display = badge)
+  if (listDisplay === 'badge' || uiDisplay === 'badge') {
+    const badgeColor = listAttrs['list:badge.color'];
+    const badgeSize = listAttrs['list:badge.size'];
+    const badgeVariant = listAttrs['list:badge.variant'] ?? 'soft';
+    const sizeCls =
+      badgeSize === 'sm'
+        ? 'text-[10px] px-1.5'
+        : badgeSize === 'lg'
+          ? 'text-sm px-3'
+          : 'text-xs px-2';
+    const colorCls =
+      badgeColor === 'success'
+        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+        : badgeColor === 'warning'
+          ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+          : badgeColor === 'danger'
+            ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30'
+            : 'bg-primary/10 text-primary border-primary/30';
+    const variantCls =
+      badgeVariant === 'solid'
+        ? badgeColor === 'success'
+          ? 'bg-emerald-500 text-white'
+          : badgeColor === 'warning'
+            ? 'bg-amber-500 text-white'
+            : badgeColor === 'danger'
+              ? 'bg-red-500 text-white'
+              : 'bg-primary text-primary-foreground'
+        : badgeVariant === 'outline'
+          ? 'bg-transparent border'
+          : `${colorCls} border`;
+    return withModifiers(
+      <span
+        className={`inline-flex items-center rounded-full ${variantCls} ${sizeCls} py-0.5 font-medium`}
+      >
+        {resolveLabel(displayValue, optionsRaw)}
+      </span>,
+    );
+  }
+
+  // list:display = image — render as image thumbnail
+  if (listDisplay === 'image') {
+    const imgSize = listAttrs['list:image.size'] ?? 'md';
+    const imgShape = listAttrs['list:image.shape'] ?? 'rounded';
+    const imgFit = listAttrs['list:image.fit'] ?? 'cover';
+    const sizeCls =
+      imgSize === 'xs'
+        ? 'w-8 h-8'
+        : imgSize === 'sm'
+          ? 'w-12 h-12'
+          : imgSize === 'lg'
+            ? 'w-24 h-24'
+            : imgSize === 'full'
+              ? 'w-full h-auto'
+              : 'w-16 h-16';
+    const shapeCls =
+      imgShape === 'circle'
+        ? 'rounded-full'
+        : imgShape === 'square'
+          ? 'rounded-none'
+          : 'rounded-md';
+    const fitCls =
+      imgFit === 'contain' ? 'object-contain' : imgFit === 'fill' ? 'object-fill' : 'object-cover';
     return (
-      <Badge variant="secondary" className="text-xs">
-        {resolveLabel(strVal, optionsRaw)}
-      </Badge>
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={displayValue}
+        alt=""
+        className={`${sizeCls} ${shapeCls} ${fitCls} border border-border/40`}
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.display = 'none';
+        }}
+      />
+    );
+  }
+
+  // list:display = price — render as formatted price
+  if (listDisplay === 'price') {
+    const currency = listAttrs['list:price.currency'] ?? 'USD';
+    const priceFormat = listAttrs['list:price.format'] ?? 'symbol';
+    const priceSize = listAttrs['list:price.size'] ?? 'md';
+    const currencySymbol: Record<string, string> = {
+      USD: '$',
+      GBP: '£',
+      EUR: '€',
+      INR: '₹',
+      custom: '',
+    };
+    const symbol = priceFormat === 'symbol' ? (currencySymbol[currency] ?? currency) : '';
+    const code = priceFormat === 'code' ? ` ${currency}` : '';
+    const name = priceFormat === 'name' ? ` ${currency}` : '';
+    const textSize =
+      priceSize === 'sm'
+        ? 'text-sm'
+        : priceSize === 'lg'
+          ? 'text-xl font-semibold'
+          : 'text-base font-medium';
+    return withModifiers(
+      <span className={`${textSize} text-foreground tabular-nums`}>
+        {symbol}
+        {displayValue}
+        {code}
+        {name}
+      </span>,
     );
   }
 
@@ -264,7 +517,9 @@ function PropValue({ prop, def }: { prop: EmbeddedProp; def?: PropertyDef }) {
 
   // multiline text
   if (attrs['ui:multiline'] === 'true') {
-    return <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{strVal}</p>;
+    return withModifiers(
+      <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{displayValue}</p>,
+    );
   }
 
   // metaType-specific rendering for structured values
@@ -315,7 +570,9 @@ function PropValue({ prop, def }: { prop: EmbeddedProp; def?: PropertyDef }) {
     }
   }
 
-  return <span className="text-sm text-foreground">{strVal}</span>;
+  return withModifiers(
+    <span className="text-sm text-foreground">{applyFormat(displayValue, listFormat)}</span>,
+  );
 }
 
 // ── Media Gallery ─────────────────────────────────────────────────────────────

@@ -12,12 +12,19 @@ import {
   OffsetTimePicker,
   OffsetDateTimePicker,
 } from '@repo/ui';
-import { ManagedTypeVM, ManagedTypeListItemFull, PropertyDef, metadataApi } from '@repo/api';
+import {
+  ManagedTypeVM,
+  ManagedTypeListItemFull,
+  PropertyDef,
+  PropertyType,
+  metadataApi,
+} from '@repo/api';
 import ReactSelect from 'react-select';
 import type { SingleValue } from 'react-select';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { AddressField } from '@/components/common/admin/AddressField';
 import { PhrasesInput } from '@/components/common/admin/PhrasesInput';
+import { resolveAttrs } from '../../metadata/_components/attribute-protocol';
 
 interface TypeOption {
   id: string;
@@ -417,17 +424,60 @@ function PropertyFieldGroup({ prop, value, onChange, depth = 0 }: FieldGroupProp
   }
 
   // SIMPLE / COMPLEX / default → scalar input
-  return (
-    <div className={`space-y-1.5 ${indent}`}>
-      <div className="flex items-center gap-2">
-        <FieldLabel label={prop.label} required={required} />
-        {resolvedMetaType && resolvedMetaType !== 'STRING' && (
-          <span className="text-[10px] text-muted-foreground/70 font-mono bg-muted/40 px-1.5 py-0.5 rounded">
-            {META_TYPE_LABELS[resolvedMetaType] ?? resolvedMetaType}
-          </span>
-        )}
+  // Resolve form:* attributes for this property
+  const formAttrs = resolveAttrs(prop.attributes, 'form', prop.type as PropertyType);
+  const formLayout = formAttrs['form:layout'] ?? 'vertical';
+  const formLabelPos = formAttrs['form:label.position'] ?? 'top';
+  const formWidth = formAttrs['form:width'] ?? 'full';
+  const formHelperText = formAttrs['form:helper-text'];
+  const widthClass = formWidth === 'auto' ? '' : formWidth === 'fixed' ? 'w-48' : 'w-full';
+
+  const labelEl = (
+    <div className="flex items-center gap-2">
+      <FieldLabel label={prop.label} required={required} />
+      {resolvedMetaType && resolvedMetaType !== 'STRING' && (
+        <span className="text-[10px] text-muted-foreground/70 font-mono bg-muted/40 px-1.5 py-0.5 rounded">
+          {META_TYPE_LABELS[resolvedMetaType] ?? resolvedMetaType}
+        </span>
+      )}
+    </div>
+  );
+
+  const inputEl = (
+    <>
+      <ScalarField prop={prop} value={value} onChange={handleChange} formAttrs={formAttrs} />
+      {formHelperText && (
+        <p className="text-xs text-muted-foreground/70 mt-0.5">{formHelperText}</p>
+      )}
+    </>
+  );
+
+  if (formLabelPos === 'hidden') {
+    return <div className={widthClass}>{inputEl}</div>;
+  }
+
+  if (formLayout === 'horizontal') {
+    return (
+      <div className={`flex items-start gap-3 ${widthClass}`}>
+        <div className="shrink-0 pt-1">{labelEl}</div>
+        <div className="flex-1 min-w-0">{inputEl}</div>
       </div>
-      <ScalarField prop={prop} value={value} onChange={handleChange} />
+    );
+  }
+
+  if (formLayout === 'inline') {
+    return (
+      <div className={`flex items-center gap-3 ${widthClass}`}>
+        {labelEl}
+        <div className="flex-1">{inputEl}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`space-y-1.5 ${widthClass}`}>
+      {labelEl}
+      {inputEl}
     </div>
   );
 }
@@ -527,6 +577,7 @@ function CompositeListField({
                 prop={prop}
                 value={typeof item === 'string' ? item : ''}
                 onChange={(v) => onChange(items.map((it, i) => (i === idx ? v : it)))}
+                formAttrs={resolveAttrs(prop.attributes, 'form', prop.type as PropertyType)}
               />
             )}
           </div>
@@ -828,17 +879,43 @@ function FileField({
 
 // ─── ScalarField ──────────────────────────────────────────────────────────────
 
+const FORM_SIZE_CLASSES: Record<string, string> = {
+  sm: 'px-2 py-1 text-xs',
+  md: 'px-3 py-2 text-sm',
+  lg: 'px-4 py-2.5 text-base',
+  xl: 'px-5 py-3 text-lg',
+};
+
+const FORM_VARIANT_CLASSES: Record<string, string> = {
+  default: 'border border-input bg-background',
+  outline: 'border border-input bg-background',
+  ghost: 'border-transparent bg-transparent',
+  filled: 'border-transparent bg-muted',
+  underline: 'border-0 border-b border-input rounded-none px-0',
+};
+
+function formBaseClass(formAttrs?: Record<string, string>): string {
+  const size = formAttrs?.['form:size'] ?? 'md';
+  const variant = formAttrs?.['form:variant'] ?? 'default';
+  const width = formAttrs?.['form:width'] ?? 'full';
+  const sizeCls = FORM_SIZE_CLASSES[size] ?? FORM_SIZE_CLASSES['md'];
+  const variantCls = FORM_VARIANT_CLASSES[variant] ?? FORM_VARIANT_CLASSES['default'];
+  const widthCls = width === 'auto' ? '' : width === 'fixed' ? 'w-48' : 'w-full';
+  return `${widthCls} rounded-md ${variantCls} ${sizeCls} focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground/60`;
+}
+
 function ScalarField({
   prop,
   value,
   onChange,
+  formAttrs,
 }: {
   prop: PropertyDef;
   value: unknown;
   onChange: (value: unknown) => void;
+  formAttrs?: Record<string, string>;
 }) {
-  const base =
-    'w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground/60';
+  const base = formBaseClass(formAttrs);
   const numBase = `${base} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`;
 
   const strVal = typeof value === 'string' ? value : value != null ? String(value) : '';

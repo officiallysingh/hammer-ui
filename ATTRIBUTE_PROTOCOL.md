@@ -1,49 +1,100 @@
-# Attribute Protocol
+# Attribute Protocol — Component Properties Guide
 
 Attributes are `Map<String, String>` stored on `COMPLEX_PROPERTY`, `COMPOSITE_PROPERTY`, and `LIST_PROPERTY`.
 `SIMPLE_PROPERTY` does **not** have an attributes field.
 
-Keys follow the format `namespace:key`. The frontend reads them to choose which UI widget to render and how to configure it.
+Keys follow the format `namespace:key`. The frontend reads them to choose:
+
+- **Which UI widget to render** (text input, slider, toggle, badge, etc.)
+- **How to style/format it** for both the **form** (admin input) and the **listing view** (public display)
+
+---
+
+## Architecture: Two surfaces
+
+Every property is rendered on **two separate surfaces**, each with its own attribute namespace:
+
+| Surface  | Where                            | Namespace | Renders                               |
+| -------- | -------------------------------- | --------- | ------------------------------------- |
+| **Form** | `Step3Catalog.tsx → ScalarField` | `form:*`  | Input widgets for admin to enter data |
+| **List** | `view/page.tsx → PropValue`      | `list:*`  | Display of stored values to end users |
+
+Namespaces `html:*`, `ui:*`, `style:*` apply to **both** surfaces.
+
+```
+  attributes: Record<string, string>
+           |
+    resolveAttrs(props, 'form')
+           ↓
+      PropertyFieldGroup / ScalarField
+      (form inputs — admin UI)
+           |
+    resolveAttrs(props, 'list')
+           ↓
+        PropValue
+      (listing display — public page)
+```
+
+The two surfaces are **independent** — configuring `form:size` has zero effect on the listing view, and `list:display = badge` doesn't change the form widget.
+
+---
+
+## Blocks
+
+A **block** is a named cluster of `list:*` keys that are only relevant together.
+There are two activation modes:
+
+| Activation          | Condition                           | Example                                                    |
+| ------------------- | ----------------------------------- | ---------------------------------------------------------- |
+| **Value-triggered** | A sibling attribute equals a value  | `list:display = badge` → activates `list:badge.*`          |
+| **Type-triggered**  | The property's `type` field matches | `type = COMPOSITE_PROPERTY` → activates `list:composite.*` |
+
+Blocks are a **pure frontend concept**. Storage is still flat `key → string`.
+The editor shows/hides block sub-keys automatically based on activation conditions.
+
+---
 
 ## Property type decision
 
-| Situation                                                          | Use                  |
-| ------------------------------------------------------------------ | -------------------- |
-| Leaf field, no rendering hints needed                              | `SIMPLE_PROPERTY`    |
-| Leaf field **with** any attribute (placeholder, slider, toggle, …) | `COMPLEX_PROPERTY`   |
-| Group of named child fields                                        | `COMPOSITE_PROPERTY` |
-| Repeating list of items                                            | `LIST_PROPERTY`      |
+| Situation                             | Use                  |
+| ------------------------------------- | -------------------- |
+| Leaf field, no rendering hints needed | `SIMPLE_PROPERTY`    |
+| Leaf field **with** any attribute     | `COMPLEX_PROPERTY`   |
+| Group of named child fields           | `COMPOSITE_PROPERTY` |
+| Repeating list of items               | `LIST_PROPERTY`      |
 
 ---
 
 ## Namespaces
 
-| Namespace | Purpose                                                                        |
-| --------- | ------------------------------------------------------------------------------ |
-| `html`    | Passed directly to the underlying HTML element (placeholder, min, max, …)      |
-| `ui`      | Controls which React component renders the field and how it displays in views  |
-| `style`   | Provides data that drives visual options (selectable values, colors, …)        |
-| `form`    | Controls how the field **input** renders inside a form (size, variant, layout) |
-| `list`    | Controls how the stored **value** renders in listing / detail views            |
+| Namespace | Surface | Purpose                                                              |
+| --------- | ------- | -------------------------------------------------------------------- |
+| `html`    | both    | Passed directly to the HTML element (placeholder, min, max, …)       |
+| `ui`      | both    | Controls widget type (component, display mode, multiline)            |
+| `style`   | both    | Data-driven visual options (selectable values, colors, …)            |
+| `form`    | form    | Controls how the **input** renders in a form (size, variant, layout) |
+| `list`    | list    | Controls how the stored **value** renders in listing/detail views    |
 
 ---
 
-## `ui:component` — Widget overrides
+## `ui:component` — Widget override (both surfaces)
 
-| Value          | Applies to metaType      | Renders                                                                                   |
-| -------------- | ------------------------ | ----------------------------------------------------------------------------------------- |
-| `checkbox`     | BOOLEAN                  | Single checkbox — checked = true                                                          |
-| `toggle`       | BOOLEAN                  | Animated pill switch                                                                      |
-| `slider`       | any numeric              | Range slider with live value; uses `html:min` / `html:max` / `html:step`                  |
-| `stepper`      | INT types                | `−` · number input · `+` button                                                           |
-| `rating`       | INTEGER                  | 5-star clickable rating (click same star to clear)                                        |
-| `textarea`     | STRING                   | Resizable textarea; use `ui:rows` for height                                              |
-| `tag-input`    | STRING                   | Chip input — Enter or comma adds a tag; Backspace removes last; stored as comma-separated |
-| `option-pills` | STRING + `style:options` | Horizontal pill buttons; one selectable                                                   |
+| Value          | Applies to metaType      | Renders                                                                     |
+| -------------- | ------------------------ | --------------------------------------------------------------------------- |
+| `checkbox`     | BOOLEAN                  | Single checkbox — checked = true                                            |
+| `toggle`       | BOOLEAN                  | Animated pill switch                                                        |
+| `slider`       | any numeric              | Range slider; uses `html:min` / `html:max` / `html:step`                    |
+| `stepper`      | INT types                | `−` · number input · `+` button                                             |
+| `rating`       | INTEGER                  | 5-star clickable rating (click same star to clear)                          |
+| `textarea`     | STRING                   | Resizable textarea; use `ui:rows` for height                                |
+| `tag-input`    | STRING                   | Chip input — Enter/comma adds, Backspace removes; stored as comma-separated |
+| `option-pills` | STRING + `style:options` | Horizontal pill buttons; one selectable                                     |
 
 ---
 
-## `ui:display` — Listing/detail view rendering
+## `ui:display` — Display mode hint (both surfaces)
+
+This is a **legacy** key. Prefer `list:display` (see below) for new properties.
 
 | Value          | Renders the stored value as                       |
 | -------------- | ------------------------------------------------- |
@@ -55,741 +106,348 @@ Keys follow the format `namespace:key`. The frontend reads them to choose which 
 
 ---
 
-## `html:*` — HTML element attributes
+## `html:*` — HTML element attributes (both surfaces)
 
-| Key                | Type   | Effect                                                                      |
-| ------------------ | ------ | --------------------------------------------------------------------------- |
-| `html:placeholder` | text   | Placeholder shown inside input / picker                                     |
-| `html:min`         | number | Min value (numeric inputs, year picker, sliders)                            |
-| `html:max`         | number | Max value                                                                   |
-| `html:step`        | number | Step increment for numeric inputs and sliders                               |
-| `html:pattern`     | text   | Native HTML `pattern` regex on text inputs                                  |
-| `html:accept`      | select | File input MIME filter; metadata editor offers predefined MIME type presets |
-| `html:type`        | select | Override input type: `email`, `tel`, `url`, `password`                      |
-
----
-
-## `style:*` — Data-driven style
-
-| Key                   | Format                                     | Effect                                                                        |
-| --------------------- | ------------------------------------------ | ----------------------------------------------------------------------------- |
-| `style:options`       | `Label:value,Label:value` or `value,value` | Drives `<select>` (default) or `option-pills`                                 |
-| `style:color-options` | `black,red,#1A2B3C`                        | Renders as clickable swatches (circle + label); stored value = selected color |
+| Key                | Type   | Effect                                                   |
+| ------------------ | ------ | -------------------------------------------------------- |
+| `html:placeholder` | text   | Placeholder text inside input / picker                   |
+| `html:min`         | number | Min value (numeric inputs, year picker, sliders)         |
+| `html:max`         | number | Max value                                                |
+| `html:step`        | number | Step increment for numeric inputs and sliders            |
+| `html:pattern`     | text   | Native HTML `pattern` regex on text inputs               |
+| `html:accept`      | select | File input MIME filter (`image/*`, `application/pdf`, …) |
+| `html:type`        | select | Override input type: `email`, `tel`, `url`, `password`   |
 
 ---
 
-## `ui:multiline` / `ui:rows`
+## `style:*` — Data-driven style (both surfaces)
 
-| Key            | Value            | Effect                                                             |
-| -------------- | ---------------- | ------------------------------------------------------------------ |
-| `ui:multiline` | `true` / `false` | Renders STRING as a `<textarea>` (same as `ui:component=textarea`) |
-| `ui:rows`      | number           | Row height of the textarea (default 3)                             |
-
----
-
-## Complete examples
-
-### Plain text with placeholder
-
-```
-metaType:  STRING
-html:placeholder  →  e.g. SKU-001-BLK
-```
-
-### Email input
-
-```
-metaType:  STRING
-html:type         →  email
-html:placeholder  →  seller@example.com
-```
-
-### Phone with regex guard
-
-```
-metaType:  STRING
-html:type     →  tel
-html:pattern  →  [0-9]{7,15}
-html:placeholder  →  +91 98765 43210
-```
-
-### Multiline description
-
-```
-metaType:  STRING
-ui:multiline  →  true
-ui:rows       →  5
-html:placeholder  →  Describe the item in detail…
-```
-
-### Tag chip input (keywords)
-
-```
-metaType:  STRING
-ui:component  →  tag-input
-html:placeholder  →  Add keywords…
-```
-
-### Dropdown select
-
-```
-metaType:  STRING
-style:options  →  New,Like New,Good,Fair,Poor
-```
-
-### Pill selector (sizes)
-
-```
-metaType:  STRING
-style:options  →  XS,S,M,L,XL,XXL
-ui:component   →  option-pills
-```
-
-### Pill selector (labelled values)
-
-```
-metaType:  STRING
-style:options  →  Full-time:full_time,Part-time:part_time,Contract:contract,Freelance:freelance
-ui:component   →  option-pills
-```
-
-### Color swatch picker
-
-```
-metaType:  STRING
-style:color-options  →  black,white,red,navy,#C0A060
-```
-
-### Boolean toggle
-
-```
-metaType:  BOOLEAN
-ui:component  →  toggle
-```
-
-### Boolean checkbox
-
-```
-metaType:  BOOLEAN
-ui:component  →  checkbox
-```
-
-### Price slider
-
-```
-metaType:  INTEGER
-ui:component  →  slider
-html:min      →  0
-html:max      →  100000
-html:step     →  500
-```
-
-### Quantity stepper
-
-```
-metaType:  INTEGER
-ui:component  →  stepper
-html:min      →  1
-```
-
-### Star rating
-
-```
-metaType:  INTEGER
-ui:component  →  rating
-```
-
-### Decimal measurement (step 0.1)
-
-```
-metaType:  FLOAT
-html:min   →  0
-html:max   →  999
-html:step  →  0.1
-```
-
-### File upload (images only, with preview)
-
-```
-metaType:  FILE
-html:accept  →  image/*
-```
-
-### Date with placeholder
-
-```
-metaType:  LOCAL_DATE
-html:placeholder  →  Pick an auction date…
-```
-
-### Year range
-
-```
-metaType:  YEAR
-html:min  →  1900
-html:max  →  2025
-```
+| Key                   | Format                                     | Effect                                            |
+| --------------------- | ------------------------------------------ | ------------------------------------------------- |
+| `style:options`       | `Label:value,Label:value` or `value,value` | Drives `<select>` (default) or `option-pills`     |
+| `style:color-options` | `black,red,#1A2B3C`                        | Clickable swatches; stored value = selected color |
 
 ---
 
-## Temporal & spatial metaTypes
+## `ui:multiline` / `ui:rows` (both surfaces)
 
-These metaTypes render specialised widgets and produce structured values in the format the Java backend expects.
-
-| metaType           | Widget                                                                     | Stored format                  | Example                                |
-| ------------------ | -------------------------------------------------------------------------- | ------------------------------ | -------------------------------------- |
-| `YEAR`             | Year spinner (`html:min` / `html:max`)                                     | number                         | `2026`                                 |
-| `MONTH`            | Month dropdown                                                             | `MONTH_NAME`                   | `"JANUARY"`                            |
-| `DAY_OF_WEEK`      | Day dropdown                                                               | `DAY_NAME`                     | `"SUNDAY"`                             |
-| `YEAR_MONTH`       | `<input type="month">`                                                     | `YYYY-MM`                      | `"2026-05"`                            |
-| `LOCAL_DATE`       | Date picker                                                                | `YYYY-MM-DD`                   | `"2026-05-30"`                         |
-| `LOCAL_TIME`       | Time picker                                                                | `HH:MM:SS`                     | `"19:02:32"`                           |
-| `LOCAL_DATE_TIME`  | Date + time picker                                                         | `YYYY-MM-DDTHH:MM:SS`          | `"2026-05-30T19:04:16"`                |
-| `OFFSET_TIME`      | Time input + timezone dropdown                                             | `HH:MM:SS+HH:MM`               | `"19:05:12+05:30"`                     |
-| `OFFSET_DATE_TIME` | Date + time inputs + timezone dropdown                                     | `YYYY-MM-DDTHH:MM:SS+HH:MM`    | `"2026-05-30T19:05:42+05:30"`          |
-| `DURATION`         | Hours / minutes / seconds dropdowns                                        | ISO 8601 `PTxHxMxS`            | `"PT12H31M10S"`                        |
-| `PERIOD`           | Years / months / days inputs                                               | ISO 8601 `PxYxMxD`             | `"P2Y3M5D"`                            |
-| `COORDINATES`      | Latitude + longitude number inputs                                         | `{latitude, longitude}` object | `{"latitude":29.53,"longitude":75.02}` |
-| `ADDRESS`          | Address form (line1, line2, area, city, state, country, pinCode, landmark) | address object                 | `{...}`                                |
-
-### Timezone dropdown (OFFSET_TIME / OFFSET_DATE_TIME)
-
-The timezone selector shows common timezone abbreviations and their UTC offsets.
-The stored offset string (e.g. `+05:30`) is appended directly to the time string.
-
-### Duration example
-
-```
-metaType:  DURATION
-```
-
-Renders three dropdowns (0–99 hours, 0–59 minutes, 0–59 seconds).
-Stored as `PT{H}H{M}M{S}S`.
-
-### Period example
-
-```
-metaType:  PERIOD
-```
-
-Renders three number inputs (years, months, days).
-Stored as `P{Y}Y{M}M{D}D` with zero components omitted (e.g. `P3M5D`).
+| Key            | Value            | Effect                                                           |
+| -------------- | ---------------- | ---------------------------------------------------------------- |
+| `ui:multiline` | `true` / `false` | Renders STRING as `<textarea>` (same as `ui:component=textarea`) |
+| `ui:rows`      | number           | Row height of the textarea (default 3)                           |
 
 ---
 
-## Curl cookbook
+## `form:*` — Form input rendering (form surface only)
 
-> **Prerequisites**
->
-> - Server running at `http://localhost:8090`
-> - Log in once to get a JWT, then export it:
->   ```bash
->   TOKEN=$(curl -s -X POST http://localhost:8090/api/v1/auth/login \
->     -H "Content-Type: application/json" \
->     -d '{"username":"admin","password":"admin"}' | jq -r '.token')
->   ```
-> - `jq` must be installed (`sudo apt install jq`)
-> - Replace `<SUB_CATEGORY_ID>` with a real subcategory ID from your master data
-
----
-
-### Managed Type 1 — Phone Case Catalog
-
-Showcases: **color swatches · option pills · toggle · slider · stepper · rating · tag input · textarea · file upload · composite (dimensions)**
-
-```bash
-curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "name": "Phone Case Catalog",
-    "description": "Catalog type for phone case product listings — showcases all UI components",
-    "type": "LISTING_PROPERTIES",
-    "tags": ["showcase", "ecommerce", "phone-case"],
-    "properties": [
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "color",
-        "label": "Color",
-        "metaType": "STRING",
-        "attributes": {
-          "style:color-options": "black,white,red,navy,gold,silver"
-        },
-        "validators": [{ "type": "NOT_NULL", "message": "Color is required" }]
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "size",
-        "label": "Size",
-        "metaType": "STRING",
-        "attributes": {
-          "style:options": "XS,S,M,L,XL",
-          "ui:component": "option-pills"
-        },
-        "validators": [{ "type": "NOT_NULL", "message": "Size is required" }]
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "price",
-        "label": "Price",
-        "metaType": "INTEGER",
-        "attributes": {
-          "ui:component": "slider",
-          "html:min": "0",
-          "html:max": "10000",
-          "html:step": "100"
-        },
-        "validators": [{ "type": "NOT_NULL", "message": "Price is required" }]
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "stock_count",
-        "label": "Stock Count",
-        "metaType": "INTEGER",
-        "attributes": {
-          "ui:component": "stepper",
-          "html:min": "0"
-        }
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "quality_rating",
-        "label": "Quality Rating",
-        "metaType": "INTEGER",
-        "attributes": {
-          "ui:component": "rating"
-        }
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "in_stock",
-        "label": "In Stock",
-        "metaType": "BOOLEAN",
-        "attributes": {
-          "ui:component": "toggle"
-        }
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "sku",
-        "label": "SKU",
-        "metaType": "STRING",
-        "attributes": {
-          "html:placeholder": "e.g. CASE-BLK-M",
-          "html:pattern": "[A-Z]+-[A-Z]+-[A-Z]+"
-        },
-        "validators": [{ "type": "NOT_NULL", "message": "SKU is required" }]
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "description",
-        "label": "Description",
-        "metaType": "STRING",
-        "attributes": {
-          "ui:multiline": "true",
-          "ui:rows": "4",
-          "html:placeholder": "Describe the case material, finish, and compatibility…"
-        }
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "keywords",
-        "label": "Keywords",
-        "metaType": "STRING",
-        "attributes": {
-          "ui:component": "tag-input",
-          "html:placeholder": "Add keywords…"
-        }
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "contact_email",
-        "label": "Seller Email",
-        "metaType": "STRING",
-        "attributes": {
-          "html:type": "email",
-          "html:placeholder": "seller@example.com"
-        },
-        "validators": [{ "type": "NOT_NULL", "message": "Email is required" }]
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "product_image",
-        "label": "Product Image",
-        "metaType": "FILE",
-        "attributes": {
-          "html:accept": "image/*"
-        }
-      },
-      {
-        "type": "COMPOSITE_PROPERTY",
-        "name": "dimensions",
-        "label": "Dimensions",
-        "metaType": "STRING",
-        "attributes": {},
-        "value": [
-          {
-            "type": "COMPLEX_PROPERTY",
-            "name": "length",
-            "label": "Length",
-            "metaType": "FLOAT",
-            "attributes": {
-              "html:min": "0",
-              "html:max": "30",
-              "html:step": "0.1",
-              "html:placeholder": "cm"
-            }
-          },
-          {
-            "type": "COMPLEX_PROPERTY",
-            "name": "width",
-            "label": "Width",
-            "metaType": "FLOAT",
-            "attributes": {
-              "html:min": "0",
-              "html:max": "20",
-              "html:step": "0.1",
-              "html:placeholder": "cm"
-            }
-          },
-          {
-            "type": "COMPLEX_PROPERTY",
-            "name": "thickness",
-            "label": "Thickness",
-            "metaType": "FLOAT",
-            "attributes": {
-              "html:min": "0",
-              "html:max": "5",
-              "html:step": "0.1",
-              "html:placeholder": "cm"
-            }
-          }
-        ]
-      }
-    ]
-  }' | jq '.'
-```
-
----
-
-### Managed Type 2 — Job Listing
-
-Showcases: **option pills (labelled values) · stepper · toggle · date picker · email/tel input type · tag input · composite (salary range with two sliders)**
-
-```bash
-curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "name": "Job Listing",
-    "description": "Catalog type for job / freelance listings — showcases composite and date fields",
-    "type": "LISTING_PROPERTIES",
-    "tags": ["showcase", "jobs"],
-    "properties": [
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "job_title",
-        "label": "Job Title",
-        "metaType": "STRING",
-        "attributes": {
-          "html:placeholder": "e.g. Senior React Developer"
-        },
-        "validators": [{ "type": "NOT_NULL", "message": "Title is required" }]
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "employment_type",
-        "label": "Employment Type",
-        "metaType": "STRING",
-        "attributes": {
-          "style:options": "Full-time:full_time,Part-time:part_time,Contract:contract,Freelance:freelance",
-          "ui:component": "option-pills"
-        },
-        "validators": [{ "type": "NOT_NULL", "message": "Employment type is required" }]
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "experience_level",
-        "label": "Experience Level",
-        "metaType": "STRING",
-        "attributes": {
-          "style:options": "Intern:intern,Junior:junior,Mid:mid,Senior:senior,Lead:lead",
-          "ui:component": "option-pills"
-        }
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "years_experience",
-        "label": "Years of Experience",
-        "metaType": "INTEGER",
-        "attributes": {
-          "ui:component": "stepper",
-          "html:min": "0",
-          "html:max": "30"
-        }
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "is_remote",
-        "label": "Remote Work",
-        "metaType": "BOOLEAN",
-        "attributes": {
-          "ui:component": "toggle"
-        }
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "start_date",
-        "label": "Start Date",
-        "metaType": "LOCAL_DATE",
-        "attributes": {
-          "html:placeholder": "Pick a start date…"
-        }
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "contact_email",
-        "label": "Contact Email",
-        "metaType": "STRING",
-        "attributes": {
-          "html:type": "email",
-          "html:placeholder": "hr@company.com"
-        },
-        "validators": [{ "type": "NOT_NULL", "message": "Contact email is required" }]
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "contact_phone",
-        "label": "Contact Phone",
-        "metaType": "STRING",
-        "attributes": {
-          "html:type": "tel",
-          "html:pattern": "[0-9]{7,15}",
-          "html:placeholder": "+91 98765 43210"
-        }
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "required_skills",
-        "label": "Required Skills",
-        "metaType": "STRING",
-        "attributes": {
-          "ui:component": "tag-input",
-          "html:placeholder": "e.g. React, TypeScript, Node.js…"
-        }
-      },
-      {
-        "type": "COMPLEX_PROPERTY",
-        "name": "job_description",
-        "label": "Job Description",
-        "metaType": "STRING",
-        "attributes": {
-          "ui:multiline": "true",
-          "ui:rows": "6",
-          "html:placeholder": "Describe responsibilities, requirements, and benefits…"
-        }
-      },
-      {
-        "type": "COMPOSITE_PROPERTY",
-        "name": "salary_range",
-        "label": "Annual Salary Range",
-        "metaType": "STRING",
-        "attributes": {},
-        "value": [
-          {
-            "type": "COMPLEX_PROPERTY",
-            "name": "min_salary",
-            "label": "Minimum",
-            "metaType": "INTEGER",
-            "attributes": {
-              "ui:component": "slider",
-              "html:min": "0",
-              "html:max": "5000000",
-              "html:step": "50000"
-            }
-          },
-          {
-            "type": "COMPLEX_PROPERTY",
-            "name": "max_salary",
-            "label": "Maximum",
-            "metaType": "INTEGER",
-            "attributes": {
-              "ui:component": "slider",
-              "html:min": "0",
-              "html:max": "5000000",
-              "html:step": "50000"
-            }
-          }
-        ]
-      }
-    ]
-  }' | jq '.'
-```
-
----
-
-### Create listings using the types above
-
-First capture the type IDs from the create responses above, then run:
-
-```bash
-# Replace these with actual IDs from the create responses
-PHONE_CASE_TYPE_ID="<id-from-phone-case-response>"
-JOB_TYPE_ID="<id-from-job-listing-response>"
-SUB_CATEGORY_ID="<your-subcategory-id>"
-
-# ── Listing 1: Phone Case ──────────────────────────────────────────────────
-
-LISTING1_ID=$(curl -s -X POST http://localhost:8090/api/v1/listings \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "name": "Premium Leather Phone Case - iPhone 15",
-    "description": "Genuine leather case with card slot, available in multiple colours",
-    "subCategory": "'"$SUB_CATEGORY_ID"'",
-    "tags": ["iphone", "leather", "premium"]
-  }' | jq -r '.id')
-
-echo "Created listing: $LISTING1_ID"
-
-# Patch with embedded catalog data
-curl -s -X PATCH "http://localhost:8090/api/v1/listings/$LISTING1_ID" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "embedded": {
-      "typeId": "'"$PHONE_CASE_TYPE_ID"'",
-      "pathWiseState": {
-        "color": "black",
-        "size": "M",
-        "price": "1499",
-        "stock_count": "25",
-        "quality_rating": "4",
-        "in_stock": "true",
-        "sku": "CASE-BLK-M",
-        "description": "Full-grain leather with a soft microfibre lining. Precise cutouts for camera and charging port.",
-        "keywords": "leather,premium,wallet,iphone15",
-        "contact_email": "seller@phonecases.in",
-        "dimensions": {
-          "length": "15.1",
-          "width": "7.3",
-          "thickness": "1.2"
-        }
-      }
-    }
-  }' | jq '.'
-
-# ── Listing 2: Job Post ────────────────────────────────────────────────────
-
-LISTING2_ID=$(curl -s -X POST http://localhost:8090/api/v1/listings \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "name": "Senior React Developer — Remote",
-    "description": "We are looking for a Senior React Developer to join our product team",
-    "subCategory": "'"$SUB_CATEGORY_ID"'",
-    "tags": ["react", "typescript", "remote"]
-  }' | jq -r '.id')
-
-echo "Created listing: $LISTING2_ID"
-
-curl -s -X PATCH "http://localhost:8090/api/v1/listings/$LISTING2_ID" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "embedded": {
-      "typeId": "'"$JOB_TYPE_ID"'",
-      "pathWiseState": {
-        "job_title": "Senior React Developer",
-        "employment_type": "full_time",
-        "experience_level": "senior",
-        "years_experience": "5",
-        "is_remote": "true",
-        "start_date": "2026-07-01",
-        "contact_email": "hr@example.com",
-        "contact_phone": "+919876543210",
-        "required_skills": "React,TypeScript,Node.js,GraphQL",
-        "job_description": "You will own the frontend architecture for our SaaS platform. Work closely with design and backend teams to deliver high-quality product experiences.",
-        "salary_range": {
-          "min_salary": "1800000",
-          "max_salary": "3000000"
-        }
-      }
-    }
-  }' | jq '.'
-```
-
----
-
----
-
-## `form:*` — Form input rendering
-
-Controls how the **input widget** for this field looks when embedded inside a form.
-These are independent from `html:*` (which sets HTML element behaviour) and `ui:component` (which picks the widget type).
+Controls how the input widget looks in the **admin form**. Independent of widget type (`ui:component`) and HTML attributes (`html:*`).
 
 ### Layout & sizing
 
-| Key                   | Type   | Options / Format                                         | Effect                                        |
-| --------------------- | ------ | -------------------------------------------------------- | --------------------------------------------- |
-| `form:size`           | select | `sm` · `md` · `lg` · `xl`                                | Overall size of the input widget              |
-| `form:variant`        | select | `default` · `outline` · `ghost` · `filled` · `underline` | Visual style of the input container           |
-| `form:width`          | select | `full` · `auto` · `fixed`                                | How wide the input stretches in its container |
-| `form:layout`         | select | `vertical` · `horizontal` · `inline`                     | Stack direction of label + input              |
-| `form:label.position` | select | `top` · `left` · `floating` · `hidden`                   | Where the label appears relative to the input |
-| `form:helper-text`    | text   | any string                                               | Small hint line rendered below the field      |
+| Key                   | Type   | Options                                                  | Effect                           |
+| --------------------- | ------ | -------------------------------------------------------- | -------------------------------- |
+| `form:size`           | select | `sm` · `md` · `lg` · `xl`                                | Input size (padding + font-size) |
+| `form:variant`        | select | `default` · `outline` · `ghost` · `filled` · `underline` | Input container visual style     |
+| `form:width`          | select | `full` · `auto` · `fixed`                                | How wide the input stretches     |
+| `form:layout`         | select | `vertical` · `horizontal` · `inline`                     | Label + input arrangement        |
+| `form:label.position` | select | `top` · `left` · `hidden`                                | Where the label appears          |
+| `form:helper-text`    | text   | any string                                               | Small hint below the field       |
+
+### Layout visual reference
+
+```
+vertical (default)        horizontal              inline
+┌────────────┐           Label: ┌────────┐      Label: ┌──────┐
+│ Label      │                  │ input  │             │input │
+├────────────┤                  └────────┘             └──────┘
+│ ┌────────┐ │
+│ │ input  │ │
+│ └────────┘ │
+──── or ──────
+│ Label      │
+├────────────┤
+│ ┌────────┐ │
+│ │ input  │ │   ← form:label.position = left
+│ └────────┘ │
+└────────────┘
+```
+
+### Helper text
+
+```
+┌──────────┐
+│ input    │
+└──────────┘
+↑ small hint text ↑    ← form:helper-text
+```
 
 ---
 
-## `list:*` — Listing / detail view rendering
+## `list:*` — Listing / detail view rendering (list surface only)
 
-Controls how the **stored value** appears when shown to a user in card, table, or detail views.
+Controls how the stored value appears on the **public listing page** (card, table, detail view).
 
 ### Common display properties
 
-| Key             | Type   | Options / Format                                                                                 | Effect                                      |
-| --------------- | ------ | ------------------------------------------------------------------------------------------------ | ------------------------------------------- |
-| `list:display`  | select | `text` · `badge` · `pill` · `color-swatch` · `image` · `icon` · `price` · `rating` · `truncated` | Primary render mode for the value           |
-| `list:prefix`   | text   | any string (e.g. `₹`, `#`, `+`)                                                                  | Static text prepended to the value          |
-| `list:suffix`   | text   | any string (e.g. `%`, `kg`, `hrs`)                                                               | Static text appended to the value           |
-| `list:truncate` | number | max character count (`0` = no truncation)                                                        | Truncates long text with `…`                |
-| `list:format`   | select | `raw` · `date` · `datetime` · `currency` · `percentage`                                          | Formats the raw stored value before display |
+| Key             | Type   | Options                                                                                          | Effect                                  |
+| --------------- | ------ | ------------------------------------------------------------------------------------------------ | --------------------------------------- |
+| `list:display`  | select | `text` · `badge` · `pill` · `color-swatch` · `image` · `icon` · `price` · `rating` · `truncated` | Primary render mode                     |
+| `list:prefix`   | text   | any string (e.g. `₹`, `#`, `+`)                                                                  | Static text prepended to value          |
+| `list:suffix`   | text   | any string (e.g. `%`, `kg`, `hrs`, `mAh`)                                                        | Static text appended to value           |
+| `list:truncate` | number | max character count                                                                              | Truncates long text with `…`            |
+| `list:format`   | select | `raw` · `date` · `datetime` · `currency` · `percentage`                                          | Formats raw stored value before display |
 
----
+### Value-triggered blocks
 
-### Blocks — composite display properties
+These blocks activate when `list:display` matches their trigger value.
 
-A **block** is a named cluster of `list:*` keys that only make sense together.
-Sub-keys use dot notation: `list:<block>.<property>`.
-A block activates when its **trigger key** reaches the required value.
+#### `list:badge` block — activates when `list:display = badge` or `list:display = pill`
 
-#### `list:badge` block — activates when `list:display = badge`
+| Key                  | Type   | Options                                      | Effect                 |
+| -------------------- | ------ | -------------------------------------------- | ---------------------- |
+| `list:badge.color`   | select | `primary` · `success` · `warning` · `danger` | Badge colour semantics |
+| `list:badge.size`    | select | `sm` · `md` · `lg`                           | Badge size             |
+| `list:badge.variant` | select | `solid` · `outline` · `soft`                 | Badge fill style       |
 
-| Key                  | Type   | Options                                                   | Effect                             |
-| -------------------- | ------ | --------------------------------------------------------- | ---------------------------------- |
-| `list:badge.color`   | color  | `primary` · `success` · `warning` · `danger` · any `#hex` | Background / border color of badge |
-| `list:badge.size`    | select | `sm` · `md` · `lg`                                        | Badge size                         |
-| `list:badge.variant` | select | `solid` · `outline` · `soft`                              | Fill style of the badge            |
+Colour rendering:
+
+- `success` → emerald green background (e.g. "In Stock")
+- `warning` → amber/amber (e.g. "Pending")
+- `danger` → red/red (e.g. "Out of Stock")
+- `primary` → theme primary colour
 
 #### `list:image` block — activates when `list:display = image`
 
-| Key                | Type   | Options                            | Effect                              |
-| ------------------ | ------ | ---------------------------------- | ----------------------------------- |
-| `list:image.size`  | select | `xs` · `sm` · `md` · `lg` · `full` | Rendered size of the image          |
-| `list:image.shape` | select | `square` · `rounded` · `circle`    | Corner radius / crop shape          |
-| `list:image.fit`   | select | `cover` · `contain` · `fill`       | CSS object-fit applied to the image |
+| Key                | Type   | Options                            | Effect               |
+| ------------------ | ------ | ---------------------------------- | -------------------- |
+| `list:image.size`  | select | `xs` · `sm` · `md` · `lg` · `full` | Image rendered size  |
+| `list:image.shape` | select | `square` · `rounded` · `circle`    | Corner radius / crop |
+| `list:image.fit`   | select | `cover` · `contain` · `fill`       | CSS object-fit       |
 
 #### `list:price` block — activates when `list:display = price`
 
-| Key                   | Type   | Options                                  | Effect                                  |
-| --------------------- | ------ | ---------------------------------------- | --------------------------------------- |
-| `list:price.currency` | select | `USD` · `GBP` · `EUR` · `INR` · `custom` | Currency to show alongside the value    |
-| `list:price.format`   | select | `symbol` · `code` · `name`               | How the currency identifier is rendered |
-| `list:price.size`     | select | `sm` · `md` · `lg`                       | Text size of the price display          |
+| Key                   | Type   | Options                                  | Effect                                     |
+| --------------------- | ------ | ---------------------------------------- | ------------------------------------------ |
+| `list:price.currency` | select | `USD` · `GBP` · `EUR` · `INR` · `custom` | Currency symbol                            |
+| `list:price.format`   | select | `symbol` · `code` · `name`               | Currency display (`$`, `USD`, "US Dollar") |
+| `list:price.size`     | select | `sm` · `md` · `lg`                       | Price text size                            |
 
 ---
 
-## Complete examples (form + list attributes)
+### Type-triggered blocks
+
+These blocks activate when the property `type` field matches — no need for `list:display`.
+
+#### `list:composite` block — activates when `type = COMPOSITE_PROPERTY`
+
+Controls how a composite (group of child fields) renders in the listing view.
+
+| Key                          | Type   | Options                                                        | Effect                                    |
+| ---------------------------- | ------ | -------------------------------------------------------------- | ----------------------------------------- |
+| `list:composite.layout`      | select | `table` · `inline` · `card` · `grid` · `definition` · `hidden` | Layout mode for child fields              |
+| `list:composite.columns`     | number | any number (default 2)                                         | Number of columns for `grid` layout       |
+| `list:composite.gap`         | select | `tight` · `normal` · `loose`                                   | Spacing between items                     |
+| `list:composite.label-width` | text   | any Tailwind width class (e.g. `w-32`)                         | Fixed label width for `definition` layout |
+
+##### Composite layout reference
+
+```
+table (default)          inline                  card
+┌────────────────────┐   Label1: value1          ┌─────────┐ ┌─────────┐
+│ Label1    value1   │   · Label2: value2         │ Label1  │ │ Label2  │
+│ Label2    value2   │   · Label3: value3         │ value1  │ │ value2  │
+│ Label3    value3   │                           └─────────┘ └─────────┘
+└────────────────────┘
+
+grid (2 cols)            definition              hidden
+┌────────────┬────────┐  Label1   value1          (renders nothing)
+│ Label1     │ Label2 │  Label2   value2
+│ value1     │ value2 │  Label3   value3
+├────────────┼────────┤
+│ Label3     │ Label4 │
+│ value3     │ value4 │
+└────────────┴────────┘
+```
+
+#### `list:list` block — activates when `type = LIST_PROPERTY` or `type = SET_PROPERTY`
+
+Controls how a list of items renders.
+
+| Key                    | Type   | Options                                    | Effect                   |
+| ---------------------- | ------ | ------------------------------------------ | ------------------------ |
+| `list:list.layout`     | select | `cards` · `table` · `inline` · `compact`   | List item arrangement    |
+| `list:list.item-style` | select | `flat` · `card` · `bordered` · `separated` | Item border / background |
+
+---
+
+## Creating component properties — step by step
+
+### Step 1: Choose the right property type
+
+Think about the data shape first:
+
+```
+Leaf value?                          → COMPLEX_PROPERTY (or SIMPLE if no attrs)
+Group of related leaf values?        → COMPOSITE_PROPERTY
+Repeating list of items?             → LIST_PROPERTY
+```
+
+### Step 2: Choose the metaType
+
+| Data          | metaType                  |
+| ------------- | ------------------------- |
+| Text (short)  | `STRING`                  |
+| Text (long)   | `STRING` + `ui:multiline` |
+| Whole number  | `INTEGER`                 |
+| Decimal       | `FLOAT`                   |
+| True/false    | `BOOLEAN`                 |
+| Date          | `LOCAL_DATE`              |
+| Date + time   | `LOCAL_DATE_TIME`         |
+| Email / phone | `STRING` + `html:type`    |
+| File          | `FILE`                    |
+
+### Step 3: Configure the form input
+
+Select an input widget and style it:
+
+```
+metaType: STRING
+html:placeholder  →  Enter product name…
+form:size         →  lg
+form:variant      →  outline
+form:layout       →  vertical
+```
+
+```
+metaType: INTEGER
+ui:component     →  slider
+html:min         →  0
+html:max         →  100000
+html:step        →  1000
+form:size        →  sm
+form:label.position →  left
+```
+
+### Step 4: Configure the listing display
+
+Choose how the stored value looks in public views:
+
+```
+metaType: STRING
+list:display    →  badge
+list:badge.color   →  success
+list:badge.variant →  soft
+list:prefix     →  #
+```
+
+```
+metaType: INTEGER
+list:display        →  price
+list:price.currency →  INR
+list:price.size     →  lg
+list:suffix         →  (incl. GST)
+```
+
+### Step 5: Use composites for spec sections
+
+Group related fields into a composite and choose a layout:
+
+```
+"type": "COMPOSITE_PROPERTY",
+"name": "display_specs",
+"label": "Display",
+"attributes": {
+  "list:composite.layout": "card",
+  "list:section.header-icon": "monitor"
+},
+"value": [
+  { "name": "screen_size", "label": "Screen Size", ... },
+  { "name": "resolution", "label": "Resolution", ... }
+]
+```
+
+### Step 6: Use lists for repeating features
+
+```
+"type": "LIST_PROPERTY",
+"name": "highlights",
+"label": "Key Highlights",
+"attributes": {
+  "list:list.layout": "inline",
+  "list:prefix": "✓ "
+},
+"value": [
+  { "name": "highlight", "label": "Highlight", ... }
+]
+```
+
+---
+
+## Adding new blocks (the 3-step pattern)
+
+Adding a new block requires changes in exactly **3 places**:
+
+### Step 1: `attribute-protocol.ts` — define the keys + block
+
+```ts
+// Add key entries
+{ key: 'list:accordion.default-open', surface: 'list', group: 'list',
+  label: 'Default open', valueType: 'select',
+  options: ['true', 'false', 'first'],
+  block: 'accordion', appliesTo: ['COMPOSITE_PROPERTY'] },
+
+// Add block definition
+{ name: 'accordion', surface: 'list',
+  label: 'Accordion section',
+  triggerPropType: 'COMPOSITE_PROPERTY',
+  keys: ['list:accordion.default-open'] }
+```
+
+No editor wiring needed — the `AttributeEditor` dropdown picks up new keys automatically from `ATTRIBUTE_PROTOCOL`.
+
+### Step 2: `view/page.tsx` → `PropValue` — add the renderer
+
+```tsx
+// In the COMPOSITE rendering section
+if (compositeLayout === 'accordion') {
+  const defaultOpen = listAttrs['list:accordion.default-open'];
+  // ... render collapsible accordion panels
+}
+```
+
+### Step 3: Verify
+
+- Block sub-keys auto-appear in the editor when the trigger condition is met
+- Legacy properties without these attributes render identically (missing keys fall through to defaults)
+- The `resolveAttrs` filter ensures the keys are only returned for the correct surface + property type
+
+### Trigger modes
+
+| Mode                       | Use for                                     | Example                                 |
+| -------------------------- | ------------------------------------------- | --------------------------------------- |
+| `trigger: { key, equals }` | Blocks activated by a value choice          | `list:display = badge` → badge block    |
+| `triggerPropType`          | Blocks that always apply to a property type | `COMPOSITE_PROPERTY` → composite layout |
+
+---
+
+## Examples
+
+### Basic text with placeholder
+
+```
+metaType: STRING
+html:placeholder  →  e.g. SKU-001-BLK
+```
+
+### Compact form input (horizontal label)
+
+```
+metaType: STRING
+html:placeholder    →  e.g. SKU-001-BLK
+form:size           →  sm
+form:variant        →  outline
+form:label.position →  left
+```
 
 ### Coloured status badge
 
@@ -798,20 +456,8 @@ metaType:       STRING
 style:options   →  Active:active,Inactive:inactive,Pending:pending
 ui:component    →  option-pills
 list:display    →  badge
-list:badge.color   →  success        (active), warning (pending), danger (inactive)
+list:badge.color   →  success (active), warning (pending), danger (inactive)
 list:badge.variant →  soft
-list:badge.size    →  sm
-```
-
-### Product image thumbnail
-
-```
-metaType:       FILE
-html:accept     →  image/*
-list:display    →  image
-list:image.size →  md
-list:image.shape →  rounded
-list:image.fit  →  cover
 ```
 
 ### Price with currency symbol
@@ -824,19 +470,7 @@ html:max            →  100000
 html:step           →  500
 list:display        →  price
 list:price.currency →  INR
-list:price.format   →  symbol
 list:price.size     →  md
-```
-
-### Compact form input (horizontal label)
-
-```
-metaType:           STRING
-html:placeholder    →  e.g. SKU-001-BLK
-form:size           →  sm
-form:variant        →  outline
-form:width          →  full
-form:label.position →  left
 ```
 
 ### Percentage field with suffix
@@ -851,26 +485,346 @@ list:suffix    →  %
 list:format    →  percentage
 ```
 
+### Product specs composite (table)
+
+```
+COMPOSITE "Camera"
+  attributes:
+    list:composite.layout →  table
+
+  ─ screen_size   →  FLOAT   list:suffix →  inches
+  ─ resolution    →  STRING
+  ─ camera_type   →  STRING  option-pills
+```
+
+### Feature cards (card layout)
+
+```
+COMPOSITE "Display"
+  attributes:
+    list:composite.layout →  card
+
+  ─ screen_size   →  FLOAT   list:suffix →  "
+  ─ resolution    →  STRING
+  ─ refresh_rate  →  INTEGER  list:suffix →  Hz
+  ─ protection    →  STRING
+```
+
+### Dimensions inline
+
+```
+COMPOSITE "Dimensions"
+  attributes:
+    list:composite.layout →  inline
+
+  ─ height   →  FLOAT  list:suffix →  mm
+  ─ width    →  FLOAT  list:suffix →  mm
+  ─ weight   →  FLOAT  list:suffix →  g
+```
+
+### Spec sheet (definition layout)
+
+```
+COMPOSITE "Battery"
+  attributes:
+    list:composite.layout →  definition
+    list:composite.label-width →  w-36
+
+  ─ capacity       →  INTEGER  list:suffix →  mAh
+  ─ charging       →  STRING
+  ─ battery_life   →  STRING
+```
+
+### Product image thumbnail
+
+```
+metaType:       FILE
+html:accept     →  image/*
+list:display    →  image
+list:image.size →  md
+list:image.shape →  rounded
+list:image.fit  →  cover
+```
+
 ---
 
-## Block trigger rules
+## Block trigger rules reference
 
-When `list:display` changes, only the matching block's sub-keys are active.
-Setting `list:display = badge` makes `list:badge.*` keys apply; `list:image.*` and `list:price.*` keys are ignored even if present.
+When `list:display` changes, only the matching block's sub-keys are active in both the editor and the renderer.
 
-| `list:display` value                                      | Active block                                                 |
-| --------------------------------------------------------- | ------------------------------------------------------------ |
-| `badge`                                                   | `list:badge.*`                                               |
-| `pill`                                                    | `list:badge.*` (shares badge styling)                        |
-| `image`                                                   | `list:image.*`                                               |
-| `price`                                                   | `list:price.*`                                               |
-| `text` / `truncated` / `icon` / `rating` / `color-swatch` | no block — use `list:prefix`, `list:suffix`, `list:truncate` |
+| `list:display`                                            | Active block   | Render behaviour                                                 |
+| --------------------------------------------------------- | -------------- | ---------------------------------------------------------------- |
+| `badge`                                                   | `list:badge.*` | Badge chip with colour/size/variant                              |
+| `pill`                                                    | `list:badge.*` | Same as badge but pill-style                                     |
+| `image`                                                   | `list:image.*` | Image tag with size/shape/fit                                    |
+| `price`                                                   | `list:price.*` | Formatted price with currency                                    |
+| `text` / `truncated` / `icon` / `rating` / `color-swatch` | no block       | Use `list:prefix`, `list:suffix`, `list:truncate`, `list:format` |
+
+| Property type                    | Active block       | Effect                                                       |
+| -------------------------------- | ------------------ | ------------------------------------------------------------ |
+| `COMPOSITE_PROPERTY`             | `list:composite.*` | Renders children as table/inline/card/grid/definition/hidden |
+| `LIST_PROPERTY` / `SET_PROPERTY` | `list:list.*`      | Renders items as cards/table/inline                          |
 
 ---
 
-## Adding new protocol keys
+## Full managed type example: Mobile Phone
 
-1. Open [attribute-protocol.ts](<hammer-ui/apps/web/src/app/(admin)/admin/metadata/_components/attribute-protocol.ts>) and add an entry to `ATTRIBUTE_PROTOCOL`.
-2. For `form:*` or `list:*` keys that belong to a block, also add the block definition to `ATTR_BLOCKS` and set the `block` and `showWhen` fields on the key entry.
-3. If the new key needs a new UI widget, add the renderer inside `ScalarField` in [Step3Catalog.tsx](<hammer-ui/apps/web/src/app/(admin)/admin/listings/_components/Step3Catalog.tsx>).
-4. The `AttributeEditor` dropdown in [PropertyRow.tsx](<hammer-ui/apps/web/src/app/(admin)/admin/metadata/_components/PropertyRow.tsx>) picks up new keys automatically from the protocol array — no extra wiring needed.
+This showcases: **composites with 5 layout modes · price block · image block · badge list · option pills · form sizing · tag-input · color swatches · list display modes**
+
+```bash
+curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "name": "Mobile Phone",
+    "description": "Product spec page with composites, price block, image gallery, and spec sections",
+    "type": "LISTING_PROPERTIES",
+    "tags": ["mobile", "electronics", "phone"],
+    "properties": [
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "product_title",
+        "label": "Product Title",
+        "metaType": "STRING",
+        "attributes": {
+          "html:placeholder": "e.g. Apple iPhone 16 Pro Max 256 GB"
+        },
+        "validators": [{ "type": "NOT_NULL" }]
+      },
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "selling_price",
+        "label": "Selling Price",
+        "metaType": "INTEGER",
+        "attributes": {
+          "html:min": "0",
+          "html:placeholder": "139900",
+          "list:display": "price",
+          "list:price.currency": "INR",
+          "list:price.format": "symbol",
+          "list:price.size": "lg",
+          "list:prefix": "₹",
+          "form:size": "lg"
+        }
+      },
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "rating",
+        "label": "Rating",
+        "metaType": "INTEGER",
+        "attributes": {
+          "ui:component": "rating",
+          "list:display": "rating"
+        }
+      },
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "main_image",
+        "label": "Main Image",
+        "metaType": "FILE",
+        "attributes": {
+          "html:accept": "image/*",
+          "list:display": "image",
+          "list:image.size": "lg",
+          "list:image.shape": "rounded",
+          "list:image.fit": "cover"
+        }
+      },
+      {
+        "type": "LIST_PROPERTY",
+        "name": "highlights",
+        "label": "Key Highlights",
+        "metaType": "STRING",
+        "attributes": {
+          "list:list.layout": "inline",
+          "list:list.item-style": "separated",
+          "list:prefix": "✓"
+        },
+        "value": [
+          {
+            "type": "COMPLEX_PROPERTY",
+            "name": "highlight",
+            "label": "Highlight",
+            "metaType": "STRING",
+            "attributes": { "html:placeholder": "e.g. A18 Pro Chip" }
+          }
+        ]
+      },
+      {
+        "type": "COMPOSITE_PROPERTY",
+        "name": "display_specs",
+        "label": "Display",
+        "metaType": "STRING",
+        "attributes": {
+          "list:composite.layout": "card"
+        },
+        "value": [
+          {
+            "type": "COMPLEX_PROPERTY",
+            "name": "screen_size",
+            "label": "Screen Size",
+            "metaType": "FLOAT",
+            "attributes": {
+              "html:min": "3.0",
+              "html:max": "10.0",
+              "html:step": "0.1",
+              "html:placeholder": "6.9",
+              "list:suffix": " inches",
+              "form:size": "sm"
+            }
+          },
+          {
+            "type": "COMPLEX_PROPERTY",
+            "name": "resolution",
+            "label": "Resolution",
+            "metaType": "STRING",
+            "attributes": {
+              "html:placeholder": "2868 × 1320 pixels",
+              "form:size": "sm"
+            }
+          },
+          {
+            "type": "COMPLEX_PROPERTY",
+            "name": "display_type",
+            "label": "Type",
+            "metaType": "STRING",
+            "attributes": {
+              "style:options": "Super Retina XDR OLED,Liquid Retina HD,LTPO AMOLED",
+              "ui:component": "option-pills",
+              "form:size": "sm"
+            }
+          },
+          {
+            "type": "COMPLEX_PROPERTY",
+            "name": "refresh_rate",
+            "label": "Refresh Rate",
+            "metaType": "INTEGER",
+            "attributes": {
+              "style:options": "60Hz,90Hz,120Hz,144Hz",
+              "ui:component": "option-pills",
+              "list:suffix": " Hz",
+              "form:size": "sm"
+            }
+          }
+        ]
+      },
+      {
+        "type": "COMPOSITE_PROPERTY",
+        "name": "camera_specs",
+        "label": "Camera",
+        "metaType": "STRING",
+        "attributes": {
+          "list:composite.layout": "grid",
+          "list:composite.columns": "2"
+        },
+        "value": [
+          {
+            "type": "COMPLEX_PROPERTY",
+            "name": "rear_camera",
+            "label": "Rear Camera",
+            "metaType": "STRING",
+            "attributes": { "html:placeholder": "48MP + 12MP + 12MP" }
+          },
+          {
+            "type": "COMPLEX_PROPERTY",
+            "name": "front_camera",
+            "label": "Front Camera",
+            "metaType": "STRING",
+            "attributes": { "html:placeholder": "12MP TrueDepth" }
+          },
+          {
+            "type": "COMPLEX_PROPERTY",
+            "name": "video_recording",
+            "label": "Video",
+            "metaType": "STRING",
+            "attributes": { "html:placeholder": "4K @ 24/30/60fps" }
+          },
+          {
+            "type": "COMPLEX_PROPERTY",
+            "name": "features",
+            "label": "Camera Features",
+            "metaType": "STRING",
+            "attributes": {
+              "ui:component": "tag-input",
+              "html:placeholder": "Night mode,Portrait,Cinematic…"
+            }
+          }
+        ]
+      },
+      {
+        "type": "COMPOSITE_PROPERTY",
+        "name": "battery",
+        "label": "Battery",
+        "metaType": "STRING",
+        "attributes": {
+          "list:composite.layout": "definition",
+          "list:composite.label-width": "w-36"
+        },
+        "value": [
+          {
+            "type": "COMPLEX_PROPERTY",
+            "name": "capacity",
+            "label": "Capacity",
+            "metaType": "INTEGER",
+            "attributes": {
+              "list:suffix": " mAh",
+              "form:size": "sm"
+            }
+          },
+          {
+            "type": "COMPLEX_PROPERTY",
+            "name": "charging",
+            "label": "Charging",
+            "metaType": "STRING",
+            "attributes": {
+              "html:placeholder": "27W wired, 25W MagSafe",
+              "form:size": "sm"
+            }
+          },
+          {
+            "type": "COMPLEX_PROPERTY",
+            "name": "battery_life",
+            "label": "Battery Life",
+            "metaType": "STRING",
+            "attributes": {
+              "html:placeholder": "Up to 33 hours video playback",
+              "form:size": "sm"
+            }
+          }
+        ]
+      },
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "description",
+        "label": "Description",
+        "metaType": "STRING",
+        "attributes": {
+          "ui:multiline": "true",
+          "ui:rows": "6",
+          "form:size": "lg",
+          "html:placeholder": "Write a detailed description…"
+        }
+      }
+    ]
+  }' | jq '.'
+```
+
+---
+
+## Source files
+
+| File                                      | Purpose                                                                    |
+| ----------------------------------------- | -------------------------------------------------------------------------- |
+| `attribute-protocol.ts`                   | All key definitions, block definitions, `resolveAttrs()`, `ATTR_GROUPS`    |
+| `AttributeEditor.tsx`                     | Dropdown editor; auto-picks up new keys from protocol                      |
+| `PropertyRow.tsx`                         | Filters visible attributes by `showWhen`/`appliesTo`                       |
+| `Step3Catalog.tsx` → `ScalarField`        | Consumes `form:*` + `html:*` + `ui:*` + `style:*` for form input rendering |
+| `Step3Catalog.tsx` → `PropertyFieldGroup` | Wraps label + input with `form:layout` / `form:label.position`             |
+| `view/page.tsx` → `PropValue`             | Consumes `list:*` keys + blocks for listing/detail display                 |
+
+### Adding new protocol keys
+
+1. Open `attribute-protocol.ts` and add an entry to `ATTRIBUTE_PROTOCOL` with the correct `surface` (`, `form`, or `list`).
+2. If the key belongs to a block, add the block definition to `ATTR_BLOCKS` and set `block`, `showWhen`, or `appliesTo` on the key entry.
+3. If the key needs new rendering logic, add it inside `ScalarField` (form) or `PropValue` (list).
+4. The `AttributeEditor` dropdown picks up new keys automatically — no extra wiring needed.

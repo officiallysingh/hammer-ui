@@ -7,6 +7,7 @@ import { metadataApi } from '@repo/api';
 import type { PropertyDef, ValidatorDef, MetaType, PropertyType } from '@repo/api';
 import { ValidatorRow } from './ValidatorRow';
 import { AttributeEditor } from './AttributeEditor';
+import { ATTR_PROTOCOL_MAP } from './attribute-protocol';
 import { PROPERTY_TYPES, HAS_CHILDREN, emptyProperty, extractMetaTypeKey } from './types';
 import type { KV } from './types';
 
@@ -287,29 +288,40 @@ export function PropertyRow({
                   Add
                 </button>
               </div>
-              {Object.entries(prop.attributes ?? {}).map(([k, v], ai) => (
-                <AttributeEditor
-                  key={ai}
-                  attrKey={k}
-                  attrValue={v}
-                  onKeyChange={(newKey) => {
-                    const entries = Object.entries(prop.attributes ?? {});
-                    entries[ai] = [newKey, v];
-                    onUpdate({ attributes: Object.fromEntries(entries) });
-                  }}
-                  onValueChange={(newVal) => {
-                    const entries = Object.entries(prop.attributes ?? {});
-                    entries[ai] = [k, newVal];
-                    onUpdate({ attributes: Object.fromEntries(entries) });
-                  }}
-                  onRemove={() => {
-                    const entries = Object.entries(prop.attributes ?? {}).filter(
-                      (_, i) => i !== ai,
-                    );
-                    onUpdate({ attributes: Object.fromEntries(entries) });
-                  }}
-                />
-              ))}
+              {/* Filter out attributes hidden by showWhen / appliesTo */}
+              {Object.entries(prop.attributes ?? {})
+                .filter(([k]) => {
+                  if (!k) return true;
+                  const def = ATTR_PROTOCOL_MAP[k];
+                  if (!def) return true;
+                  if (def.showWhen && prop.attributes?.[def.showWhen.key] !== def.showWhen.equals)
+                    return false;
+                  if (def.appliesTo && !def.appliesTo.includes(prop.type)) return false;
+                  return true;
+                })
+                .map(([k, v], ai) => (
+                  <AttributeEditor
+                    key={ai}
+                    attrKey={k}
+                    attrValue={v}
+                    onKeyChange={(newKey) => {
+                      const entries = Object.entries(prop.attributes ?? {});
+                      entries[ai] = [newKey, v];
+                      onUpdate({ attributes: Object.fromEntries(entries) });
+                    }}
+                    onValueChange={(newVal) => {
+                      const entries = Object.entries(prop.attributes ?? {});
+                      entries[ai] = [k, newVal];
+                      onUpdate({ attributes: Object.fromEntries(entries) });
+                    }}
+                    onRemove={() => {
+                      const entries = Object.entries(prop.attributes ?? {}).filter(
+                        (_, i) => i !== ai,
+                      );
+                      onUpdate({ attributes: Object.fromEntries(entries) });
+                    }}
+                  />
+                ))}
             </div>
           )}
 
