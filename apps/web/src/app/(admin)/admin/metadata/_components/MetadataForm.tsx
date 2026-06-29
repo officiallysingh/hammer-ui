@@ -6,9 +6,9 @@ import { metadataApi, PropertyDef } from '@repo/api';
 import { Loader2, ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import { Button, Input, Label } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
-import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { parseApiError } from '@/lib/api-errors';
 import { PropertyBuilder } from './PropertyBuilder';
+import { PropertyFormPreview, ListingViewPreview } from './PropertyFormPreview';
 import { TagInput } from '@/components/common/admin/TagInput';
 import type { KV } from './types';
 
@@ -145,6 +145,7 @@ export function MetadataForm({
 }: MetadataFormProps) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2>(1);
+  const [previewTab, setPreviewTab] = useState<'build' | 'form' | 'preview'>('build');
   const [form, setForm] = useState<MetadataFormValues>({ ...EMPTY, ...initialValues });
   const [typeOptions, setTypeOptions] = useState<KV[]>([]);
   const [metaTypeOptions, setMetaTypeOptions] = useState<KV[]>([]);
@@ -404,15 +405,49 @@ export function MetadataForm({
           <div className="rounded-xl border border-border bg-card p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-foreground">Properties</h3>
-              <span className="text-xs text-muted-foreground">
-                {form.name} · {form.type}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground">
+                  {form.name} · {form.type}
+                </span>
+                <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-0.5">
+                  {(
+                    [
+                      { key: 'build', label: 'Build' },
+                      { key: 'form', label: 'Form' },
+                      { key: 'preview', label: 'Preview' },
+                    ] as const
+                  ).map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setPreviewTab(tab.key)}
+                      className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                        previewTab === tab.key
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-            <PropertyBuilder
-              properties={form.properties}
-              onChange={(properties) => set('properties', properties)}
-              metaTypes={metaTypeOptions}
-            />
+            {previewTab === 'build' ? (
+              <PropertyBuilder
+                properties={form.properties}
+                onChange={(properties) => set('properties', properties)}
+                metaTypes={metaTypeOptions}
+              />
+            ) : previewTab === 'form' ? (
+              <PropertyFormPreview key="form" properties={form.properties} />
+            ) : (
+              <ListingViewPreview
+                key="preview"
+                properties={form.properties}
+                title={form.name || undefined}
+              />
+            )}
           </div>
 
           {(() => {

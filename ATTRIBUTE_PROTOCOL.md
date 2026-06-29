@@ -811,6 +811,375 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
 
 ---
 
+---
+
+## Curl cookbook
+
+> **Prerequisites**
+>
+> - Server running at `http://localhost:8090`
+> - Log in once and export a token:
+>   ```bash
+>   TOKEN=$(curl -s -X POST http://localhost:8090/api/v1/auth/login \
+>     -H "Content-Type: application/json" \
+>     -d '{"username":"admin","password":"admin"}' | jq -r '.token')
+>   ```
+> - `jq` must be installed
+
+---
+
+### Components — CRUD
+
+#### Create a "Dimensions" component
+
+```bash
+curl -s -X POST http://localhost:8090/api/v1/meta-data/components \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "name": "Dimensions",
+    "description": "Physical dimensions — length, width, height in cm",
+    "tags": ["physical", "measurements"],
+    "properties": [
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "length",
+        "label": "Length",
+        "metaType": "FLOAT",
+        "attributes": { "html:min": "0", "html:max": "500", "html:step": "0.1", "html:placeholder": "cm", "form:size": "sm", "form:layout": "horizontal" }
+      },
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "width",
+        "label": "Width",
+        "metaType": "FLOAT",
+        "attributes": { "html:min": "0", "html:max": "500", "html:step": "0.1", "html:placeholder": "cm", "form:size": "sm", "form:layout": "horizontal" }
+      },
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "height",
+        "label": "Height",
+        "metaType": "FLOAT",
+        "attributes": { "html:min": "0", "html:max": "500", "html:step": "0.1", "html:placeholder": "cm", "form:size": "sm", "form:layout": "horizontal" }
+      }
+    ]
+  }' | jq '.'
+```
+
+#### Create a "Status Badge" component
+
+```bash
+curl -s -X POST http://localhost:8090/api/v1/meta-data/components \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "name": "Status Badge",
+    "description": "Selectable status field displayed as a coloured badge in listings",
+    "tags": ["status", "badge"],
+    "properties": [
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "status",
+        "label": "Status",
+        "metaType": "STRING",
+        "attributes": {
+          "style:options": "Active:active,Inactive:inactive,Pending:pending,Archived:archived",
+          "ui:component": "option-pills",
+          "list:display": "badge",
+          "list:badge.color": "success",
+          "list:badge.variant": "soft",
+          "list:badge.size": "sm"
+        },
+        "validators": [{ "type": "NOT_NULL", "message": "Status is required" }]
+      }
+    ]
+  }' | jq '.'
+```
+
+#### Create a "Price Range" component
+
+```bash
+curl -s -X POST http://localhost:8090/api/v1/meta-data/components \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "name": "Price Range",
+    "description": "Min / max price sliders with INR display",
+    "tags": ["price", "range"],
+    "properties": [
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "min_price",
+        "label": "Min Price",
+        "metaType": "INTEGER",
+        "attributes": {
+          "ui:component": "slider",
+          "html:min": "0",
+          "html:max": "500000",
+          "html:step": "1000",
+          "list:display": "price",
+          "list:price.currency": "INR",
+          "list:price.format": "symbol"
+        }
+      },
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "max_price",
+        "label": "Max Price",
+        "metaType": "INTEGER",
+        "attributes": {
+          "ui:component": "slider",
+          "html:min": "0",
+          "html:max": "500000",
+          "html:step": "1000",
+          "list:display": "price",
+          "list:price.currency": "INR",
+          "list:price.format": "symbol"
+        }
+      }
+    ]
+  }' | jq '.'
+```
+
+#### List components (with optional phrase search)
+
+```bash
+# All components
+curl -s "http://localhost:8090/api/v1/meta-data/components" \
+  -H "Authorization: Bearer $TOKEN" | jq '.content[] | {id, name}'
+
+# Search by phrase
+curl -s "http://localhost:8090/api/v1/meta-data/components?phrases=price" \
+  -H "Authorization: Bearer $TOKEN" | jq '.content[] | {id, name}'
+```
+
+#### Get a component by ID
+
+```bash
+COMP_ID="<component-id>"
+curl -s "http://localhost:8090/api/v1/meta-data/components/$COMP_ID" \
+  -H "Authorization: Bearer $TOKEN" | jq '.'
+```
+
+#### Update a component (PATCH)
+
+```bash
+curl -s -X PATCH "http://localhost:8090/api/v1/meta-data/components/$COMP_ID" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{ "description": "Updated description" }' | jq '.'
+```
+
+#### Delete a component
+
+```bash
+curl -s -X DELETE "http://localhost:8090/api/v1/meta-data/components/$COMP_ID" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### Managed Types — with `form:*` and `list:*` attributes
+
+#### Managed Type — Electronics Listing
+
+Showcases: **status badge · price slider · image upload · tag input · composite dimensions · `form:*` sizing · `list:*` display**
+
+```bash
+curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "name": "Electronics Listing",
+    "description": "Catalog type for electronics — showcases form/list attribute styling",
+    "type": "LISTING_PROPERTIES",
+    "tags": ["electronics", "showcase"],
+    "properties": [
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "brand",
+        "label": "Brand",
+        "metaType": "STRING",
+        "attributes": {
+          "html:placeholder": "e.g. Samsung, Apple",
+          "form:size": "md",
+          "form:variant": "filled",
+          "form:width": "full"
+        },
+        "validators": [{ "type": "NOT_NULL", "message": "Brand is required" }]
+      },
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "status",
+        "label": "Status",
+        "metaType": "STRING",
+        "attributes": {
+          "style:options": "Active:active,Inactive:inactive,Pending:pending",
+          "ui:component": "option-pills",
+          "list:display": "badge",
+          "list:badge.color": "success",
+          "list:badge.variant": "soft",
+          "list:badge.size": "sm"
+        }
+      },
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "price",
+        "label": "Price",
+        "metaType": "INTEGER",
+        "attributes": {
+          "ui:component": "slider",
+          "html:min": "0",
+          "html:max": "200000",
+          "html:step": "500",
+          "list:display": "price",
+          "list:price.currency": "INR",
+          "list:price.format": "symbol",
+          "list:price.size": "md"
+        }
+      },
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "color",
+        "label": "Color",
+        "metaType": "STRING",
+        "attributes": {
+          "style:color-options": "black,white,silver,gold,blue,red",
+          "list:display": "color-swatch"
+        }
+      },
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "product_image",
+        "label": "Product Image",
+        "metaType": "FILE",
+        "attributes": {
+          "html:accept": "image/*",
+          "list:display": "image",
+          "list:image.size": "sm",
+          "list:image.shape": "rounded",
+          "list:image.fit": "cover"
+        }
+      },
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "in_stock",
+        "label": "In Stock",
+        "metaType": "BOOLEAN",
+        "attributes": {
+          "ui:component": "toggle",
+          "form:layout": "inline"
+        }
+      },
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "keywords",
+        "label": "Keywords",
+        "metaType": "STRING",
+        "attributes": {
+          "ui:component": "tag-input",
+          "html:placeholder": "Add keywords…",
+          "form:helper-text": "Used for search indexing"
+        }
+      },
+      {
+        "type": "COMPLEX_PROPERTY",
+        "name": "description",
+        "label": "Description",
+        "metaType": "STRING",
+        "attributes": {
+          "ui:multiline": "true",
+          "ui:rows": "4",
+          "html:placeholder": "Describe the product…",
+          "list:display": "truncated",
+          "list:truncate": "120"
+        }
+      },
+      {
+        "type": "COMPOSITE_PROPERTY",
+        "name": "dimensions",
+        "label": "Dimensions",
+        "metaType": "STRING",
+        "attributes": {
+          "list:composite.layout": "inline"
+        },
+        "value": [
+          {
+            "type": "COMPLEX_PROPERTY",
+            "name": "length",
+            "label": "Length",
+            "metaType": "FLOAT",
+            "attributes": { "html:min": "0", "html:max": "200", "html:step": "0.1", "html:placeholder": "cm", "form:size": "sm", "form:layout": "horizontal", "list:suffix": " cm" }
+          },
+          {
+            "type": "COMPLEX_PROPERTY",
+            "name": "width",
+            "label": "Width",
+            "metaType": "FLOAT",
+            "attributes": { "html:min": "0", "html:max": "200", "html:step": "0.1", "html:placeholder": "cm", "form:size": "sm", "form:layout": "horizontal", "list:suffix": " cm" }
+          },
+          {
+            "type": "COMPLEX_PROPERTY",
+            "name": "weight",
+            "label": "Weight",
+            "metaType": "FLOAT",
+            "attributes": { "html:min": "0", "html:max": "50", "html:step": "0.01", "html:placeholder": "kg", "form:size": "sm", "form:layout": "horizontal", "list:suffix": " kg" }
+          }
+        ]
+      }
+    ]
+  }' | jq '.'
+```
+
+---
+
+### Listings — create and populate
+
+```bash
+# Capture managed type ID from create response above
+ELECTRONICS_TYPE_ID="<id-from-electronics-response>"
+SUB_CATEGORY_ID="<your-subcategory-id>"
+
+# Create the listing
+LISTING_ID=$(curl -s -X POST http://localhost:8090/api/v1/listings \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "name": "Samsung Galaxy S24 Ultra",
+    "description": "Latest Samsung flagship with S-Pen",
+    "subCategory": "'"$SUB_CATEGORY_ID"'",
+    "tags": ["samsung", "smartphone", "flagship"]
+  }' | jq -r '.id')
+
+echo "Created listing: $LISTING_ID"
+
+# Patch with catalog data
+curl -s -X PATCH "http://localhost:8090/api/v1/listings/$LISTING_ID" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "embedded": {
+      "typeId": "'"$ELECTRONICS_TYPE_ID"'",
+      "pathWiseState": {
+        "brand": "Samsung",
+        "status": "active",
+        "price": "124999",
+        "color": "black",
+        "in_stock": "true",
+        "keywords": "samsung,s24,ultra,spen,flagship",
+        "description": "The Samsung Galaxy S24 Ultra features a 6.8-inch Dynamic AMOLED display, Snapdragon 8 Gen 3, and built-in S-Pen.",
+        "dimensions": {
+          "length": "16.27",
+          "width": "7.9",
+          "weight": "0.232"
+        }
+      }
+    }
+  }' | jq '.'
+```
+
+---
+
 ## Source files
 
 | File                                      | Purpose                                                                    |

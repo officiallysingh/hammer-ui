@@ -1,10 +1,12 @@
 'use client';
 
-import { Plus } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Puzzle } from 'lucide-react';
 import { Button } from '@repo/ui';
 import type { PropertyDef } from '@repo/api';
 import { PropertyRow } from './PropertyRow';
 import { emptyProperty, sanitizeProperties } from './types';
+import { ComponentPicker } from './ComponentPicker';
 import type { KV } from './types';
 
 export type { KV };
@@ -17,6 +19,8 @@ interface PropertyBuilderProps {
 }
 
 export function PropertyBuilder({ properties, onChange, metaTypes }: PropertyBuilderProps) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   const update = (i: number, patch: Partial<PropertyDef>) =>
     onChange(sanitizeProperties(properties.map((p, idx) => (idx === i ? { ...p, ...patch } : p))));
 
@@ -48,15 +52,36 @@ export function PropertyBuilder({ properties, onChange, metaTypes }: PropertyBui
           onMove={(dir) => move(i, dir)}
         />
       ))}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => onChange([...properties, emptyProperty(metaTypes)])}
-      >
-        <Plus className="h-4 w-4 mr-1" />
-        Add property
-      </Button>
+
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => onChange([...properties, emptyProperty(metaTypes)])}
+        >
+          <Plus className="h-4 w-4 mr-1" />
+          Add property
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setPickerOpen(true)}
+          className="text-violet-600 border-violet-200 hover:bg-violet-50 hover:text-violet-700 dark:text-violet-400 dark:border-violet-800 dark:hover:bg-violet-950"
+        >
+          <Puzzle className="h-4 w-4 mr-1" />
+          Insert component
+        </Button>
+      </div>
+
+      <ComponentPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onInsert={(inserted) => {
+          onChange(sanitizeProperties([...properties, ...inserted]));
+        }}
+      />
     </div>
   );
 }
