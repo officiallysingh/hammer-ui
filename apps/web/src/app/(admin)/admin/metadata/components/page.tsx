@@ -23,18 +23,27 @@ export default function ComponentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const PAGE_SIZE = 16;
+  const [pageIndex, setPageIndex] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   // Filter state — initialised from URL
   const [phrases, setPhrases] = useState<string[]>(() => searchParams.getAll('phrases'));
 
-  const fetchComponents = async (ph?: string[]) => {
+  const fetchComponents = async (ph?: string[], page = 0) => {
     setIsLoading(true);
     setError(null);
     try {
       const result = await metadataApi.getComponents({
         phrases: ph?.length ? ph : undefined,
+        page,
+        size: PAGE_SIZE,
       });
       setComponents(result.content ?? []);
+      setPageIndex(page);
+      setTotalPages(result.page?.totalPages ?? 0);
+      setTotalRecords(result.page?.totalRecords ?? 0);
     } catch {
       setError('Failed to load components.');
     } finally {
@@ -54,13 +63,13 @@ export default function ComponentsPage() {
 
   const handleSearch = () => {
     router.replace(buildUrl(phrases), { scroll: false });
-    fetchComponents(phrases.length ? phrases : undefined);
+    fetchComponents(phrases.length ? phrases : undefined, 0);
   };
 
   const handleReset = () => {
     setPhrases([]);
     router.replace('', { scroll: false });
-    fetchComponents([]);
+    fetchComponents([], 0);
   };
 
   const handleDelete = async (id: string) => {
@@ -184,7 +193,7 @@ export default function ComponentsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => fetchComponents(phrases.length ? phrases : undefined)}
+              onClick={() => fetchComponents(phrases.length ? phrases : undefined, pageIndex)}
               disabled={isLoading}
             >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
@@ -210,6 +219,12 @@ export default function ComponentsPage() {
         isLoading={isLoading}
         emptyMessage="No components found."
         hideSearch
+        manualPagination
+        pageIndex={pageIndex}
+        pageCount={totalPages}
+        rowCount={totalRecords}
+        pageSize={PAGE_SIZE}
+        onPageChange={(page) => fetchComponents(phrases.length ? phrases : undefined, page)}
       />
 
       <ConfirmDialog

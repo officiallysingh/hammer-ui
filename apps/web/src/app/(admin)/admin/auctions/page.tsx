@@ -68,13 +68,20 @@ export default function AuctionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const PAGE_SIZE = 20;
+  const [pageIndex, setPageIndex] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalRecords, setTotalRecords] = useState(0);
 
-  const fetchAuctions = async () => {
+  const fetchAuctions = async (page = 0) => {
     setIsLoading(true);
     setError(null);
     try {
-      const result = await auctionsApi.getAuctions();
+      const result = await auctionsApi.getAuctions({ page, size: PAGE_SIZE });
       setAuctions(result.content ?? []);
+      setPageIndex(page);
+      setTotalPages(result.page?.totalPages ?? 0);
+      setTotalRecords(result.page?.totalRecords ?? 0);
     } catch {
       setError('Failed to load auctions.');
     } finally {
@@ -205,7 +212,12 @@ export default function AuctionsPage() {
               <Plus className="h-4 w-4 mr-1" />
               New auction
             </Button>
-            <Button variant="outline" size="sm" onClick={fetchAuctions} disabled={isLoading}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchAuctions(pageIndex)}
+              disabled={isLoading}
+            >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
@@ -221,6 +233,12 @@ export default function AuctionsPage() {
         isLoading={isLoading}
         emptyMessage="No auctions found."
         hideSearch
+        manualPagination
+        pageIndex={pageIndex}
+        pageCount={totalPages}
+        rowCount={totalRecords}
+        pageSize={PAGE_SIZE}
+        onPageChange={fetchAuctions}
       />
 
       <ConfirmDialog

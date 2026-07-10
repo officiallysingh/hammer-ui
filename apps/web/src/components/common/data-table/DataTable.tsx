@@ -30,6 +30,16 @@ interface DataTableProps<TData> {
   searchValue?: string;
   toolbar?: React.ReactNode;
   hideSearch?: boolean;
+  /** When true, `data` is treated as just the current server page; pagination is driven by the props below instead of paginating `data` client-side. */
+  manualPagination?: boolean;
+  /** Current zero-based page index. Required when manualPagination is true. */
+  pageIndex?: number;
+  /** Total number of pages available on the server. Required when manualPagination is true. */
+  pageCount?: number;
+  /** Total record count across all server pages, used for the "Showing X to Y of Z" caption. */
+  rowCount?: number;
+  /** Called with the next zero-based page index when Previous/Next is clicked. Required when manualPagination is true. */
+  onPageChange?: (pageIndex: number) => void;
 }
 
 export function DataTable<TData>({
@@ -44,6 +54,11 @@ export function DataTable<TData>({
   searchValue = '',
   toolbar,
   hideSearch = false,
+  manualPagination = false,
+  pageIndex = 0,
+  pageCount,
+  rowCount,
+  onPageChange,
 }: DataTableProps<TData>) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -71,7 +86,7 @@ export function DataTable<TData>({
   // local input state for server-side search
   const [localSearch, setLocalSearch] = useState(searchValue);
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [pagination, setPagination] = useState(() => {
+  const [localPagination, setLocalPagination] = useState(() => {
     if (!enableUrlState) return { pageIndex: 0, pageSize };
     const page = parseInt(searchParams.get('page') || '1') - 1; // URL is 1-based
     return {
@@ -79,6 +94,9 @@ export function DataTable<TData>({
       pageSize: parseInt(searchParams.get('pageSize') || pageSize.toString()),
     };
   });
+
+  // In manual mode the parent owns pageIndex/pageSize; otherwise DataTable paginates `data` itself.
+  const pagination = manualPagination ? { pageIndex, pageSize } : localPagination;
 
   // Keep a ref to searchParams so URL effect can read current external params
   // without adding searchParams to its dependency array (which would cause loops)
@@ -88,7 +106,7 @@ export function DataTable<TData>({
   // Update URL when DataTable-owned state changes.
   // We preserve external params (phrases, available, etc.) by merging them in.
   useEffect(() => {
-    if (!enableUrlState) return;
+    if (!enableUrlState || manualPagination) return;
 
     // Start from existing params to preserve external filter keys
     const params = new URLSearchParams();
@@ -99,11 +117,11 @@ export function DataTable<TData>({
       }
     });
 
-    if (pagination.pageIndex > 0) {
-      params.set('page', (pagination.pageIndex + 1).toString());
+    if (localPagination.pageIndex > 0) {
+      params.set('page', (localPagination.pageIndex + 1).toString());
     }
-    if (pagination.pageSize !== pageSize) {
-      params.set('pageSize', pagination.pageSize.toString());
+    if (localPagination.pageSize !== pageSize) {
+      params.set('pageSize', localPagination.pageSize.toString());
     }
     if (sorting.length > 0) {
       params.set('sort', JSON.stringify(sorting));
@@ -114,27 +132,45 @@ export function DataTable<TData>({
 
     const newUrl = params.toString() ? `?${params.toString()}` : '';
     router.replace(newUrl, { scroll: false });
-  }, [pagination, sorting, globalFilter, enableUrlState, router, pageSize, onSearch]);
+  }, [
+    localPagination,
+    sorting,
+    globalFilter,
+    enableUrlState,
+    router,
+    pageSize,
+    onSearch,
+    manualPagination,
+  ]);
 
-  // Reset to first page when search changes
+  // Reset to first page when search changes (client-side search only)
   useEffect(() => {
-    if (enableUrlState) {
-      setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+    if (enableUrlState && !manualPagination) {
+      setLocalPagination((prev) => ({ ...prev, pageIndex: 0 }));
     }
-  }, [globalFilter, enableUrlState]);
+  }, [globalFilter, enableUrlState, manualPagination]);
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    getPaginationRowModel: manualPagination ? undefined : getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: onSearch ? undefined : getFilteredRowModel(),
+    manualPagination,
+    pageCount: manualPagination ? (pageCount ?? -1) : undefined,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: onSearch ? undefined : setGlobalFilter,
-    onPaginationChange: setPagination,
+    onPaginationChange: (updater) => {
+      const next = typeof updater === 'function' ? updater(pagination) : updater;
+      if (manualPagination) {
+        onPageChange?.(next.pageIndex);
+      } else {
+        setLocalPagination(next);
+      }
+    },
     state: {
       sorting,
       columnFilters,
@@ -142,6 +178,14 @@ export function DataTable<TData>({
       pagination,
     },
   });
+
+  const totalRows = manualPagination
+    ? (rowCount ?? data.length)
+    : table.getFilteredRowModel().rows.length;
+  const startRow = pagination.pageIndex * pagination.pageSize + 1;
+  const endRow = manualPagination
+    ? pagination.pageIndex * pagination.pageSize + data.length
+    : Math.min((pagination.pageIndex + 1) * pagination.pageSize, totalRows);
 
   return (
     <div className="space-y-4">
@@ -253,13 +297,7 @@ export function DataTable<TData>({
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2 text-sm text-muted-foreground">
             <span>
-              Showing{' '}
-              {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{' '}
-              {Math.min(
-                (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
-                table.getFilteredRowModel().rows.length,
-              )}{' '}
-              of {table.getFilteredRowModel().rows.length} results
+              Showing {startRow} to {endRow} of {totalRows} results
             </span>
           </div>
           <div className="flex items-center space-x-2">

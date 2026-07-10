@@ -111,6 +111,10 @@ export default function UsersPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const PAGE_SIZE = 20;
+  const [pageIndex, setPageIndex] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   // Filter state
   const [phrases, setPhrases] = useState<string[]>(() => searchParams.getAll('phrases'));
@@ -164,6 +168,7 @@ export default function UsersPage() {
     permissions?: string[];
     showRolesCol?: boolean;
     showPermsCol?: boolean;
+    page?: number;
   }) => {
     setIsLoading(true);
     setError(null);
@@ -171,15 +176,19 @@ export default function UsersPage() {
       const expand: ('authorities' | 'authority-groups')[] = [];
       if (opts?.showPermsCol ?? showPermissions) expand.push('authorities');
       if (opts?.showRolesCol ?? showRoles) expand.push('authority-groups');
+      const page = opts?.page ?? 0;
       const result = await usersApi.getUsers(
-        0,
-        20,
+        page,
+        PAGE_SIZE,
         opts?.phrases?.length ? opts.phrases : undefined,
         expand.length ? expand : undefined,
         opts?.roles?.length ? opts.roles : undefined,
         opts?.permissions?.length ? opts.permissions : undefined,
       );
       setUsers(result.content ?? []);
+      setPageIndex(page);
+      setTotalPages(result.page?.totalPages ?? 0);
+      setTotalRecords(result.page?.totalRecords ?? 0);
     } catch {
       setError('Failed to load users.');
     } finally {
@@ -212,6 +221,7 @@ export default function UsersPage() {
         permissions: selectedPermissions.map((o) => o.value),
         showRolesCol: showRoles,
         showPermsCol: showPermissions,
+        page: pageIndex,
       });
     }
   }, [showRoles, showPermissions]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -231,6 +241,7 @@ export default function UsersPage() {
       phrases,
       roles: selectedRoles.map((o) => o.value),
       permissions: selectedPermissions.map((o) => o.value),
+      page: 0,
     });
   };
 
@@ -471,6 +482,7 @@ export default function UsersPage() {
                   phrases: phrasesRef.current.length ? phrasesRef.current : undefined,
                   roles: selectedRoles.map((o) => o.value),
                   permissions: selectedPermissions.map((o) => o.value),
+                  page: pageIndex,
                 })
               }
               disabled={isLoading}
@@ -571,6 +583,19 @@ export default function UsersPage() {
         isLoading={isLoading}
         emptyMessage="No users found."
         hideSearch
+        manualPagination
+        pageIndex={pageIndex}
+        pageCount={totalPages}
+        rowCount={totalRecords}
+        pageSize={PAGE_SIZE}
+        onPageChange={(page) =>
+          fetchUsers({
+            phrases: phrasesRef.current.length ? phrasesRef.current : undefined,
+            roles: selectedRoles.map((o) => o.value),
+            permissions: selectedPermissions.map((o) => o.value),
+            page,
+          })
+        }
       />
 
       <ConfirmDialog

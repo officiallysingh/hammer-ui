@@ -30,6 +30,10 @@ export default function MetadataPage() {
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const PAGE_SIZE = 16;
+  const [pageIndex, setPageIndex] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   // Filter state — initialised from URL
   const [phrases, setPhrases] = useState<string[]>(() => searchParams.getAll('phrases'));
@@ -50,7 +54,7 @@ export default function MetadataPage() {
       .catch(() => {});
   }, []);
 
-  const fetchTypes = async (ph?: string[], type?: string) => {
+  const fetchTypes = async (ph?: string[], type?: string, page = 0) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -58,8 +62,13 @@ export default function MetadataPage() {
         phrases: ph?.length ? ph : undefined,
         type: (type || undefined) as ManagedTypeType | undefined,
         expand: true,
+        page,
+        size: PAGE_SIZE,
       });
       setTypes(result.content ?? []);
+      setPageIndex(page);
+      setTotalPages(result.page?.totalPages ?? 0);
+      setTotalRecords(result.page?.totalRecords ?? 0);
     } catch {
       setError('Failed to load managed types.');
     } finally {
@@ -80,14 +89,14 @@ export default function MetadataPage() {
 
   const handleSearch = () => {
     router.replace(buildUrl(phrases, selectedType), { scroll: false });
-    fetchTypes(phrases.length ? phrases : undefined, selectedType || undefined);
+    fetchTypes(phrases.length ? phrases : undefined, selectedType || undefined, 0);
   };
 
   const handleReset = () => {
     setPhrases([]);
     setSelectedType('');
     router.replace('', { scroll: false });
-    fetchTypes([], undefined);
+    fetchTypes([], undefined, 0);
   };
 
   const handleDelete = async (id: string) => {
@@ -209,7 +218,11 @@ export default function MetadataPage() {
               variant="outline"
               size="sm"
               onClick={() =>
-                fetchTypes(phrases.length ? phrases : undefined, selectedType || undefined)
+                fetchTypes(
+                  phrases.length ? phrases : undefined,
+                  selectedType || undefined,
+                  pageIndex,
+                )
               }
               disabled={isLoading}
             >
@@ -250,6 +263,14 @@ export default function MetadataPage() {
         isLoading={isLoading}
         emptyMessage="No managed types found."
         hideSearch
+        manualPagination
+        pageIndex={pageIndex}
+        pageCount={totalPages}
+        rowCount={totalRecords}
+        pageSize={PAGE_SIZE}
+        onPageChange={(page) =>
+          fetchTypes(phrases.length ? phrases : undefined, selectedType || undefined, page)
+        }
       />
 
       <ConfirmDialog

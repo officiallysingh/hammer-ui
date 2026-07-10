@@ -443,6 +443,10 @@ export default function ListingsPage() {
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [mediaModal, setMediaModal] = useState<MediaModalState | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
+  const PAGE_SIZE = 16;
+  const [pageIndex, setPageIndex] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   // Filter state — initialised from URL params
   const [phrases, setPhrases] = useState<string[]>(() => searchParams.getAll('phrases'));
@@ -487,17 +491,24 @@ export default function ListingsPage() {
     available?: boolean;
     categories?: string[];
     subCategories?: string[];
+    page?: number;
   }) => {
     setIsLoading(true);
     setError(null);
     try {
+      const page = opts?.page ?? 0;
       const result = await listingsApi.getListings({
         phrases: opts?.phrases?.length ? opts.phrases : undefined,
         available: opts?.available,
         categories: opts?.categories?.length ? opts.categories : undefined,
         subCategories: opts?.subCategories?.length ? opts.subCategories : undefined,
+        page,
+        size: PAGE_SIZE,
       });
       setListings(result.content ?? []);
+      setPageIndex(page);
+      setTotalPages(result.page?.totalPages ?? 0);
+      setTotalRecords(result.page?.totalRecords ?? 0);
     } catch {
       setError('Failed to load listings.');
     } finally {
@@ -542,6 +553,7 @@ export default function ListingsPage() {
       available: availableFilter === 'all' ? undefined : availableFilter === 'true',
       categories: selectedCategories.map((o) => o.value),
       subCategories: selectedSubCategories.map((o) => o.value),
+      page: 0,
     });
   };
 
@@ -551,7 +563,7 @@ export default function ListingsPage() {
     setSelectedCategories([]);
     setSelectedSubCategories([]);
     router.replace('', { scroll: false });
-    fetchListings();
+    fetchListings({ page: 0 });
   };
 
   const handleDelete = async (id: string) => {
@@ -722,6 +734,15 @@ export default function ListingsPage() {
     },
   ];
 
+  const goToPage = (page: number) =>
+    fetchListings({
+      phrases,
+      available: availableFilter === 'all' ? undefined : availableFilter === 'true',
+      categories: selectedCategories.map((o) => o.value),
+      subCategories: selectedSubCategories.map((o) => o.value),
+      page,
+    });
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -760,6 +781,7 @@ export default function ListingsPage() {
                   available: availableFilter === 'all' ? undefined : availableFilter === 'true',
                   categories: selectedCategories.map((o) => o.value),
                   subCategories: selectedSubCategories.map((o) => o.value),
+                  page: pageIndex,
                 })
               }
               disabled={isLoading}
@@ -870,16 +892,53 @@ export default function ListingsPage() {
           isLoading={isLoading}
           emptyMessage="No listings found."
           hideSearch
+          manualPagination
+          pageIndex={pageIndex}
+          pageCount={totalPages}
+          rowCount={totalRecords}
+          pageSize={PAGE_SIZE}
+          onPageChange={goToPage}
         />
       ) : (
-        <ListingCardGrid
-          listings={listings}
-          isLoading={isLoading}
-          deletingId={deletingId}
-          onView={(id) => router.push(`/admin/listings/${id}/view`)}
-          onEdit={(id) => router.push(`/admin/listings/${id}/edit`)}
-          onDelete={(id) => setConfirmId(id)}
-        />
+        <>
+          <ListingCardGrid
+            listings={listings}
+            isLoading={isLoading}
+            deletingId={deletingId}
+            onView={(id) => router.push(`/admin/listings/${id}/view`)}
+            onEdit={(id) => router.push(`/admin/listings/${id}/edit`)}
+            onDelete={(id) => setConfirmId(id)}
+          />
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">
+                Showing {pageIndex * PAGE_SIZE + 1} to {pageIndex * PAGE_SIZE + listings.length} of{' '}
+                {totalRecords} results
+              </span>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => goToPage(pageIndex - 1)}
+                  disabled={pageIndex <= 0}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {pageIndex + 1} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => goToPage(pageIndex + 1)}
+                  disabled={pageIndex >= totalPages - 1}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <ConfirmDialog

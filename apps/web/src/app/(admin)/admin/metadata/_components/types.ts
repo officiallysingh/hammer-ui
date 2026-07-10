@@ -88,7 +88,9 @@ function sanitizeProperty(prop: PropertyDef): PropertyDef {
 
   return {
     ...prop,
-    ...(isContainer ? { metaType: undefined as unknown as MetaType } : {}),
+    ...(isContainer
+      ? { metaType: undefined as unknown as MetaType }
+      : { metaType: extractMetaTypeKey(prop.metaType) as MetaType }),
     validators: validators.length > 0 ? validators : undefined,
     value: prop.value ? prop.value.map(sanitizeProperty) : undefined,
     subProperties: prop.subProperties ? sanitizeProperty(prop.subProperties) : undefined,

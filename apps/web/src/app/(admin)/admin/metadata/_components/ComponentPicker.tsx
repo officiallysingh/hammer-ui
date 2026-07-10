@@ -12,6 +12,7 @@ import {
   DialogFooter,
 } from '@repo/ui';
 import { metadataApi, type ComponentVM, type PropertyDef } from '@repo/api';
+import { normalizeProperties } from './types';
 
 interface ComponentPickerProps {
   open: boolean;
@@ -61,7 +62,7 @@ function ComponentPickerContent({
 
   const handleInsert = () => {
     if (!selected?.properties?.length) return;
-    onInsert(deepCopy(selected.properties));
+    onInsert(normalizeProperties(deepCopy(selected.properties)));
     onClose();
   };
 
