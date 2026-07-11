@@ -97,7 +97,7 @@ export default function NewListingPage() {
         const res = await listingsApi.createListing({
           name: details.name.trim(),
           description: details.description.trim() || undefined,
-          tags: details.tags.length ? details.tags : undefined,
+          tags: details.tags,
           subCategory: details.subCategory,
           quantity: details.quantity,
         });

@@ -23,6 +23,7 @@ import ReactSelect from 'react-select';
 import type { SingleValue } from 'react-select';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { AddressField } from '@/components/common/admin/AddressField';
+import { CoordinatesMapField } from '@/components/common/admin/CoordinatesMapField';
 import { PhrasesInput } from '@/components/common/admin/PhrasesInput';
 import { resolveAttrs } from '../../metadata/_components/attribute-protocol';
 
@@ -1228,59 +1229,9 @@ function ScalarField({
       );
 
     // ── Spatial ───────────────────────────────────────────────────────────────
-    case 'COORDINATES': {
+    case 'COORDINATES':
       // Store as { latitude: number, longitude: number } object (not a string)
-      const coordObj =
-        typeof value === 'object' && value !== null && !Array.isArray(value)
-          ? (value as Record<string, unknown>)
-          : {};
-      const lat = coordObj['latitude'] != null ? String(coordObj['latitude']) : '';
-      const lng = coordObj['longitude'] != null ? String(coordObj['longitude']) : '';
-
-      const updateCoord = (latVal: string, lngVal: string) => {
-        const latNum = latVal !== '' ? parseFloat(latVal) : undefined;
-        const lngNum = lngVal !== '' ? parseFloat(lngVal) : undefined;
-        onChange({
-          latitude: latNum,
-          longitude: lngNum,
-        });
-      };
-
-      return (
-        <div className="flex gap-2">
-          <div className="flex-1 relative">
-            <input
-              type="number"
-              step="any"
-              min="-90"
-              max="90"
-              placeholder="Latitude"
-              value={lat}
-              onChange={(e) => updateCoord(e.target.value, lng)}
-              className={numBase}
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
-              lat
-            </span>
-          </div>
-          <div className="flex-1 relative">
-            <input
-              type="number"
-              step="any"
-              min="-180"
-              max="180"
-              placeholder="Longitude"
-              value={lng}
-              onChange={(e) => updateCoord(lat, e.target.value)}
-              className={numBase}
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
-              lng
-            </span>
-          </div>
-        </div>
-      );
-    }
+      return <CoordinatesMapField value={value} onChange={onChange} />;
 
     // ── Address ───────────────────────────────────────────────────────────────
     case 'ADDRESS':

@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { Loader2, MapPin } from 'lucide-react';
 import { Label } from '@repo/ui';
 import { masterApi, AreaVM } from '@repo/api';
+import { CoordinatesMapField } from './CoordinatesMapField';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -139,18 +140,9 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
   // Coordinates — stored as { latitude, longitude } object
   const coordObj =
     typeof addr.coordinates === 'object' && addr.coordinates !== null ? addr.coordinates : {};
-  const lat = coordObj.latitude != null ? String(coordObj.latitude) : '';
-  const lng = coordObj.longitude != null ? String(coordObj.longitude) : '';
 
-  const setCoord = (latVal: string, lngVal: string) => {
-    onChange({
-      ...addr,
-      coordinates: {
-        latitude: latVal !== '' ? parseFloat(latVal) : undefined,
-        longitude: lngVal !== '' ? parseFloat(lngVal) : undefined,
-      },
-    });
-  };
+  const setCoordinates = (coords: { latitude?: number; longitude?: number }) =>
+    onChange({ ...addr, coordinates: coords });
 
   const autoFilled = !pincodeError && !pincodeLoading && addr.pincode?.length === 6 && !!addr.city;
 
@@ -285,38 +277,7 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
           <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
           <Label className="text-xs font-medium text-muted-foreground">Location (Lat, Long)</Label>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="relative">
-            <input
-              type="number"
-              step="any"
-              min="-90"
-              max="90"
-              placeholder="Latitude"
-              value={lat}
-              onChange={(e) => setCoord(e.target.value, lng)}
-              className={`${base} pr-8`}
-            />
-            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
-              lat
-            </span>
-          </div>
-          <div className="relative">
-            <input
-              type="number"
-              step="any"
-              min="-180"
-              max="180"
-              placeholder="Longitude"
-              value={lng}
-              onChange={(e) => setCoord(lat, e.target.value)}
-              className={`${base} pr-8`}
-            />
-            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
-              lng
-            </span>
-          </div>
-        </div>
+        <CoordinatesMapField value={coordObj} onChange={setCoordinates} />
       </div>
     </div>
   );

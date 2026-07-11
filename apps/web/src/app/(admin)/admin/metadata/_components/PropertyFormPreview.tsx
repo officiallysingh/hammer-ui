@@ -5,6 +5,8 @@ import { Plus, RotateCcw, Trash2, CheckCircle2, XCircle, Star } from 'lucide-rea
 import { Button, Label, DatePicker, TimePicker, DateTimePicker, YearPicker } from '@repo/ui';
 import type { PropertyDef } from '@repo/api';
 import { resolveAttrs } from './attribute-protocol';
+import { CoordinatesMapField } from '@/components/common/admin/CoordinatesMapField';
+import { AddressField } from '@/components/common/admin/AddressField';
 
 interface PropertyFormPreviewProps {
   properties: PropertyDef[];
@@ -79,6 +81,22 @@ function dummyValue(prop: PropertyDef): unknown {
     const item: Record<string, unknown> = {};
     for (const child of children) item[child.name] = dummyValue(child);
     return [item];
+  }
+  // Spatial types are stored as structured objects, not strings
+  const mt = resolveMT(prop.metaType);
+  if (mt === 'COORDINATES') return { latitude: 28.6139, longitude: 77.209 };
+  if (mt === 'ADDRESS') {
+    return {
+      country: 'India',
+      pincode: '110001',
+      area: 'Connaught Place',
+      city: 'New Delhi',
+      state: 'Delhi',
+      addressLine1: 'Sample Building',
+      addressLine2: 'Sample Street',
+      landmark: 'Near Sample Mall',
+      coordinates: { latitude: 28.6139, longitude: 77.209 },
+    };
   }
   return dummyScalar(prop);
 }
@@ -240,7 +258,6 @@ function PreviewFieldGroup({ prop, value, onChange, depth = 0 }: FieldGroupProps
   const width = formAttrs['form:width'] ?? 'full';
   const helperText = formAttrs['form:helper-text'];
   const widthCls = width === 'auto' ? '' : width === 'fixed' ? 'w-48' : 'w-full';
-  const strVal = typeof value === 'string' ? value : value != null ? String(value) : '';
 
   const labelEl = (
     <Label className="text-sm font-medium">
@@ -251,7 +268,7 @@ function PreviewFieldGroup({ prop, value, onChange, depth = 0 }: FieldGroupProps
 
   const inputEl = (
     <>
-      <PreviewScalarField prop={prop} value={strVal} onChange={onChange} formAttrs={formAttrs} />
+      <PreviewScalarField prop={prop} value={value} onChange={onChange} formAttrs={formAttrs} />
       {helperText && <p className="text-xs text-muted-foreground/70 mt-0.5">{helperText}</p>}
     </>
   );
@@ -384,12 +401,12 @@ function PreviewListField({
 
 function PreviewScalarField({
   prop,
-  value,
+  value: rawValue,
   onChange,
   formAttrs,
 }: {
   prop: PropertyDef;
-  value: string;
+  value: unknown;
   onChange: (value: unknown) => void;
   formAttrs?: Record<string, string>;
 }) {
@@ -397,6 +414,16 @@ function PreviewScalarField({
   const base = baseClass(formAttrs);
   const numBase = `${base} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`;
   const metaType = resolveMetaType(prop.metaType as unknown);
+
+  // Spatial types are stored as structured objects — handle before string coercion
+  if (metaType === 'COORDINATES') {
+    return <CoordinatesMapField value={rawValue} onChange={onChange} />;
+  }
+  if (metaType === 'ADDRESS') {
+    return <AddressField value={rawValue} onChange={onChange} />;
+  }
+
+  const value = typeof rawValue === 'string' ? rawValue : rawValue != null ? String(rawValue) : '';
   const attrs = prop.attributes ?? {};
   const uiComponent = attrs['ui:component'];
   const placeholder = attrs['html:placeholder'] ?? `Enter ${prop.label.toLowerCase()}…`;
@@ -861,8 +888,34 @@ function ListViewField({ prop, value }: { prop: PropertyDef; value: unknown }) {
     );
   }
 
-  // BOOLEAN
   const mt = resolveMT(prop.metaType);
+
+  // Spatial types are structured objects — render before generic stringification
+  if (mt === 'COORDINATES' && typeof value === 'object' && value !== null) {
+    const c = value as Record<string, unknown>;
+    const latV = c['latitude'] != null ? String(c['latitude']) : '—';
+    const lngV = c['longitude'] != null ? String(c['longitude']) : '—';
+    return (
+      <span className="text-sm font-mono text-foreground">
+        {latV}, {lngV}
+      </span>
+    );
+  }
+  if (mt === 'ADDRESS' && typeof value === 'object' && value !== null) {
+    const a = value as Record<string, unknown>;
+    const parts = [
+      a['addressLine1'],
+      a['addressLine2'],
+      a['area'],
+      a['city'],
+      a['state'],
+      a['country'],
+      a['pincode'],
+    ].filter(Boolean);
+    return <span className="text-sm text-foreground">{parts.join(', ') || '—'}</span>;
+  }
+
+  // BOOLEAN
   if (mt === 'BOOLEAN') {
     const on = strVal === 'true';
     return on ? (
