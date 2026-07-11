@@ -96,7 +96,7 @@ export default function LeafletMapInner({ latitude, longitude, onPick }: Leaflet
       center={position ?? DEFAULT_CENTER}
       zoom={position ? PIN_ZOOM : DEFAULT_ZOOM}
       scrollWheelZoom
-      style={{ height: '260px', width: '100%' }}
+      style={{ height: '420px', width: '100%' }}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

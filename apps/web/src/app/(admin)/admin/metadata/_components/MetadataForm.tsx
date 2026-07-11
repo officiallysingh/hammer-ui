@@ -413,8 +413,8 @@ export function MetadataForm({
                   {(
                     [
                       { key: 'build', label: 'Build' },
-                      { key: 'form', label: 'Form' },
-                      { key: 'preview', label: 'Preview' },
+                      { key: 'form', label: 'Form preview' },
+                      { key: 'preview', label: 'Listing preview' },
                     ] as const
                   ).map((tab) => (
                     <button

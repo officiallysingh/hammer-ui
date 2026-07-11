@@ -206,7 +206,7 @@ export default function MetadataPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Metadata"
+        title="Templates"
         description="Manage dynamic type definitions for listings"
         actions={
           <div className="flex gap-2">

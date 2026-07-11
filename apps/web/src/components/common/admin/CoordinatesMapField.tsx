@@ -23,7 +23,7 @@ interface NominatimResult {
 const LeafletMap = dynamic(() => import('./LeafletMapInner'), {
   ssr: false,
   loading: () => (
-    <div className="h-[260px] w-full flex items-center justify-center bg-muted/30">
+    <div className="h-[420px] w-full flex items-center justify-center bg-muted/30">
       <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
     </div>
   ),
@@ -153,7 +153,7 @@ export function CoordinatesMapField({ value, onChange }: CoordinatesMapFieldProp
         </div>
 
         {showResults && results.length > 0 && (
-          <div className="absolute z-20 mt-1 w-full rounded-md border border-border bg-background shadow-lg overflow-hidden max-h-56 overflow-y-auto">
+          <div className="absolute z-[1001] mt-1 w-full rounded-md border border-border bg-background shadow-lg overflow-hidden max-h-56 overflow-y-auto">
             {results.map((r, i) => (
               <button
                 key={i}

@@ -90,9 +90,9 @@ const navGroups: NavGroup[] = [
     label: 'Listings',
     items: [
       {
-        label: 'Metadata',
+        label: 'Managed types',
         icon: Database,
-        description: 'Manage metadata & components',
+        description: 'Manage types & components',
         subItems: [
           {
             href: '/admin/metadata/components',
@@ -102,7 +102,7 @@ const navGroups: NavGroup[] = [
           },
           {
             href: '/admin/metadata',
-            label: 'Metadata',
+            label: 'Templates',
             description: 'Type definitions',
             icon: Database,
           },

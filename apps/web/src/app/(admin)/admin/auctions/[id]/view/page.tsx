@@ -27,6 +27,7 @@ import {
   FileText,
   Download,
   ImageIcon,
+  Info,
 } from 'lucide-react';
 import { Button, Badge } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
@@ -418,20 +419,20 @@ function UnitDisplay({ auction }: { auction: AuctionVM }) {
           {unit.standingPrice.toLocaleString()}
         </DetailRow>
       )}
+      {unit.quantity != null && <DetailRow label="Quantity">{unit.quantity}</DetailRow>}
       {items.length > 0 && (
         <DetailRow label={items.length === 1 ? 'Item' : 'Items'}>
           <div className="flex flex-col gap-1">
             {items.map((it, i) => {
-              const name =
-                typeof it === 'object' && it !== null
-                  ? ((it as { name?: string; id: string }).name ?? (it as { id: string }).id)
-                  : it;
+              const name = typeof it === 'object' && it !== null ? (it.name ?? it.id) : it;
+              const qty = typeof it === 'object' && it !== null ? it.quantity : undefined;
               return (
                 <span
                   key={i}
                   className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-muted text-foreground w-fit"
                 >
                   {name}
+                  {qty != null && <span className="text-muted-foreground">&times; {qty}</span>}
                 </span>
               );
             })}
@@ -519,38 +520,18 @@ export default function AuctionViewPage() {
       />
 
       {/* Title block */}
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge value={auction.status} />
-          {format && (
-            <Badge variant="secondary" className="text-xs">
-              {format}
-            </Badge>
-          )}
-          {auctionType && (
-            <Badge variant="outline" className="text-xs font-mono">
-              {auctionType}
-            </Badge>
-          )}
-          {auction.referenceId && (
-            <span className="text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded">
-              Ref: {auction.referenceId}
-            </span>
+      {auction.schedule?.startTime && (
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Calendar className="h-3.5 w-3.5" />
+          <span>{formatDateTime(auction.schedule.startTime)}</span>
+          {auction.schedule.endTime && (
+            <>
+              <span>→</span>
+              <span>{formatDateTime(auction.schedule.endTime)}</span>
+            </>
           )}
         </div>
-        {auction.schedule?.startTime && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Calendar className="h-3.5 w-3.5" />
-            <span>{formatDateTime(auction.schedule.startTime)}</span>
-            {auction.schedule.endTime && (
-              <>
-                <span>→</span>
-                <span>{formatDateTime(auction.schedule.endTime)}</span>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -559,6 +540,31 @@ export default function AuctionViewPage() {
           {/* Media gallery */}
           <AuctionMediaGallery blobs={blobs} />
 
+          {/* Basic Information */}
+          <SectionCard title="Basic Information" icon={Info}>
+            <DetailRow label="Title">{auction.title || '—'}</DetailRow>
+            <DetailRow label="Description">{auction.description || '—'}</DetailRow>
+            <DetailRow label="Reference ID">{auction.referenceId || '—'}</DetailRow>
+            <DetailRow label="Type">{auctionType || '—'}</DetailRow>
+            <DetailRow label="Format">{format || '—'}</DetailRow>
+            <DetailRow label="Status">
+              <StatusBadge value={auction.status} />
+            </DetailRow>
+          </SectionCard>
+
+          {/* Schedule */}
+          {(auction.schedule?.startTime || auction.schedule?.endTime) && (
+            <SectionCard title="Schedule" icon={Calendar}>
+              <DetailRow label="Start Time">
+                {formatDateTime(auction.schedule?.startTime)}
+              </DetailRow>
+              <DetailRow label="End Time">{formatDateTime(auction.schedule?.endTime)}</DetailRow>
+            </SectionCard>
+          )}
+        </div>
+
+        {/* Right column */}
+        <div className="space-y-4">
           {/* Protocol */}
           <SectionCard title="Protocol" icon={Settings2}>
             <DetailRow label="Accessibility">
@@ -605,19 +611,6 @@ export default function AuctionViewPage() {
             </DetailRow>
           </SectionCard>
 
-          {/* Schedule */}
-          {(auction.schedule?.startTime || auction.schedule?.endTime) && (
-            <SectionCard title="Schedule" icon={Calendar}>
-              <DetailRow label="Start Time">
-                {formatDateTime(auction.schedule?.startTime)}
-              </DetailRow>
-              <DetailRow label="End Time">{formatDateTime(auction.schedule?.endTime)}</DetailRow>
-            </SectionCard>
-          )}
-        </div>
-
-        {/* Right column */}
-        <div className="space-y-4">
           {/* Unit */}
           <SectionCard title="Auction Unit" icon={Layers}>
             <UnitDisplay auction={auction} />

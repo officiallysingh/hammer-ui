@@ -60,8 +60,9 @@ export interface AuctionUnitVM {
   type?: AuctionUnitType | Record<string, string>;
   openingPrice?: number;
   standingPrice?: number;
-  item?: string | { id: string; name: string; description?: string };
-  items?: (string | { id: string; name: string; description?: string })[];
+  quantity?: number;
+  item?: string | { id: string; name: string; description?: string; quantity?: number };
+  items?: (string | { id: string; name: string; description?: string; quantity?: number })[];
 }
 
 export interface AuctionPolicies {
