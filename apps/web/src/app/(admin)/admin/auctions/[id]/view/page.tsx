@@ -560,18 +560,27 @@ function UnitDisplay({ auction }: { auction: AuctionVM }) {
       {unit.quantity != null && <DetailRow label="Quantity">{unit.quantity}</DetailRow>}
       {items.length > 0 && (
         <DetailRow label={items.length === 1 ? 'Item' : 'Items'}>
-          <div className="flex flex-col gap-1">
+          <div className="grid gap-2">
             {items.map((it, i) => {
               const name = typeof it === 'object' && it !== null ? (it.name ?? it.id) : it;
               const qty = typeof it === 'object' && it !== null ? it.quantity : undefined;
               return (
-                <span
+                <div
                   key={i}
-                  className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-muted text-foreground w-fit"
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/30 px-3 py-2.5"
                 >
-                  {name}
-                  {qty != null && <span className="text-muted-foreground">&times; {qty}</span>}
-                </span>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-foreground">{name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {formatLabel(unitType) || 'Unit item'}
+                    </div>
+                  </div>
+                  {qty != null && (
+                    <div className="shrink-0 rounded-full border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground">
+                      Qty {qty}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
