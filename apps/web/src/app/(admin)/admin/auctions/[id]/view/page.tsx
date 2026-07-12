@@ -680,29 +680,6 @@ export default function AuctionViewPage() {
         </div>
       )}
 
-      <div className="rounded-xl border border-border bg-card p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary" className="text-xs">
-            Status: {status ? formatLabel(status) : '—'}
-          </Badge>
-          {auctionType && (
-            <Badge variant="outline" className="text-xs">
-              Type: {auctionType}
-            </Badge>
-          )}
-          {format && (
-            <Badge variant="outline" className="text-xs">
-              Format: {format}
-            </Badge>
-          )}
-          {auction.referenceId && (
-            <Badge variant="outline" className="text-xs">
-              Ref: {auction.referenceId}
-            </Badge>
-          )}
-        </div>
-      </div>
-
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left column */}
@@ -711,8 +688,30 @@ export default function AuctionViewPage() {
           <SectionCard title="Basic Information" icon={Info}>
             <DetailRow label="Title">{auction.title || '—'}</DetailRow>
             <DetailRow label="Description">{auction.description || '—'}</DetailRow>
-            <DetailRow label="Reference ID">{auction.referenceId || '—'}</DetailRow>
-            <DetailRow label="Type">{auctionType || '—'}</DetailRow>
+            <DetailRow label="Reference ID">
+              {auction.referenceId ? (
+                <Badge
+                  variant="outline"
+                  className={`text-xs ${resolveStr(auction.protocol?.direction) === 'FORWARD' ? 'border-emerald-500 text-emerald-600' : 'border-amber-500 text-amber-600'}`}
+                >
+                  {auction.referenceId}
+                </Badge>
+              ) : (
+                '—'
+              )}
+            </DetailRow>
+            <DetailRow label="Type">
+              {auctionType ? (
+                <Badge
+                  variant="outline"
+                  className="text-xs border-violet-500 text-violet-600 dark:text-violet-300"
+                >
+                  {auctionType}
+                </Badge>
+              ) : (
+                '—'
+              )}
+            </DetailRow>
             <DetailRow label="Format">{format || '—'}</DetailRow>
             <DetailRow label="Status">
               <StatusBadge value={auction.status} />
