@@ -115,7 +115,6 @@ export default function NewUserPage() {
   const [form, setForm] = useState<NewUserFormValues>(EMPTY_NEW_USER_FORM);
   const [allRoles, setAllRoles] = useState<AuthorityGroupVM[]>([]);
   const [availablePerms, setAvailablePerms] = useState<AuthorityVM[]>([]);
-  const [loadingPerms, setLoadingPerms] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -124,40 +123,19 @@ export default function NewUserPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
 
   useEffect(() => {
-    adminApi
-      .getAuthorityGroups()
-      .then(setAllRoles)
-      .catch(() => {});
-  }, []);
-
-  const fetchPermsForRoles = useCallback(async (roleIds: string[]) => {
-    if (roleIds.length === 0) {
-      setAvailablePerms([]);
-      setForm((prev) => ({ ...prev, selectedPerms: [] }));
-      return;
-    }
-    setLoadingPerms(true);
-    try {
-      const results = await Promise.all(roleIds.map((id) => adminApi.getAuthoritiesByGroup(id)));
-      const map = new Map<string, AuthorityVM>();
-      results.flat().forEach((p) => map.set(p.id, p));
-      const perms = Array.from(map.values());
-      setAvailablePerms(perms);
-      const availableIds = new Set(perms.map((p) => p.id));
-      setForm((prev) => ({
-        ...prev,
-        selectedPerms: prev.selectedPerms.filter((id) => availableIds.has(id)),
-      }));
-    } catch {
-      setAvailablePerms([]);
-    } finally {
-      setLoadingPerms(false);
-    }
+    Promise.all([adminApi.getAuthorityGroups(), adminApi.getAuthorities()])
+      .then(([roles, permissions]) => {
+        setAllRoles(roles);
+        setAvailablePerms(permissions);
+      })
+      .catch(() => {
+        setAllRoles([]);
+        setAvailablePerms([]);
+      });
   }, []);
 
   const handleRolesChange = (roles: string[]) => {
     setForm((prev) => ({ ...prev, selectedRoles: roles }));
-    fetchPermsForRoles(roles);
   };
 
   const clearErr = (f: string) =>
@@ -302,28 +280,19 @@ export default function NewUserPage() {
                 Additional permissions
                 <span className="text-muted-foreground font-normal ml-1">(optional)</span>
               </Label>
-              {loadingPerms && (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-              )}
             </div>
-            {form.selectedRoles.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-2">
-                Select roles first to see their permissions.
-              </p>
-            ) : (
-              <MultiSelect
-                options={availablePerms.map((p) => ({
-                  value: p.id,
-                  label: p.label,
-                  sublabel: p.name,
-                }))}
-                value={form.selectedPerms}
-                onChange={(ids) => setForm((prev) => ({ ...prev, selectedPerms: ids }))}
-                placeholder="Select permissions..."
-                searchPlaceholder="Search permissions..."
-                emptyMessage={loadingPerms ? 'Loading...' : 'No permissions in selected roles'}
-              />
-            )}
+            <MultiSelect
+              options={availablePerms.map((p) => ({
+                value: p.id,
+                label: p.label,
+                sublabel: p.name,
+              }))}
+              value={form.selectedPerms}
+              onChange={(ids) => setForm((prev) => ({ ...prev, selectedPerms: ids }))}
+              placeholder="Select permissions..."
+              searchPlaceholder="Search permissions..."
+              emptyMessage="No permissions found"
+            />
           </div>
         </div>
 

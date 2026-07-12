@@ -31,6 +31,7 @@ function PermissionFields({
   nameId,
   labelId,
   descId,
+  readOnly = false,
 }: {
   name: string;
   onName: (v: string) => void;
@@ -43,6 +44,7 @@ function PermissionFields({
   nameId: string;
   labelId: string;
   descId: string;
+  readOnly?: boolean;
 }) {
   return (
     <>
@@ -59,7 +61,9 @@ function PermissionFields({
           }}
           placeholder="admin.users.create"
           autoComplete="off"
-          className={fieldErrors.name ? 'border-destructive focus-visible:ring-destructive' : ''}
+          readOnly={readOnly}
+          disabled={readOnly}
+          className={`${fieldErrors.name ? 'border-destructive focus-visible:ring-destructive' : ''} ${readOnly ? 'bg-muted/40 cursor-default' : ''}`}
         />
         {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
       </div>
@@ -76,7 +80,9 @@ function PermissionFields({
           }}
           placeholder="Create Users"
           autoComplete="off"
-          className={fieldErrors.label ? 'border-destructive focus-visible:ring-destructive' : ''}
+          readOnly={readOnly}
+          disabled={readOnly}
+          className={`${fieldErrors.label ? 'border-destructive focus-visible:ring-destructive' : ''} ${readOnly ? 'bg-muted/40 cursor-default' : ''}`}
         />
         {fieldErrors.label && <p className="text-xs text-destructive">{fieldErrors.label}</p>}
       </div>
@@ -93,9 +99,9 @@ function PermissionFields({
           }}
           placeholder="Allows creating users"
           autoComplete="off"
-          className={
-            fieldErrors.description ? 'border-destructive focus-visible:ring-destructive' : ''
-          }
+          readOnly={readOnly}
+          disabled={readOnly}
+          className={`${fieldErrors.description ? 'border-destructive focus-visible:ring-destructive' : ''} ${readOnly ? 'bg-muted/40 cursor-default' : ''}`}
         />
         {fieldErrors.description && (
           <p className="text-xs text-destructive">{fieldErrors.description}</p>
@@ -238,12 +244,14 @@ interface EditPermissionDialogProps {
   permission: AuthorityVM | null;
   onClose: () => void;
   onUpdated: (updated: Pick<AuthorityVM, 'name' | 'label' | 'description'>) => void;
+  readOnly?: boolean;
 }
 
 export function EditPermissionDialog({
   permission,
   onClose,
   onUpdated,
+  readOnly = false,
 }: EditPermissionDialogProps) {
   const [form, setForm] = useState<PermissionFormValues>(EMPTY_PERMISSION_FORM);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -277,7 +285,7 @@ export function EditPermissionDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!permission || !origRef.current) return;
+    if (readOnly || !permission || !origRef.current) return;
     setError(null);
     setFieldErrors({});
 
@@ -320,9 +328,10 @@ export function EditPermissionDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Edit permission</DialogTitle>
+          <DialogTitle>{readOnly ? 'View permission' : 'Edit permission'}</DialogTitle>
           <DialogDescription>
-            Update <span className="font-medium text-foreground">{permission?.label}</span>
+            {readOnly ? 'Viewing' : 'Update'}{' '}
+            <span className="font-medium text-foreground">{permission?.label}</span>
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -347,22 +356,25 @@ export function EditPermissionDialog({
             nameId="ep-name"
             labelId="ep-label"
             descId="ep-desc"
+            readOnly={readOnly}
           />
           {error && <ErrorAlert message={error} />}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
-              Cancel
+              {readOnly ? 'Close' : 'Cancel'}
             </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                  Saving
-                </>
-              ) : (
-                'Save changes'
-              )}
-            </Button>
+            {!readOnly && (
+              <Button type="submit" disabled={saving}>
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    Saving
+                  </>
+                ) : (
+                  'Save changes'
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

@@ -117,20 +117,20 @@ export function Step3Catalog({
     <form onSubmit={onSubmit} className="space-y-6">
       <div className="rounded-xl border border-border bg-card p-6 space-y-4">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">Catalog type</h3>
+          <h3 className="text-sm font-semibold text-foreground">Catalog template</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Search and select a type definition, then fill in its fields
+            Search and select a template, then fill in its fields
           </p>
         </div>
 
         {/* Search bar */}
         <div className="flex gap-2 items-end">
           <div className="flex-1 space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Search type definitions</Label>
+            <Label className="text-xs text-muted-foreground">Search templates</Label>
             <PhrasesInput
               value={searchPhrases}
               onChange={setSearchPhrases}
-              placeholder="Type name or tag and press Enter..."
+              placeholder="Template name or tag and press Enter..."
             />
           </div>
           <Button
@@ -152,7 +152,7 @@ export function Step3Catalog({
 
         {/* Type dropdown */}
         <div className="space-y-1.5">
-          <Label>Type definition</Label>
+          <Label>Template</Label>
           <ReactSelect<TypeOption>
             options={options}
             value={selectValue}
@@ -171,9 +171,9 @@ export function Step3Catalog({
                 )}
               </div>
             )}
-            placeholder={searching ? 'Loading...' : 'Select type definition...'}
+            placeholder={searching ? 'Loading...' : 'Select template...'}
             isLoading={searching}
-            noOptionsMessage={() => 'No types found. Try a different search.'}
+            noOptionsMessage={() => 'No templates found. Try a different search.'}
             styles={{
               control: (base, state) => ({
                 ...base,

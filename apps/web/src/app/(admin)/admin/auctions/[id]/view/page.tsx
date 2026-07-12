@@ -101,6 +101,42 @@ function AuctionMediaGallery({ blobs }: { blobs: BlobVM[] }) {
   const thumbnail = images.find((b) => b.metadata?.['thumbnail'] === 'true') ?? images[0];
 
   const [activeId, setActiveId] = useState<string>(() => thumbnail?.id ?? mediaItems[0]?.id ?? '');
+  const [docNames, setDocNames] = useState<Record<string, string>>({});
+  const docIds = docs.map((blob) => blob.id).join('|');
+
+  useEffect(() => {
+    let active = true;
+
+    const loadMissingNames = async () => {
+      const missing = docs.filter((blob) => !blob.fileName && !docNames[blob.id]);
+      if (!missing.length) return;
+
+      const resolved = await Promise.all(
+        missing.map(async (blob) => {
+          try {
+            const detail = await blobsApi.getBlobById(blob.id);
+            return [blob.id, detail.fileName ?? blob.id] as const;
+          } catch {
+            return [blob.id, blob.id] as const;
+          }
+        }),
+      );
+
+      if (!active) return;
+      setDocNames((prev) => {
+        const next = { ...prev };
+        resolved.forEach(([id, name]) => {
+          next[id] = name;
+        });
+        return next;
+      });
+    };
+
+    void loadMissingNames();
+    return () => {
+      active = false;
+    };
+  }, [docIds, docs, docNames]);
 
   if (!blobs.length) return null;
 
@@ -178,27 +214,30 @@ function AuctionMediaGallery({ blobs }: { blobs: BlobVM[] }) {
         {docs.length > 0 && (
           <div className="space-y-1.5 pt-1 border-t border-border/50">
             <p className="text-xs font-medium text-muted-foreground">Documents</p>
-            {docs.map((blob) => (
-              <div
-                key={blob.id}
-                className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/30 border border-border/50 text-sm"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span className="truncate text-foreground text-xs">
-                    {blob.fileName ?? blob.id}
-                  </span>
-                </div>
-                <a
-                  href={blobsApi.getDownloadUrl(blob.id)}
-                  download={blob.fileName ?? true}
-                  className="shrink-0 ml-3 inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-border bg-background hover:bg-muted transition-colors"
+            {docs.map((blob) => {
+              const displayName = blob.fileName ?? docNames[blob.id] ?? blob.id;
+              return (
+                <div
+                  key={blob.id}
+                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/30 border border-border/50 text-sm"
                 >
-                  <Download className="h-3 w-3" />
-                  Download
-                </a>
-              </div>
-            ))}
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="truncate text-foreground text-xs" title={displayName}>
+                      {displayName}
+                    </span>
+                  </div>
+                  <a
+                    href={blobsApi.getDownloadUrl(blob.id)}
+                    download={blob.fileName ?? displayName}
+                    className="shrink-0 ml-3 inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-border bg-background hover:bg-muted transition-colors"
+                  >
+                    <Download className="h-3 w-3" />
+                    Download
+                  </a>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -327,7 +366,102 @@ function WorkflowStepRow({ step, index }: { step: AuctionWorkflowStep; index: nu
 
 // ── Policy group ──────────────────────────────────────────────────────────────
 
+function formatDuration(value?: unknown): string | null {
+  if (!value) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  const isoMatch = raw.match(
+    /^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/,
+  );
+  if (isoMatch) {
+    const [, years, months, days, hours, minutes, seconds] = isoMatch;
+    const parts: string[] = [];
+    if (years) parts.push(`${years}y`);
+    if (months) parts.push(`${months}mo`);
+    if (days) parts.push(`${days}d`);
+    if (hours) parts.push(`${hours}h`);
+    if (minutes) parts.push(`${minutes}m`);
+    if (seconds) parts.push(`${Number(seconds).toLocaleString()}s`);
+    return parts.join(' ');
+  }
+
+  return raw;
+}
+
 function PolicyGroupSection({ groupKey, items }: { groupKey: string; items: PolicyItemRQ[] }) {
+  const isTimelineGroup =
+    (groupKey.toLowerCase().includes('price') && groupKey.toLowerCase().includes('progress')) ||
+    items.some((item) => Boolean(item.windowDuration) || (item.steps?.length ?? 0) > 0);
+
+  if (isTimelineGroup) {
+    return (
+      <div>
+        <div className="px-4 py-2 bg-muted/30 border-b border-border/50">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            {formatLabel(groupKey)}
+          </span>
+        </div>
+        <div className="relative px-4 py-3">
+          <div className="absolute left-7 top-0 bottom-0 w-px bg-border/50" />
+          {items.map((item, i) => {
+            const durationLabel = formatDuration(item.windowDuration ?? item.duration);
+            const stepLabel = item.steps?.length ? item.steps.join(', ') : null;
+            const isLast = i === items.length - 1;
+            return (
+              <div key={i} className="relative pl-8 pb-4 last:pb-0">
+                <div className="absolute left-[19px] top-2.5 h-3 w-3 rounded-full border-2 border-primary/50 bg-background" />
+                <div className="rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-foreground">
+                        {item.name || formatLabel(item.type)}
+                      </span>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                        {formatLabel(item.type)}
+                      </Badge>
+                    </div>
+                    <span className="text-[10px] font-medium text-muted-foreground">
+                      {isLast ? 'Rest of auction' : `Window ${i + 1}`}
+                    </span>
+                  </div>
+                  {durationLabel && (
+                    <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+                      <Clock className="h-3 w-3" />
+                      {durationLabel}
+                    </div>
+                  )}
+                  {item.description && (
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                      {item.description}
+                    </p>
+                  )}
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {item.value != null && (
+                      <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+                        Value: <span className="text-foreground">{item.value}</span>
+                      </span>
+                    )}
+                    {stepLabel && (
+                      <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+                        Steps: <span className="text-foreground">{stepLabel}</span>
+                      </span>
+                    )}
+                    {item.basis && (
+                      <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+                        Basis: <span className="text-foreground">{formatLabel(item.basis)}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="px-4 py-2 bg-muted/30 border-b border-border/50">
@@ -335,54 +469,58 @@ function PolicyGroupSection({ groupKey, items }: { groupKey: string; items: Poli
           {formatLabel(groupKey)}
         </span>
       </div>
-      {items.map((item, i) => (
-        <div
-          key={i}
-          className="flex items-start gap-3 px-4 py-2.5 hover:bg-muted/10 border-b border-border/30 last:border-0"
-        >
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
-          <div className="flex-1 space-y-0.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-medium text-foreground">
-                {item.name || formatLabel(item.type)}
-              </span>
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                {formatLabel(item.type)}
-              </Badge>
-            </div>
-            {item.description && (
-              <p className="text-xs text-muted-foreground">{item.description}</p>
-            )}
-            <div className="flex flex-wrap gap-x-4 gap-y-0.5">
-              {item.basis && (
-                <span className="text-[10px] text-muted-foreground">
-                  Basis: <span className="text-foreground">{formatLabel(item.basis)}</span>
-                </span>
-              )}
-              {item.value != null && (
-                <span className="text-[10px] text-muted-foreground">
-                  Value: <span className="text-foreground">{item.value}</span>
-                </span>
-              )}
-              {item.count != null && (
-                <span className="text-[10px] text-muted-foreground">
-                  Count: <span className="text-foreground">{item.count}</span>
-                </span>
-              )}
-              {item.kth != null && (
-                <span className="text-[10px] text-muted-foreground">
-                  Kth: <span className="text-foreground">{item.kth}</span>
-                </span>
-              )}
-              {item.duration && (
-                <span className="text-[10px] text-muted-foreground">
-                  Duration: <span className="text-foreground">{item.duration}</span>
-                </span>
-              )}
+      {items.map((item, i) => {
+        const durationLabel = formatDuration(item.duration);
+        return (
+          <div key={i} className="relative px-4 py-3 border-b border-border/30 last:border-0">
+            <div className="absolute left-5 top-0 bottom-0 w-px bg-border/50" />
+            <div className="relative pl-6">
+              <div className="absolute left-[-2px] top-3.5 h-3 w-3 rounded-full border-2 border-primary/50 bg-background" />
+              <div className="rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-foreground">
+                    {item.name || formatLabel(item.type)}
+                  </span>
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                    {formatLabel(item.type)}
+                  </Badge>
+                  {durationLabel && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+                      <Clock className="h-3 w-3" />
+                      {durationLabel}
+                    </span>
+                  )}
+                </div>
+                {item.description && (
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p>
+                )}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {item.basis && (
+                    <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+                      Basis: <span className="text-foreground">{formatLabel(item.basis)}</span>
+                    </span>
+                  )}
+                  {item.value != null && (
+                    <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+                      Value: <span className="text-foreground">{item.value}</span>
+                    </span>
+                  )}
+                  {item.count != null && (
+                    <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+                      Count: <span className="text-foreground">{item.count}</span>
+                    </span>
+                  )}
+                  {item.kth != null && (
+                    <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+                      Kth: <span className="text-foreground">{item.kth}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -533,13 +671,33 @@ export default function AuctionViewPage() {
         </div>
       )}
 
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary" className="text-xs">
+            Status: {status ? formatLabel(status) : '—'}
+          </Badge>
+          {auctionType && (
+            <Badge variant="outline" className="text-xs">
+              Type: {auctionType}
+            </Badge>
+          )}
+          {format && (
+            <Badge variant="outline" className="text-xs">
+              Format: {format}
+            </Badge>
+          )}
+          {auction.referenceId && (
+            <Badge variant="outline" className="text-xs">
+              Ref: {auction.referenceId}
+            </Badge>
+          )}
+        </div>
+      </div>
+
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left column */}
         <div className="space-y-4">
-          {/* Media gallery */}
-          <AuctionMediaGallery blobs={blobs} />
-
           {/* Basic Information */}
           <SectionCard title="Basic Information" icon={Info}>
             <DetailRow label="Title">{auction.title || '—'}</DetailRow>
@@ -561,6 +719,9 @@ export default function AuctionViewPage() {
               <DetailRow label="End Time">{formatDateTime(auction.schedule?.endTime)}</DetailRow>
             </SectionCard>
           )}
+
+          {/* Media gallery */}
+          <AuctionMediaGallery blobs={blobs} />
         </div>
 
         {/* Right column */}

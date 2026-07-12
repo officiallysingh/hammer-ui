@@ -719,31 +719,73 @@ function MediaGallery({ blobs }: { blobs: ListingBlobRef[] }) {
 
 function DocAttachments({ blobs }: { blobs: ListingBlobRef[] }) {
   const docs = blobs.filter(isDocBlob);
+  const [docNames, setDocNames] = useState<Record<string, string>>({});
+  const docIds = docs.map((blob) => blob.id).join('|');
+
+  useEffect(() => {
+    let active = true;
+
+    const loadMissingNames = async () => {
+      const missing = docs.filter((blob) => !blob.fileName && !docNames[blob.id]);
+      if (!missing.length) return;
+
+      const resolved = await Promise.all(
+        missing.map(async (blob) => {
+          try {
+            const detail = await blobsApi.getBlobById(blob.id);
+            return [blob.id, detail.fileName ?? blob.id] as const;
+          } catch {
+            return [blob.id, blob.id] as const;
+          }
+        }),
+      );
+
+      if (!active) return;
+      setDocNames((prev) => {
+        const next = { ...prev };
+        resolved.forEach(([id, name]) => {
+          next[id] = name;
+        });
+        return next;
+      });
+    };
+
+    void loadMissingNames();
+    return () => {
+      active = false;
+    };
+  }, [docIds, docs, docNames]);
+
   if (!docs.length) return null;
 
   return (
     <div className="rounded-xl border border-border bg-card p-4 space-y-2">
       <h2 className="text-sm font-semibold text-foreground">Documents</h2>
       <div className="space-y-1.5">
-        {docs.map((blob) => (
-          <div
-            key={blob.id}
-            className="flex items-center justify-between py-1.5 px-2 rounded-md bg-muted/30 text-sm"
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="text-foreground truncate">{blob.fileName ?? blob.id}</span>
-            </div>
-            <a
-              href={blobsApi.getDownloadUrl(blob.id)}
-              download={blob.fileName ?? true}
-              className="shrink-0 ml-3 inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-border bg-background hover:bg-muted transition-colors"
+        {docs.map((blob) => {
+          const displayName = blob.fileName ?? docNames[blob.id] ?? blob.id;
+          return (
+            <div
+              key={blob.id}
+              className="flex items-center justify-between py-1.5 px-2 rounded-md bg-muted/30 text-sm"
             >
-              <Download className="h-3 w-3" />
-              Download
-            </a>
-          </div>
-        ))}
+              <div className="flex items-center gap-2 min-w-0">
+                <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-foreground truncate" title={displayName}>
+                  {displayName}
+                </span>
+              </div>
+              <a
+                href={blobsApi.getDownloadUrl(blob.id)}
+                download={blob.fileName ?? displayName}
+                className="shrink-0 ml-3 inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-border bg-background hover:bg-muted transition-colors"
+              >
+                <Download className="h-3 w-3" />
+                Download
+              </a>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

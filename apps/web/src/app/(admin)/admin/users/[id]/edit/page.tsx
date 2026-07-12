@@ -136,7 +136,6 @@ export default function EditUserPage() {
 
   const [allRoles, setAllRoles] = useState<AuthorityGroupVM[]>([]);
   const [availablePerms, setAvailablePerms] = useState<AuthorityVM[]>([]);
-  const [loadingPerms, setLoadingPerms] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -144,43 +143,18 @@ export default function EditUserPage() {
   // username is display-only
   const [username, setUsername] = useState('');
 
-  const fetchPermsForRoles = useCallback(async (roleIds: string[], keepPerms?: string[]) => {
-    if (roleIds.length === 0) {
-      setAvailablePerms([]);
-      setForm((prev) => ({ ...prev, selectedPerms: [] }));
-      return;
-    }
-    setLoadingPerms(true);
-    try {
-      const results = await Promise.all(roleIds.map((rid) => adminApi.getAuthoritiesByGroup(rid)));
-      const map = new Map<string, AuthorityVM>();
-      results.flat().forEach((p) => map.set(p.id, p));
-      const perms = Array.from(map.values());
-      setAvailablePerms(perms);
-      const availableIds = new Set(perms.map((p) => p.id));
-      if (keepPerms !== undefined) {
-        setForm((prev) => ({
-          ...prev,
-          selectedPerms: keepPerms.filter((pid) => availableIds.has(pid)),
-        }));
-      } else {
-        setForm((prev) => ({
-          ...prev,
-          selectedPerms: prev.selectedPerms.filter((pid) => availableIds.has(pid)),
-        }));
-      }
-    } catch {
-      setAvailablePerms([]);
-    } finally {
-      setLoadingPerms(false);
-    }
-  }, []);
-
   useEffect(() => {
-    Promise.all([usersApi.getUserById(id), adminApi.getAuthorityGroups()])
-      .then(([u, roles]) => {
+    Promise.all([
+      usersApi.getUserById(id),
+      adminApi.getAuthorityGroups(),
+      adminApi.getAuthorities(),
+    ])
+      .then(([u, roles, permissions]) => {
         originalRef.current = u;
         setUsername(u.username ?? '');
+        const roleIds = (u.authorityGroups ?? []).map((g) => g.id);
+        const permIds = (u.authorities ?? []).map((a) => a.id);
+        const permIdSet = new Set(permissions.map((p) => p.id));
         setForm({
           email: u.emailId ?? '',
           firstName: u.firstName ?? '',
@@ -190,23 +164,20 @@ export default function EditUserPage() {
           emailVerified: u.emailIdVerified,
           mobileVerified: u.mobileNoVerified,
           promptChangePwd: u.promptChangePassword,
-          selectedRoles: (u.authorityGroups ?? []).map((g) => g.id),
-          selectedPerms: (u.authorities ?? []).map((a) => a.id),
+          selectedRoles: roleIds,
+          selectedPerms: permIds.filter((id) => permIdSet.has(id)),
         });
         setAllRoles(roles);
-        const roleIds = (u.authorityGroups ?? []).map((g) => g.id);
-        const permIds = (u.authorities ?? []).map((a) => a.id);
+        setAvailablePerms(permissions);
         originalRolesRef.current = roleIds;
         originalPermsRef.current = permIds;
-        fetchPermsForRoles(roleIds, permIds);
       })
       .catch(() => setError('Failed to load user.'))
       .finally(() => setLoading(false));
-  }, [id, fetchPermsForRoles]);
+  }, [id]);
 
   const handleRolesChange = (roles: string[]) => {
     setForm((prev) => ({ ...prev, selectedRoles: roles }));
-    fetchPermsForRoles(roles);
   };
 
   const clearErr = (f: string) =>
@@ -365,28 +336,19 @@ export default function EditUserPage() {
                 Additional permissions{' '}
                 <span className="text-muted-foreground font-normal ml-1">(optional)</span>
               </Label>
-              {loadingPerms && (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-              )}
             </div>
-            {form.selectedRoles.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-2">
-                Select roles first to see their permissions.
-              </p>
-            ) : (
-              <MultiSelect
-                options={availablePerms.map((p) => ({
-                  value: p.id,
-                  label: p.label,
-                  sublabel: p.name,
-                }))}
-                value={form.selectedPerms}
-                onChange={(perms) => setField('selectedPerms', perms)}
-                placeholder="Select permissions..."
-                searchPlaceholder="Search permissions..."
-                emptyMessage={loadingPerms ? 'Loading...' : 'No permissions in selected roles'}
-              />
-            )}
+            <MultiSelect
+              options={availablePerms.map((p) => ({
+                value: p.id,
+                label: p.label,
+                sublabel: p.name,
+              }))}
+              value={form.selectedPerms}
+              onChange={(perms) => setField('selectedPerms', perms)}
+              placeholder="Select permissions..."
+              searchPlaceholder="Search permissions..."
+              emptyMessage="No permissions found"
+            />
           </div>
         </div>
 
