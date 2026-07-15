@@ -21,6 +21,8 @@ import {
   Database,
   Gavel,
   Puzzle,
+  Building2,
+  MapPinned,
 } from 'lucide-react';
 import {
   Button,
@@ -78,21 +80,33 @@ const navGroups: NavGroup[] = [
         icon: Tag,
         description: 'Item categories',
       },
-      // {
-      //   href: '/admin/master/states',
-      //   label: 'States',
-      //   icon: MapPin,
-      //   description: 'States, cities & areas',
-      // },
+      {
+        href: '/admin/master/states',
+        label: 'States',
+        icon: MapPin,
+        description: 'States, cities & areas',
+      },
+      {
+        href: '/admin/master/cities',
+        label: 'Cities',
+        icon: Building2,
+        description: 'All cities',
+      },
+      {
+        href: '/admin/master/areas',
+        label: 'Areas',
+        icon: MapPinned,
+        description: 'All areas',
+      },
     ],
   },
   {
     label: 'Listings',
     items: [
       {
-        label: 'Managed types',
+        label: 'Managed Types',
         icon: Database,
-        description: 'Manage types & components',
+        description: 'Managed types & components',
         subItems: [
           {
             href: '/admin/metadata/components',

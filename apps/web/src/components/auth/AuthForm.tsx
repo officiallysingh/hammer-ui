@@ -147,12 +147,12 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState('');
-  const [smsConsent, setSmsConsent] = useState(false);
 
   // ── Signup state ───────────────────────────────────────────────────────────
   const [signupStep, setSignupStep] = useState<SignupStep>('initial');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
+  const [smsConsent, setSmsConsent] = useState(false);
   const [username, setUsername] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -190,11 +190,6 @@ export function AuthForm({ mode }: AuthFormProps) {
     setError(null);
     if (!loginIdentifier.trim()) {
       setIdentifierError('Please enter your username, email, or mobile number.');
-      return;
-    }
-    const isMobile = MOBILE_RE.test(loginIdentifier.trim());
-    if (isMobile && !smsConsent) {
-      setIdentifierError('Please consent to receive SMS messages to continue with mobile login.');
       return;
     }
     if (!CAPTCHA_DISABLED && !loginCaptchaRef.current?.validate()) return;
@@ -318,6 +313,10 @@ export function AuthForm({ mode }: AuthFormProps) {
     setMobileError(null);
     if (!mobile.trim()) {
       setMobileError('Please enter your mobile number.');
+      return;
+    }
+    if (!smsConsent) {
+      setMobileError('Please consent to receive SMS messages to continue.');
       return;
     }
     setIsLoading(true);
@@ -648,6 +647,21 @@ export function AuthForm({ mode }: AuthFormProps) {
               </div>
               {mobileError && <p className="text-sm font-medium text-destructive">{mobileError}</p>}
             </div>
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={smsConsent}
+                onChange={(e) => {
+                  setSmsConsent(e.target.checked);
+                  if (mobileError) setMobileError(null);
+                }}
+                className="mt-0.5 h-4 w-4 rounded border-input accent-primary shrink-0"
+              />
+              <span className="text-xs text-muted-foreground leading-relaxed">
+                I consent to receive SMS messages (including OTPs) on this mobile number for
+                authentication purposes. Standard messaging rates may apply.
+              </span>
+            </label>
             <Button
               type="submit"
               className="w-full h-11 text-base font-medium"
@@ -892,24 +906,6 @@ export function AuthForm({ mode }: AuthFormProps) {
                 <p className="text-sm font-medium text-destructive">{identifierError}</p>
               )}
             </div>
-
-            {MOBILE_RE.test(loginIdentifier.trim()) && (
-              <label className="flex items-start gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={smsConsent}
-                  onChange={(e) => {
-                    setSmsConsent(e.target.checked);
-                    if (identifierError) setIdentifierError(null);
-                  }}
-                  className="mt-0.5 h-4 w-4 rounded border-input accent-primary shrink-0"
-                />
-                <span className="text-xs text-muted-foreground leading-relaxed">
-                  I consent to receive SMS messages (including OTPs) on this mobile number for
-                  authentication purposes. Standard messaging rates may apply.
-                </span>
-              </label>
-            )}
 
             {!CAPTCHA_DISABLED && <TextCaptcha ref={loginCaptchaRef} />}
 
