@@ -41,7 +41,7 @@ function OidcAuthInner() {
         if (userInfo.promptChangePassword || promptChangePassword) {
           router.replace('/change-password');
         } else {
-          const isAdmin = userInfo.authorities?.some(
+          const isAdmin = userInfo.permissions?.some(
             (a) => a === 'superadmin' || a === 'ROLE_SUPERADMIN',
           );
           router.replace(isAdmin ? '/admin/users' : '/');

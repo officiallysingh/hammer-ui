@@ -2,14 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import {
-  usersApi,
-  adminApi,
-  AuthorityGroupVM,
-  AuthorityVM,
-  UserDetailVM,
-  UserUpdateReq,
-} from '@repo/api';
+import { usersApi, adminApi, RoleVM, PermissionVM, UserDetailVM, UserUpdateReq } from '@repo/api';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button, Input, Label } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
@@ -134,8 +127,8 @@ export default function EditUserPage() {
     [],
   );
 
-  const [allRoles, setAllRoles] = useState<AuthorityGroupVM[]>([]);
-  const [availablePerms, setAvailablePerms] = useState<AuthorityVM[]>([]);
+  const [allRoles, setAllRoles] = useState<RoleVM[]>([]);
+  const [availablePerms, setAvailablePerms] = useState<PermissionVM[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -144,16 +137,12 @@ export default function EditUserPage() {
   const [username, setUsername] = useState('');
 
   useEffect(() => {
-    Promise.all([
-      usersApi.getUserById(id),
-      adminApi.getAuthorityGroups(),
-      adminApi.getAuthorities(),
-    ])
+    Promise.all([usersApi.getUserById(id), adminApi.getRoles(), adminApi.getPermissions()])
       .then(([u, roles, permissions]) => {
         originalRef.current = u;
         setUsername(u.username ?? '');
-        const roleIds = (u.authorityGroups ?? []).map((g) => g.id);
-        const permIds = (u.authorities ?? []).map((a) => a.id);
+        const roleIds = (u.roles ?? []).map((g) => g.id);
+        const permIds = (u.permissions ?? []).map((a) => a.id);
         const permIdSet = new Set(permissions.map((p) => p.id));
         setForm({
           email: u.emailId ?? '',
@@ -213,13 +202,13 @@ export default function EditUserPage() {
     const rolesChanged =
       form.selectedRoles.length !== originalRolesRef.current.length ||
       form.selectedRoles.some((r) => !originalRolesRef.current.includes(r));
-    if (rolesChanged) patch.authorityGroups = form.selectedRoles;
+    if (rolesChanged) patch.roles = form.selectedRoles;
 
     // Perms changed?
     const permsChanged =
       form.selectedPerms.length !== originalPermsRef.current.length ||
       form.selectedPerms.some((p) => !originalPermsRef.current.includes(p));
-    if (permsChanged) patch.authorities = form.selectedPerms;
+    if (permsChanged) patch.permissions = form.selectedPerms;
 
     if (Object.keys(patch).length === 0) {
       router.push('/admin/users');

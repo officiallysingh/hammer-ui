@@ -16,6 +16,7 @@ import {
 } from '@repo/ui';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { parseApiError } from '@/lib/api-errors';
+import { CITY_NAME_PATTERN, CITY_NAME_ERROR } from '@/lib/validation';
 
 interface AddCityDialogProps {
   state: StateVM | null;
@@ -42,6 +43,10 @@ export function AddCityDialog({ state, onClose, onCreated }: AddCityDialogProps)
     if (!state) return;
     setError(null);
     setFieldError('');
+    if (!CITY_NAME_PATTERN.test(name.trim())) {
+      setFieldError(CITY_NAME_ERROR);
+      return;
+    }
     setSaving(true);
     try {
       await masterApi.createCity(state.id, { name: name.trim() });

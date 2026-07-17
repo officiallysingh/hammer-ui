@@ -1,92 +1,92 @@
 import { apiClient } from './client';
 
-export interface AuthorityVM {
+export interface PermissionVM {
   id: string;
   name: string;
   label: string;
   description?: string;
 }
 
-export interface AuthorityGroupVM {
+export interface RoleVM {
   id: string;
   name: string;
   label: string;
   description?: string;
-  authorities?: AuthorityVM[];
+  permissions?: PermissionVM[];
 }
 
-// POST /api/v1/authority-groups
-export interface AuthorityGroupCreationReq {
+// POST /api/v1/roles
+export interface RoleCreationReq {
   name: string;
   label: string;
   description: string;
-  authorities?: string[]; // authority IDs (strings)
+  permissions?: string[]; // permission IDs (strings)
 }
 
-// PATCH /api/v1/authority-groups/{id}
-export interface AuthorityGroupUpdateReq {
+// PATCH /api/v1/roles/{id}
+export interface RoleUpdateReq {
   name?: string;
   label?: string;
   description?: string;
-  authorities?: string[]; // replaces all authorities
+  permissions?: string[]; // replaces all permissions
 }
 
-export interface AuthorityCreationReq {
+export interface PermissionCreationReq {
   name: string;
   label: string;
   description: string;
 }
 
-export interface AuthorityUpdateReq {
+export interface PermissionUpdateReq {
   name?: string;
   label?: string;
   description?: string;
 }
 
 export const adminApi = {
-  // ── Authority Groups (Roles) ─────────────────────────────────────────────
-  getAuthorityGroups: async (expand = false, phrases?: string[]): Promise<AuthorityGroupVM[]> => {
-    const response = await apiClient.get('/api/v1/authority-groups', {
+  // ── Roles ─────────────────────────────────────────────────────────────────
+  getRoles: async (expand = false, phrases?: string[]): Promise<RoleVM[]> => {
+    const response = await apiClient.get('/api/v1/roles', {
       headers: { 'x-expand': String(expand) },
       params: phrases?.length ? { phrases } : undefined,
     });
     return response.data;
   },
 
-  createAuthorityGroup: async (data: AuthorityGroupCreationReq): Promise<void> => {
-    await apiClient.post('/api/v1/authority-groups', data);
+  createRole: async (data: RoleCreationReq): Promise<void> => {
+    await apiClient.post('/api/v1/roles', data);
   },
 
-  updateAuthorityGroup: async (id: string, data: AuthorityGroupUpdateReq): Promise<void> => {
-    await apiClient.patch(`/api/v1/authority-groups/${id}`, data);
+  updateRole: async (id: string, data: RoleUpdateReq): Promise<void> => {
+    await apiClient.patch(`/api/v1/roles/${id}`, data);
   },
 
-  deleteAuthorityGroup: async (id: string): Promise<void> => {
-    await apiClient.delete(`/api/v1/authority-groups/${id}`);
+  deleteRole: async (id: string): Promise<void> => {
+    await apiClient.delete(`/api/v1/roles/${id}`);
   },
 
-  // ── Authorities (Permissions) ─────────────────────────────────────────────
-  getAuthorities: async (phrases?: string[]): Promise<AuthorityVM[]> => {
-    const response = await apiClient.get('/api/v1/authorities', {
+  // ── Permissions ───────────────────────────────────────────────────────────
+  getPermissions: async (phrases?: string[]): Promise<PermissionVM[]> => {
+    const response = await apiClient.get('/api/v1/permissions', {
       params: phrases?.length ? { phrases } : undefined,
     });
     return response.data;
   },
 
-  getAuthoritiesByGroup: async (groupId: string): Promise<AuthorityVM[]> => {
-    const response = await apiClient.get(`/api/v1/authority-groups/${groupId}/authorities`);
+  getPermissionsByRole: async (roleId: string): Promise<PermissionVM[]> => {
+    const response = await apiClient.get(`/api/v1/roles/${roleId}/permissions`);
     return response.data;
   },
 
-  createAuthority: async (data: AuthorityCreationReq): Promise<void> => {
-    await apiClient.post('/api/v1/authorities', data);
+  createPermission: async (data: PermissionCreationReq): Promise<void> => {
+    await apiClient.post('/api/v1/permissions', data);
   },
 
-  updateAuthority: async (id: string, data: AuthorityUpdateReq): Promise<void> => {
-    await apiClient.patch(`/api/v1/authorities/${id}`, data);
+  updatePermission: async (id: string, data: PermissionUpdateReq): Promise<void> => {
+    await apiClient.patch(`/api/v1/permissions/${id}`, data);
   },
 
-  deleteAuthority: async (id: string): Promise<void> => {
-    await apiClient.delete(`/api/v1/authorities/${id}`);
+  deletePermission: async (id: string): Promise<void> => {
+    await apiClient.delete(`/api/v1/permissions/${id}`);
   },
 };

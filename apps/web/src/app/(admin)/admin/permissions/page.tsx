@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import React from 'react';
-import { adminApi, AuthorityVM } from '@repo/api';
+import { adminApi, PermissionVM } from '@repo/api';
 import { Eye, RefreshCw, Plus } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@repo/ui';
@@ -17,18 +17,18 @@ import { PhraseSearchBar } from '@/components/common/admin/PhraseSearchBar';
 export default function PermissionsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [authorities, setAuthorities] = useState<AuthorityVM[]>([]);
+  const [permissions, setPermissions] = useState<PermissionVM[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editPerm, setEditPerm] = useState<AuthorityVM | null>(null);
+  const [editPerm, setEditPerm] = useState<PermissionVM | null>(null);
   const [phrases, setPhrases] = useState<string[]>(() => searchParams.getAll('phrases'));
 
-  const fetchAuthorities = async (ph?: string[]) => {
+  const fetchPermissions = async (ph?: string[]) => {
     setIsLoading(true);
     setError(null);
     try {
-      setAuthorities(await adminApi.getAuthorities(ph?.length ? ph : undefined));
+      setPermissions(await adminApi.getPermissions(ph?.length ? ph : undefined));
     } catch {
       setError('Failed to load permissions.');
     } finally {
@@ -37,23 +37,23 @@ export default function PermissionsPage() {
   };
 
   useEffect(() => {
-    fetchAuthorities(searchParams.getAll('phrases'));
+    fetchPermissions(searchParams.getAll('phrases'));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearch = () => {
     const params = new URLSearchParams();
     phrases.forEach((p) => params.append('phrases', p));
     router.replace(params.toString() ? `?${params.toString()}` : '', { scroll: false });
-    fetchAuthorities(phrases.length ? phrases : undefined);
+    fetchPermissions(phrases.length ? phrases : undefined);
   };
 
   const handleReset = () => {
     setPhrases([]);
     router.replace('', { scroll: false });
-    fetchAuthorities([]);
+    fetchPermissions([]);
   };
 
-  const columns: ColumnDef<AuthorityVM>[] = [
+  const columns: ColumnDef<PermissionVM>[] = [
     {
       accessorKey: 'name',
       header: 'Name',
@@ -97,7 +97,7 @@ export default function PermissionsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Permissions"
-        description="Manage authorities and access rights across the system"
+        description="Manage permissions and access rights across the system"
         actions={
           <div className="flex gap-2">
             <Button size="sm" onClick={() => setIsCreateOpen(true)}>
@@ -107,7 +107,7 @@ export default function PermissionsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => fetchAuthorities(phrases.length ? phrases : undefined)}
+              onClick={() => fetchPermissions(phrases.length ? phrases : undefined)}
               disabled={isLoading}
             >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
@@ -128,7 +128,7 @@ export default function PermissionsPage() {
       />
 
       <DataTable
-        data={authorities}
+        data={permissions}
         columns={columns}
         isLoading={isLoading}
         emptyMessage="No permissions found."
@@ -138,14 +138,14 @@ export default function PermissionsPage() {
       <CreatePermissionDialog
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
-        onCreated={() => fetchAuthorities(phrases.length ? phrases : undefined)}
+        onCreated={() => fetchPermissions(phrases.length ? phrases : undefined)}
       />
 
       <EditPermissionDialog
         permission={editPerm}
         onClose={() => setEditPerm(null)}
         onUpdated={(updated) => {
-          setAuthorities((prev) =>
+          setPermissions((prev) =>
             prev.map((a) => (a.id === editPerm?.id ? { ...a, ...updated } : a)),
           );
           setEditPerm(null);

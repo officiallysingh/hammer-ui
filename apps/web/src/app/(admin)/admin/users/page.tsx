@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { usersApi, adminApi, UserDetailVM, AuthorityGroupVM, AuthorityVM } from '@repo/api';
+import { usersApi, adminApi, UserDetailVM, RoleVM, PermissionVM } from '@repo/api';
 import {
   Loader2,
   Trash2,
@@ -120,8 +120,8 @@ export default function UsersPage() {
   const [phrases, setPhrases] = useState<string[]>(() => searchParams.getAll('phrases'));
   const [selectedRoles, setSelectedRoles] = useState<SelectOption[]>([]);
   const [selectedPermissions, setSelectedPermissions] = useState<SelectOption[]>([]);
-  const [allRoles, setAllRoles] = useState<AuthorityGroupVM[]>([]);
-  const [allPermissions, setAllPermissions] = useState<AuthorityVM[]>([]);
+  const [allRoles, setAllRoles] = useState<RoleVM[]>([]);
+  const [allPermissions, setAllPermissions] = useState<PermissionVM[]>([]);
 
   // Column visibility
   const [showRoles, setShowRoles] = useState(false);
@@ -133,7 +133,7 @@ export default function UsersPage() {
   useEffect(() => {
     const roleIds = searchParams.getAll('roles');
     const permIds = searchParams.getAll('permissions');
-    Promise.all([adminApi.getAuthorityGroups(), adminApi.getAuthorities()])
+    Promise.all([adminApi.getRoles(), adminApi.getPermissions()])
       .then(([groups, perms]) => {
         setAllRoles(groups);
         setAllPermissions(perms);
@@ -173,9 +173,9 @@ export default function UsersPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const expand: ('authorities' | 'authority-groups')[] = [];
-      if (opts?.showPermsCol ?? showPermissions) expand.push('authorities');
-      if (opts?.showRolesCol ?? showRoles) expand.push('authority-groups');
+      const expand: ('permissions' | 'roles')[] = [];
+      if (opts?.showPermsCol ?? showPermissions) expand.push('permissions');
+      if (opts?.showRolesCol ?? showRoles) expand.push('roles');
       const page = opts?.page ?? 0;
       const result = await usersApi.getUsers(
         page,
@@ -351,7 +351,7 @@ export default function UsersPage() {
     header: 'Roles',
     cell: ({ row }) => (
       <TagList
-        tags={(row.original.authorityGroups ?? []).map((g) => ({ id: g.id, label: g.label }))}
+        tags={(row.original.roles ?? []).map((g) => ({ id: g.id, label: g.label }))}
         variant="primary"
       />
     ),
@@ -362,7 +362,7 @@ export default function UsersPage() {
     header: 'Permissions',
     cell: ({ row }) => (
       <TagList
-        tags={(row.original.authorities ?? []).map((a) => ({
+        tags={(row.original.permissions ?? []).map((a) => ({
           id: a.id,
           label: a.name,
           mono: true,

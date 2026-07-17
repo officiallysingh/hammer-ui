@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import React from 'react';
-import { adminApi, AuthorityGroupVM, AuthorityVM } from '@repo/api';
+import { adminApi, RoleVM, PermissionVM } from '@repo/api';
 import { Loader2, Trash2, RefreshCw, Plus, Pencil } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@repo/ui';
@@ -16,19 +16,19 @@ import Tip from '@/components/common/admin/Tip';
 import { TagList } from '@/components/common/admin/TagList';
 import { RoleFormDialog, EditRoleDialog } from './_components/RoleFormDialog';
 
-// Extend AuthorityGroupVM locally to cache fetched permissions
-type RoleRow = AuthorityGroupVM & { _perms?: AuthorityVM[] };
+// Extend RoleVM locally to cache fetched permissions
+type RoleRow = RoleVM & { _perms?: PermissionVM[] };
 
 export default function RolesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [groups, setGroups] = useState<RoleRow[]>([]);
-  const [allPermissions, setAllPermissions] = useState<AuthorityVM[]>([]);
+  const [allPermissions, setAllPermissions] = useState<PermissionVM[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editRole, setEditRole] = useState<AuthorityGroupVM | null>(null);
+  const [editRole, setEditRole] = useState<RoleVM | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [phrases, setPhrases] = useState<string[]>(() => searchParams.getAll('phrases'));
 
@@ -37,10 +37,10 @@ export default function RolesPage() {
     setError(null);
     try {
       const [data, perms] = await Promise.all([
-        adminApi.getAuthorityGroups(true, ph?.length ? ph : undefined),
-        adminApi.getAuthorities(),
+        adminApi.getRoles(true, ph?.length ? ph : undefined),
+        adminApi.getPermissions(),
       ]);
-      setGroups(data.map((g) => ({ ...g, _perms: g.authorities ?? [] })));
+      setGroups(data.map((g) => ({ ...g, _perms: g.permissions ?? [] })));
       setAllPermissions(perms);
     } catch {
       setError('Failed to load roles.');
@@ -70,7 +70,7 @@ export default function RolesPage() {
     setDeletingId(id);
     setConfirmId(null);
     try {
-      await adminApi.deleteAuthorityGroup(id);
+      await adminApi.deleteRole(id);
       setGroups((prev) => prev.filter((g) => g.id !== id));
     } catch {
       setError('Failed to delete role.');
@@ -149,7 +149,7 @@ export default function RolesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Roles"
-        description="Manage authority groups and their assigned permissions"
+        description="Manage roles and their assigned permissions"
         actions={
           <div className="flex gap-2">
             <Button size="sm" onClick={() => setIsCreateOpen(true)}>

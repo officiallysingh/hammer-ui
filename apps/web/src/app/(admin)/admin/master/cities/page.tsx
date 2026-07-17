@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { masterApi, StateVM, CityVM, AreaVM } from '@repo/api';
 import {
   Loader2,
@@ -34,6 +34,8 @@ const CLOSED_CONFIRM: ConfirmState = {
   onConfirm: () => {},
 };
 
+const PAGE_SIZE = 16;
+
 export default function CitiesPage() {
   const [states, setStates] = useState<StateVM[]>([]);
   const [cities, setCities] = useState<CityVM[]>([]);
@@ -41,6 +43,9 @@ export default function CitiesPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState('');
+  const [pageIndex, setPageIndex] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   const [addOpen, setAddOpen] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmState>(CLOSED_CONFIRM);
@@ -51,19 +56,27 @@ export default function CitiesPage() {
   const [areasLoading, setAreasLoading] = useState<Record<string, boolean>>({});
   const [addAreaTarget, setAddAreaTarget] = useState<CityVM | null>(null);
 
-  const fetchAll = async () => {
+  useEffect(() => {
+    masterApi
+      .getStates()
+      .then(setStates)
+      .catch(() => setStates([]));
+  }, []);
+
+  const fetchCities = async (page = 0) => {
     setIsLoading(true);
     setError(null);
     try {
-      const stateList = await masterApi.getStates();
-      setStates(stateList);
-      const perState = await Promise.all(
-        stateList.map((s) => masterApi.getCitiesByState(s.id).catch(() => [] as CityVM[])),
-      );
-      const flat = stateList.flatMap((s, i) =>
-        (perState[i] ?? []).map((c) => ({ ...c, state: s })),
-      );
-      setCities(flat);
+      const result = await masterApi.searchCities({
+        phrases: search.trim() ? [search.trim()] : undefined,
+        stateId: stateFilter || undefined,
+        page,
+        size: PAGE_SIZE,
+      });
+      setCities(result.content ?? []);
+      setPageIndex(page);
+      setTotalPages(result.page?.totalPages ?? 0);
+      setTotalRecords(result.page?.totalRecords ?? 0);
     } catch {
       setError('Failed to load cities.');
     } finally {
@@ -72,23 +85,8 @@ export default function CitiesPage() {
   };
 
   useEffect(() => {
-    fetchAll();
-  }, []);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return cities.filter((c) => {
-      const matchesQuery = q
-        ? c.name.toLowerCase().includes(q) || (c.state?.name ?? '').toLowerCase().includes(q)
-        : true;
-      const matchesState = stateFilter ? c.state?.id === stateFilter : true;
-      return matchesQuery && matchesState;
-    });
-  }, [cities, search, stateFilter]);
-
-  const openConfirm = (title: string, description: string, onConfirm: () => void) =>
-    setConfirm({ open: true, title, description, onConfirm });
-  const closeConfirm = () => setConfirm((prev) => ({ ...prev, open: false }));
+    fetchCities(0);
+  }, [search, stateFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleCity = async (cityId: string) => {
     setExpandedCities((prev) => {
@@ -110,6 +108,10 @@ export default function CitiesPage() {
     }
   };
 
+  const openConfirm = (title: string, description: string, onConfirm: () => void) =>
+    setConfirm({ open: true, title, description, onConfirm });
+  const closeConfirm = () => setConfirm((prev) => ({ ...prev, open: false }));
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -121,7 +123,12 @@ export default function CitiesPage() {
               <Plus className="h-4 w-4 mr-1" />
               Add city
             </Button>
-            <Button variant="outline" size="sm" onClick={fetchAll} disabled={isLoading}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchCities(pageIndex)}
+              disabled={isLoading}
+            >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
@@ -157,14 +164,14 @@ export default function CitiesPage() {
           <Loader2 className="h-5 w-5 animate-spin" />
           <span className="text-sm">Loading cities...</span>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : cities.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
           <Building2 className="h-10 w-10 opacity-30" />
           <p className="text-sm">No cities found.</p>
         </div>
       ) : (
         <div className="rounded-lg border border-border bg-card overflow-hidden divide-y divide-border">
-          {filtered.map((city) => {
+          {cities.map((city) => {
             const cityExpanded = expandedCities.has(city.id);
             const areas = areasMap[city.id] ?? [];
             const areasLoaded = !!areasMap[city.id];
@@ -287,13 +294,43 @@ export default function CitiesPage() {
         </div>
       )}
 
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">
+            Showing {pageIndex * PAGE_SIZE + 1} to {pageIndex * PAGE_SIZE + cities.length} of{' '}
+            {totalRecords} results
+          </span>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchCities(pageIndex - 1)}
+              disabled={pageIndex === 0 || isLoading}
+            >
+              Previous
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {pageIndex + 1} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchCities(pageIndex + 1)}
+              disabled={pageIndex + 1 >= totalPages || isLoading}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+
       <AddCityDialog
         open={addOpen}
         states={states}
         onClose={() => setAddOpen(false)}
-        onCreated={(city) => {
-          setCities((prev) => [...prev, city]);
+        onCreated={() => {
           setAddOpen(false);
+          fetchCities(pageIndex);
         }}
       />
 

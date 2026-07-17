@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { usersApi, UserCreationReq, adminApi, AuthorityGroupVM, AuthorityVM } from '@repo/api';
+import { usersApi, UserCreationReq, adminApi, RoleVM, PermissionVM } from '@repo/api';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button, Input, Label } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
@@ -113,8 +113,8 @@ const EMPTY_NEW_USER_FORM: NewUserFormValues = {
 export default function NewUserPage() {
   const router = useRouter();
   const [form, setForm] = useState<NewUserFormValues>(EMPTY_NEW_USER_FORM);
-  const [allRoles, setAllRoles] = useState<AuthorityGroupVM[]>([]);
-  const [availablePerms, setAvailablePerms] = useState<AuthorityVM[]>([]);
+  const [allRoles, setAllRoles] = useState<RoleVM[]>([]);
+  const [availablePerms, setAvailablePerms] = useState<PermissionVM[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -123,7 +123,7 @@ export default function NewUserPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
 
   useEffect(() => {
-    Promise.all([adminApi.getAuthorityGroups(), adminApi.getAuthorities()])
+    Promise.all([adminApi.getRoles(), adminApi.getPermissions()])
       .then(([roles, permissions]) => {
         setAllRoles(roles);
         setAvailablePerms(permissions);
@@ -164,8 +164,8 @@ export default function NewUserPage() {
         promptChangePassword: form.promptChangePwd,
         accountNonLocked: true,
         accountNonExpired: true,
-        authorityGroups: form.selectedRoles.length ? form.selectedRoles : undefined,
-        authorities: form.selectedPerms.length ? form.selectedPerms : undefined,
+        roles: form.selectedRoles.length ? form.selectedRoles : undefined,
+        permissions: form.selectedPerms.length ? form.selectedPerms : undefined,
       };
       await usersApi.createUser(payload);
       router.push('/admin/users');

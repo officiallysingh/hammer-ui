@@ -23,6 +23,7 @@ import {
   Puzzle,
   Building2,
   MapPinned,
+  Landmark,
 } from 'lucide-react';
 import {
   Button,
@@ -62,7 +63,7 @@ const navGroups: NavGroup[] = [
     label: 'User Management',
     items: [
       { href: '/admin/users', label: 'Users', icon: Users, description: 'Manage accounts' },
-      { href: '/admin/roles', label: 'Roles', icon: ShieldCheck, description: 'Authority groups' },
+      { href: '/admin/roles', label: 'Roles', icon: ShieldCheck, description: 'Access roles' },
       {
         href: '/admin/permissions',
         label: 'Permissions',
@@ -97,6 +98,12 @@ const navGroups: NavGroup[] = [
         label: 'Areas',
         icon: MapPinned,
         description: 'All areas',
+      },
+      {
+        href: '/admin/master/banks',
+        label: 'Banks',
+        icon: Landmark,
+        description: 'Bank accounts',
       },
     ],
   },

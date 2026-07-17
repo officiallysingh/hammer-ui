@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import React from 'react';
-import { adminApi, AuthorityGroupVM, AuthorityVM } from '@repo/api';
+import { adminApi, RoleVM, PermissionVM } from '@repo/api';
 import { Loader2 } from 'lucide-react';
 import {
   Button,
@@ -24,7 +24,7 @@ import { parseApiError } from '@/lib/api-errors';
 interface CreateRoleDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  allPermissions: AuthorityVM[];
+  allPermissions: PermissionVM[];
   onCreated: () => void;
 }
 
@@ -79,11 +79,11 @@ export function RoleFormDialog({
     setFieldErrors({});
     setSaving(true);
     try {
-      await adminApi.createAuthorityGroup({
+      await adminApi.createRole({
         name: form.name.trim(),
         label: form.label.trim(),
         description: form.description.trim() || '',
-        authorities: form.selectedIds,
+        permissions: form.selectedIds,
       });
       reset();
       onOpenChange(false);
@@ -102,7 +102,7 @@ export function RoleFormDialog({
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Add role</DialogTitle>
-          <DialogDescription>Create a new authority group (role).</DialogDescription>
+          <DialogDescription>Create a new role.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
@@ -202,8 +202,8 @@ export function RoleFormDialog({
 // ── Edit ──────────────────────────────────────────────────────────────────────
 
 interface EditRoleDialogProps {
-  role: AuthorityGroupVM | null;
-  allPermissions: AuthorityVM[];
+  role: RoleVM | null;
+  allPermissions: PermissionVM[];
   onClose: () => void;
   onUpdated: () => void;
 }
@@ -227,7 +227,7 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
 
   useEffect(() => {
     if (role) {
-      const perms = (role.authorities ?? []).map((a) => a.id);
+      const perms = (role.permissions ?? []).map((a) => a.id);
       origRef.current = {
         name: role.name,
         label: role.label,
@@ -259,7 +259,7 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
     setFieldErrors({});
 
     const orig = origRef.current;
-    const patch: Parameters<typeof adminApi.updateAuthorityGroup>[1] = {};
+    const patch: Parameters<typeof adminApi.updateRole>[1] = {};
     if (form.name.trim() !== orig.name) patch.name = form.name.trim() || undefined;
     if (form.label.trim() !== orig.label) patch.label = form.label.trim() || undefined;
     if ((form.description.trim() || '') !== orig.description)
@@ -268,7 +268,7 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
     const permsChanged =
       form.selectedIds.length !== orig.perms.length ||
       form.selectedIds.some((id) => !orig.perms.includes(id));
-    if (permsChanged) patch.authorities = form.selectedIds;
+    if (permsChanged) patch.permissions = form.selectedIds;
 
     if (Object.keys(patch).length === 0) {
       onClose();
@@ -277,7 +277,7 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
 
     setSaving(true);
     try {
-      await adminApi.updateAuthorityGroup(role.id, patch);
+      await adminApi.updateRole(role.id, patch);
       onUpdated();
       onClose();
     } catch (err) {

@@ -229,7 +229,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         router.push('/verify');
         return;
       }
-      const isAdmin = userInfo.authorities?.some(
+      const isAdmin = userInfo.permissions?.some(
         (a) => a === 'superadmin' || a === 'ROLE_SUPERADMIN',
       );
       router.push(isAdmin ? '/admin/users' : '/');

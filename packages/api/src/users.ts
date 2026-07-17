@@ -8,8 +8,8 @@ export interface UserDetailVM {
   firstName?: string;
   lastName?: string;
   mobileNo?: string;
-  authorities?: AuthorityVMRef[];
-  authorityGroups?: AuthorityGroupVMRef[];
+  permissions?: PermissionVMRef[];
+  roles?: RoleVMRef[];
   enabled: boolean;
   accountNonLocked: boolean;
   accountNonExpired: boolean;
@@ -20,14 +20,14 @@ export interface UserDetailVM {
   promptChangePassword: boolean;
 }
 
-export interface AuthorityVMRef {
+export interface PermissionVMRef {
   id: string;
   name: string;
   label: string;
   description?: string;
 }
 
-export interface AuthorityGroupVMRef {
+export interface RoleVMRef {
   id: string;
   name: string;
   label: string;
@@ -41,8 +41,8 @@ export interface UserCreationReq {
   firstName: string;
   lastName: string;
   mobileNo?: string;
-  authorities?: string[];
-  authorityGroups?: string[];
+  permissions?: string[];
+  roles?: string[];
   enabled?: boolean;
   emailIdVerified?: boolean;
   mobileNoVerified?: boolean;
@@ -64,8 +64,8 @@ export interface UserUpdateReq {
   mobileNoVerified?: boolean;
   accountNonLocked?: boolean;
   accountNonExpired?: boolean;
-  authorities?: string[]; // replaces all authorities
-  authorityGroups?: string[]; // replaces all authority groups
+  permissions?: string[]; // replaces all permissions
+  roles?: string[]; // replaces all roles
 }
 
 // Self user info (GET /api/v1/users/username/{loginName}/info)
@@ -75,8 +75,8 @@ export interface UserInfo {
   firstName?: string;
   lastName?: string;
   mobileNo?: string;
-  authorities: string[];
-  authorityGroups?: string[];
+  permissions: string[];
+  roles?: string[];
   enabled: boolean;
   accountNonLocked: boolean;
   accountNonExpired: boolean;
@@ -132,17 +132,17 @@ export const usersApi = {
     page = 0,
     size = 20,
     phrases?: string[],
-    expand?: ('authorities' | 'authority-groups')[],
-    authorityGroups?: string[],
-    authorities?: string[],
+    expand?: ('permissions' | 'roles')[],
+    roles?: string[],
+    permissions?: string[],
   ): Promise<PaginatedUsers> => {
     const response = await apiClient.get<PaginatedUsers>('/api/v1/users', {
       params: {
         page,
         size,
         ...(phrases?.length ? { phrases } : {}),
-        ...(authorityGroups?.length ? { authorityGroups } : {}),
-        ...(authorities?.length ? { authorities } : {}),
+        ...(roles?.length ? { roles } : {}),
+        ...(permissions?.length ? { permissions } : {}),
       },
       headers: expand?.length ? { 'x-expand': expand.join(',') } : undefined,
     });

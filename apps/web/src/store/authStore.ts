@@ -34,8 +34,8 @@ export const useAuthStore = create<AuthState>()(
         clearUser: () => set({ user: null, userInfo: null }),
         isAdmin: () => {
           const info = get().userInfo;
-          if (info?.authorities) {
-            return info.authorities.some((a) => a === 'superadmin' || a === 'ROLE_SUPERADMIN');
+          if (info?.permissions) {
+            return info.permissions.some((a) => a === 'superadmin' || a === 'ROLE_SUPERADMIN');
           }
           const user = get().user;
           return !!user?.roles?.some((r) => r.authority === 'superadmin');

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { adminApi, AuthorityVM } from '@repo/api';
+import { adminApi, PermissionVM } from '@repo/api';
 import { Loader2 } from 'lucide-react';
 import {
   Button,
@@ -164,7 +164,7 @@ export function CreatePermissionDialog({
     setFieldErrors({});
     setSaving(true);
     try {
-      await adminApi.createAuthority({
+      await adminApi.createPermission({
         name: form.name.trim(),
         label: form.label.trim(),
         description: form.description.trim(),
@@ -186,7 +186,7 @@ export function CreatePermissionDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add permission</DialogTitle>
-          <DialogDescription>Create a new authority (permission).</DialogDescription>
+          <DialogDescription>Create a new permission.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <PermissionFields
@@ -241,9 +241,9 @@ export function CreatePermissionDialog({
 // ── Edit ──────────────────────────────────────────────────────────────────────
 
 interface EditPermissionDialogProps {
-  permission: AuthorityVM | null;
+  permission: PermissionVM | null;
   onClose: () => void;
-  onUpdated: (updated: Pick<AuthorityVM, 'name' | 'label' | 'description'>) => void;
+  onUpdated: (updated: Pick<PermissionVM, 'name' | 'label' | 'description'>) => void;
   readOnly?: boolean;
 }
 
@@ -290,7 +290,7 @@ export function EditPermissionDialog({
     setFieldErrors({});
 
     const orig = origRef.current;
-    const patch: Parameters<typeof adminApi.updateAuthority>[1] = {};
+    const patch: Parameters<typeof adminApi.updatePermission>[1] = {};
     if (form.name.trim() !== orig.name) patch.name = form.name.trim() || undefined;
     if (form.label.trim() !== orig.label) patch.label = form.label.trim() || undefined;
     if ((form.description.trim() || '') !== orig.description)
@@ -303,7 +303,7 @@ export function EditPermissionDialog({
 
     setSaving(true);
     try {
-      await adminApi.updateAuthority(permission.id, patch);
+      await adminApi.updatePermission(permission.id, patch);
       onUpdated({
         name: form.name.trim(),
         label: form.label.trim(),

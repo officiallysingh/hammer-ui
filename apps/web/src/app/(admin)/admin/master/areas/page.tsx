@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { masterApi, StateVM, AreaVM } from '@repo/api';
 import { Loader2, Trash2, RefreshCw, Plus, MapPinned } from 'lucide-react';
 import { Button } from '@repo/ui';
@@ -25,6 +25,8 @@ const CLOSED_CONFIRM: ConfirmState = {
   onConfirm: () => {},
 };
 
+const PAGE_SIZE = 16;
+
 export default function AreasPage() {
   const [states, setStates] = useState<StateVM[]>([]);
   const [areas, setAreas] = useState<AreaVM[]>([]);
@@ -32,23 +34,34 @@ export default function AreasPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState('');
+  const [pageIndex, setPageIndex] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   const [addOpen, setAddOpen] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmState>(CLOSED_CONFIRM);
 
-  const fetchAll = async () => {
+  useEffect(() => {
+    masterApi
+      .getStates()
+      .then(setStates)
+      .catch(() => setStates([]));
+  }, []);
+
+  const fetchAreas = async (page = 0) => {
     setIsLoading(true);
     setError(null);
     try {
-      const stateList = await masterApi.getStates();
-      setStates(stateList);
-      const perState = await Promise.all(
-        stateList.map((s) => masterApi.getCitiesByState(s.id, ['areas', 'state']).catch(() => [])),
-      );
-      const flat = perState.flatMap((cities) =>
-        cities.flatMap((c) => (c.areas ?? []).map((a) => ({ ...a, city: c }))),
-      );
-      setAreas(flat);
+      const result = await masterApi.searchAreas({
+        phrases: search.trim() ? [search.trim()] : undefined,
+        stateId: stateFilter || undefined,
+        page,
+        size: PAGE_SIZE,
+      });
+      setAreas(result.content ?? []);
+      setPageIndex(page);
+      setTotalPages(result.page?.totalPages ?? 0);
+      setTotalRecords(result.page?.totalRecords ?? 0);
     } catch {
       setError('Failed to load areas.');
     } finally {
@@ -57,22 +70,8 @@ export default function AreasPage() {
   };
 
   useEffect(() => {
-    fetchAll();
-  }, []);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return areas.filter((a) => {
-      const matchesQuery = q
-        ? a.name.toLowerCase().includes(q) ||
-          (a.pinCode ?? '').toLowerCase().includes(q) ||
-          (a.city?.name ?? '').toLowerCase().includes(q) ||
-          (a.city?.state?.name ?? '').toLowerCase().includes(q)
-        : true;
-      const matchesState = stateFilter ? a.city?.state?.id === stateFilter : true;
-      return matchesQuery && matchesState;
-    });
-  }, [areas, search, stateFilter]);
+    fetchAreas(0);
+  }, [search, stateFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openConfirm = (title: string, description: string, onConfirm: () => void) =>
     setConfirm({ open: true, title, description, onConfirm });
@@ -89,7 +88,12 @@ export default function AreasPage() {
               <Plus className="h-4 w-4 mr-1" />
               Add area
             </Button>
-            <Button variant="outline" size="sm" onClick={fetchAll} disabled={isLoading}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchAreas(pageIndex)}
+              disabled={isLoading}
+            >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
@@ -125,14 +129,14 @@ export default function AreasPage() {
           <Loader2 className="h-5 w-5 animate-spin" />
           <span className="text-sm">Loading areas...</span>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : areas.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
           <MapPinned className="h-10 w-10 opacity-30" />
           <p className="text-sm">No areas found.</p>
         </div>
       ) : (
         <div className="rounded-lg border border-border bg-card overflow-hidden divide-y divide-border">
-          {filtered.map((area) => (
+          {areas.map((area) => (
             <div
               key={area.id}
               className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors"
@@ -172,13 +176,43 @@ export default function AreasPage() {
         </div>
       )}
 
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">
+            Showing {pageIndex * PAGE_SIZE + 1} to {pageIndex * PAGE_SIZE + areas.length} of{' '}
+            {totalRecords} results
+          </span>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchAreas(pageIndex - 1)}
+              disabled={pageIndex === 0 || isLoading}
+            >
+              Previous
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {pageIndex + 1} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchAreas(pageIndex + 1)}
+              disabled={pageIndex + 1 >= totalPages || isLoading}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+
       <AddAreaDialog
         open={addOpen}
         states={states}
         onClose={() => setAddOpen(false)}
-        onCreated={(area) => {
-          setAreas((prev) => [...prev, area]);
+        onCreated={() => {
           setAddOpen(false);
+          fetchAreas(pageIndex);
         }}
       />
 
