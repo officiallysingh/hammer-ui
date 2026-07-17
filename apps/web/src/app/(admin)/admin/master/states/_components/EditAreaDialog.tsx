@@ -137,7 +137,7 @@ export function EditAreaDialog({ area, states, onClose, onUpdated }: EditAreaDia
         if (!o) onClose();
       }}
     >
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Edit area</DialogTitle>
           <DialogDescription>

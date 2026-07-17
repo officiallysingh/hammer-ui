@@ -100,7 +100,7 @@ export function AddAreaDialog({ city, onClose, onCreated }: AddAreaDialogProps) 
         if (!o) onClose();
       }}
     >
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Add area</DialogTitle>
           <DialogDescription>

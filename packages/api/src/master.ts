@@ -107,6 +107,22 @@ export interface AreaUpdationRQ {
   cityId?: string;
 }
 
+export interface BankVM {
+  id: string;
+  name: string;
+  ifscPrefix: string;
+}
+
+export interface BankCreationRQ {
+  name: string;
+  ifscPrefix: string;
+}
+
+export interface BankUpdationRQ {
+  name?: string;
+  ifscPrefix?: string;
+}
+
 export interface CategoryVM {
   id: string;
   code: string;
@@ -243,6 +259,29 @@ export const masterApi = {
       headers: { 'x-expand': 'city' },
     });
     return response.data;
+  },
+
+  // Banks
+  getBanks: async (): Promise<BankVM[]> => {
+    const response = await apiClient.get('/api/v1/master/banks');
+    return response.data;
+  },
+
+  getBankById: async (id: string): Promise<BankVM> => {
+    const response = await apiClient.get(`/api/v1/master/banks/${id}`);
+    return response.data;
+  },
+
+  createBank: async (data: BankCreationRQ): Promise<void> => {
+    await apiClient.post('/api/v1/master/banks', data);
+  },
+
+  updateBank: async (id: string, data: BankUpdationRQ): Promise<void> => {
+    await apiClient.patch(`/api/v1/master/banks/${id}`, data);
+  },
+
+  deleteBank: async (id: string): Promise<void> => {
+    await apiClient.delete(`/api/v1/master/banks/${id}`);
   },
 
   // Categories
