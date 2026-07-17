@@ -236,8 +236,14 @@ export const auctionsApi = {
     await apiClient.delete(`/api/v1/auctions/${id}`);
   },
 
-  scheduleAuction: async (id: string, data: AuctionScheduleRQ): Promise<void> => {
-    await apiClient.put(`/api/v1/auctions/${id}/schedule`, data);
+  scheduleAuction: async (
+    id: string,
+    data: AuctionScheduleRQ,
+    publish?: boolean,
+  ): Promise<void> => {
+    await apiClient.put(`/api/v1/auctions/${id}/schedule`, data, {
+      params: publish ? { publish: true } : undefined,
+    });
   },
 
   getAuctionWorkflow: async (id: string): Promise<AuctionWorkflowStep[]> => {

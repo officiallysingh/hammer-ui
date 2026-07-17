@@ -75,7 +75,10 @@ export function PolicyPaymentSection({
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div className="flex items-center justify-between border-b border-border pb-2 mb-4">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-foreground">Payment Policy</h3>
+          <h3 className="text-sm font-semibold text-foreground">
+            {' '}
+            Pre Payment / Participation Eligibility Policy
+          </h3>
           {groupDescription && <PolicyInfoButton description={groupDescription} />}
         </div>
         <button

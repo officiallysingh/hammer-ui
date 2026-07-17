@@ -19,6 +19,19 @@ import { parseApiError } from '@/lib/api-errors';
 
 // ── Shared form fields ────────────────────────────────────────────────────────
 
+const IFSC_PREFIX_PATTERN = /^[A-Z]{4}$/;
+
+function sanitizeIfscPrefix(value: string) {
+  return value
+    .toUpperCase()
+    .replace(/[^A-Z]/g, '')
+    .slice(0, 4);
+}
+
+function validateIfscPrefix(value: string) {
+  return IFSC_PREFIX_PATTERN.test(value) ? null : 'IFSC prefix must be 4 uppercase letters.';
+}
+
 function BankFields({
   name,
   onName,
@@ -59,8 +72,9 @@ function BankFields({
         <Input
           id={ifscId}
           value={ifscPrefix}
-          onChange={(e) => onIfscPrefix(e.target.value.toUpperCase())}
-          placeholder="ICIC0"
+          onChange={(e) => onIfscPrefix(sanitizeIfscPrefix(e.target.value))}
+          placeholder="ICIC"
+          maxLength={4}
           autoComplete="off"
           className={`font-mono ${fieldErrors.ifscPrefix ? 'border-destructive focus-visible:ring-destructive' : ''}`}
         />
@@ -118,6 +132,13 @@ export function AddBankDialog({ open, onOpenChange, onCreated }: AddBankDialogPr
     e.preventDefault();
     setError(null);
     setFieldErrors({});
+
+    const ifscError = validateIfscPrefix(form.ifscPrefix.trim());
+    if (ifscError) {
+      setFieldErrors({ ifscPrefix: ifscError });
+      return;
+    }
+
     setSaving(true);
     try {
       await masterApi.createBank({
@@ -231,6 +252,14 @@ export function EditBankDialog({ bank, onClose, onUpdated }: EditBankDialogProps
     if (Object.keys(patch).length === 0) {
       onClose();
       return;
+    }
+
+    if (patch.ifscPrefix !== undefined) {
+      const ifscError = validateIfscPrefix(patch.ifscPrefix);
+      if (ifscError) {
+        setFieldErrors({ ifscPrefix: ifscError });
+        return;
+      }
     }
 
     setSaving(true);

@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
-import { Button } from '@repo/ui';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, ArrowRight, CalendarClock, Loader2 } from 'lucide-react';
+import { Button, Input, Label, DateTimePicker } from '@repo/ui';
 import { auctionsApi } from '@repo/api';
 
 interface Props {
@@ -13,6 +13,17 @@ interface Props {
   showScheduleOnly?: boolean;
 }
 
+function toLocalInputValue(dateValue?: string) {
+  if (!dateValue) return '';
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+function formatDuration(days: number, hours: number, minutes: number) {
+  return `${days}d ${hours}h ${minutes}m`;
+}
+
 export function AuctionStep5Workflow({
   auctionId,
   onBack,
@@ -21,10 +32,16 @@ export function AuctionStep5Workflow({
   showScheduleOnly = false,
 }: Props) {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<'schedule' | 'publish' | null>(null);
   const [workflow, setWorkflow] = useState<
     Array<{ id?: string; name?: string; order?: number; description?: string }>
   >([]);
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [durationDays, setDurationDays] = useState('0');
+  const [durationHours, setDurationHours] = useState('0');
+  const [durationMinutes, setDurationMinutes] = useState('0');
+  const [scheduleMode, setScheduleMode] = useState<'duration' | 'end'>('duration');
 
   useEffect(() => {
     let mounted = true;
@@ -48,12 +65,46 @@ export function AuctionStep5Workflow({
     };
   }, [auctionId]);
 
-  const handleScheduleSubmit = async () => {
-    setSaving(true);
+  const computedEndTime = useMemo(() => {
+    if (scheduleMode !== 'duration' || !startTime) return '';
+
+    const start = new Date(startTime);
+    if (Number.isNaN(start.getTime())) return '';
+
+    const totalMinutes =
+      parseInt(durationDays || '0', 10) * 24 * 60 +
+      parseInt(durationHours || '0', 10) * 60 +
+      parseInt(durationMinutes || '0', 10);
+
+    if (totalMinutes <= 0) return '';
+
+    const end = new Date(start.getTime() + totalMinutes * 60 * 1000);
+    return toLocalInputValue(end.toISOString());
+  }, [scheduleMode, startTime, durationDays, durationHours, durationMinutes]);
+
+  useEffect(() => {
+    if (scheduleMode === 'duration' && computedEndTime) {
+      setEndTime(computedEndTime);
+    }
+  }, [scheduleMode, computedEndTime]);
+
+  const handleScheduleSubmit = async (publish: boolean) => {
+    const finalStart = startTime;
+    const finalEnd = scheduleMode === 'duration' ? computedEndTime : endTime;
+    if (!finalStart || !finalEnd) return;
+    setSaving(publish ? 'publish' : 'schedule');
     try {
+      await auctionsApi.scheduleAuction(
+        auctionId,
+        {
+          startTime: new Date(finalStart).toISOString(),
+          endTime: new Date(finalEnd).toISOString(),
+        },
+        publish,
+      );
       onFinish();
     } finally {
-      setSaving(false);
+      setSaving(null);
     }
   };
 
@@ -100,23 +151,116 @@ export function AuctionStep5Workflow({
         </div>
       )}
 
+      {showScheduleOnly && (
+        <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <CalendarClock className="h-4 w-4 text-muted-foreground" />
+            <p className="text-sm font-semibold text-foreground">Schedule</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="startTime">Start date & time</Label>
+              <DateTimePicker id="startTime" value={startTime} onChange={setStartTime} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Schedule by</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={scheduleMode === 'duration' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setScheduleMode('duration')}
+                >
+                  Duration
+                </Button>
+                <Button
+                  type="button"
+                  variant={scheduleMode === 'end' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setScheduleMode('end')}
+                >
+                  End datetime
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {scheduleMode === 'duration' ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="durationDays">Days</Label>
+                <Input
+                  id="durationDays"
+                  type="number"
+                  min={0}
+                  value={durationDays}
+                  onChange={(e) => setDurationDays(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="durationHours">Hours</Label>
+                <Input
+                  id="durationHours"
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={durationHours}
+                  onChange={(e) => setDurationHours(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="durationMinutes">Minutes</Label>
+                <Input
+                  id="durationMinutes"
+                  type="number"
+                  min={0}
+                  max={59}
+                  value={durationMinutes}
+                  onChange={(e) => setDurationMinutes(e.target.value)}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label htmlFor="endTime">End date & time</Label>
+              <DateTimePicker id="endTime" value={endTime} onChange={setEndTime} />
+            </div>
+          )}
+
+          {scheduleMode === 'duration' && computedEndTime && (
+            <p className="text-xs text-muted-foreground">
+              End time will be{' '}
+              {formatDuration(
+                parseInt(durationDays || '0', 10),
+                parseInt(durationHours || '0', 10),
+                parseInt(durationMinutes || '0', 10),
+              )}{' '}
+              after start.
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="flex justify-between gap-3">
-        <Button type="button" variant="outline" onClick={onBack} disabled={saving}>
+        <Button type="button" variant="outline" onClick={onBack} disabled={saving !== null}>
           <ArrowLeft className="h-4 w-4 mr-1" />
           Back
         </Button>
         {showScheduleOnly ? (
           <div className="flex gap-2">
-            <Button type="button" variant="ghost" onClick={onFinish} disabled={saving}>
+            <Button type="button" variant="ghost" onClick={onFinish} disabled={saving !== null}>
               Skip
             </Button>
             <Button
               type="button"
-              onClick={handleScheduleSubmit}
-              disabled={saving}
+              variant="outline"
+              onClick={() => handleScheduleSubmit(false)}
+              disabled={saving !== null}
               className="gap-2"
             >
-              {saving ? (
+              {saving === 'schedule' ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Saving...
@@ -128,9 +272,27 @@ export function AuctionStep5Workflow({
                 </>
               )}
             </Button>
+            <Button
+              type="button"
+              onClick={() => handleScheduleSubmit(true)}
+              disabled={saving !== null}
+              className="gap-2"
+            >
+              {saving === 'publish' ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  Schedule & Publish
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </Button>
           </div>
         ) : (
-          <Button type="button" onClick={onNext} disabled={saving} className="gap-2">
+          <Button type="button" onClick={onNext} disabled={saving !== null} className="gap-2">
             Continue
             <ArrowRight className="h-4 w-4" />
           </Button>
