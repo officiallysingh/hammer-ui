@@ -153,7 +153,7 @@ export function AddAreaDialog({ city, onClose, onCreated }: AddAreaDialogProps) 
             <Label>
               Coordinates <span className="text-muted-foreground font-normal">(optional)</span>
             </Label>
-            <CoordinatesMapField value={coordinates} onChange={setCoordinates} />
+            <CoordinatesMapField value={coordinates} onChange={setCoordinates} mapHeight={240} />
           </div>
           {error && <ErrorAlert message={error} />}
           <DialogFooter>

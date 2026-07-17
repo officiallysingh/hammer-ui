@@ -389,6 +389,104 @@ function formatDuration(value?: unknown): string | null {
   return raw;
 }
 
+/** Renders a "Schedule" badge (reference + offset) shared by the timeline and list layouts */
+function ScheduleBadge({ schedule }: { schedule: PolicyItemRQ['schedule'] }) {
+  if (!schedule) return null;
+  const offsetLabel = formatDuration(schedule.offset);
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-400">
+      <Clock className="h-3 w-3" />
+      {formatLabel(schedule.reference)}
+      {offsetLabel ? ` + ${offsetLabel}` : ''}
+    </span>
+  );
+}
+
+/** Renders the "Fee Heads" breakdown for a PAYMENT_POLICY item */
+function HeadsList({ heads }: { heads: PolicyItemRQ['heads'] }) {
+  if (!heads?.length) return null;
+  return (
+    <div className="mt-2 space-y-1">
+      {heads.map((h, i) => (
+        <div
+          key={i}
+          className="flex flex-wrap items-center gap-2 rounded-md border border-border/50 bg-muted/30 px-2 py-1 text-[11px]"
+        >
+          <span className="font-medium text-foreground">{h.name || formatLabel(h.type)}</span>
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+            {formatLabel(h.type)}
+          </Badge>
+          <span className="text-muted-foreground">
+            {formatLabel(h.basis)}: <span className="text-foreground">{h.value}</span>
+          </span>
+          {h.refundable && (
+            <span className="text-emerald-600 dark:text-emerald-400">Refundable</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TimelineEntryCard({
+  item,
+  index,
+  isLast,
+}: {
+  item: PolicyItemRQ;
+  index: number;
+  isLast: boolean;
+}) {
+  const durationLabel = formatDuration(item.windowDuration ?? item.duration);
+  const stepLabel = item.steps?.length ? item.steps.join(', ') : null;
+  return (
+    <div className="relative pl-8 pb-4 last:pb-0">
+      <div className="absolute left-[19px] top-2.5 h-3 w-3 rounded-full border-2 border-primary/50 bg-background" />
+      <div className="rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-foreground">
+              {item.name || formatLabel(item.type)}
+            </span>
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+              {formatLabel(item.type)}
+            </Badge>
+          </div>
+          <span className="text-[10px] font-medium text-muted-foreground">
+            {isLast ? 'Rest of auction' : `Window ${index + 1}`}
+          </span>
+        </div>
+        {durationLabel && (
+          <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+            <Clock className="h-3 w-3" />
+            {durationLabel}
+          </div>
+        )}
+        {item.description && (
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p>
+        )}
+        <div className="mt-2 flex flex-wrap gap-2">
+          {item.value != null && (
+            <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+              Value: <span className="text-foreground">{item.value}</span>
+            </span>
+          )}
+          {stepLabel && (
+            <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+              Steps: <span className="text-foreground">{stepLabel}</span>
+            </span>
+          )}
+          {item.basis && (
+            <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+              Basis: <span className="text-foreground">{formatLabel(item.basis)}</span>
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PolicyGroupSection({ groupKey, items }: { groupKey: string; items: PolicyItemRQ[] }) {
   const isTimelineGroup =
     (groupKey.toLowerCase().includes('price') && groupKey.toLowerCase().includes('progress')) ||
@@ -405,56 +503,32 @@ function PolicyGroupSection({ groupKey, items }: { groupKey: string; items: Poli
         <div className="relative px-4 py-3">
           <div className="absolute left-7 top-0 bottom-0 w-px bg-border/50" />
           {items.map((item, i) => {
-            const durationLabel = formatDuration(item.windowDuration ?? item.duration);
-            const stepLabel = item.steps?.length ? item.steps.join(', ') : null;
-            const isLast = i === items.length - 1;
-            return (
-              <div key={i} className="relative pl-8 pb-4 last:pb-0">
-                <div className="absolute left-[19px] top-2.5 h-3 w-3 rounded-full border-2 border-primary/50 bg-background" />
-                <div className="rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium text-foreground">
-                        {item.name || formatLabel(item.type)}
-                      </span>
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                        {formatLabel(item.type)}
-                      </Badge>
-                    </div>
-                    <span className="text-[10px] font-medium text-muted-foreground">
-                      {isLast ? 'Rest of auction' : `Window ${i + 1}`}
-                    </span>
-                  </div>
-                  {durationLabel && (
-                    <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
-                      <Clock className="h-3 w-3" />
-                      {durationLabel}
+            // Wrapper items (e.g. PRICE_PROGRESSION_POLICY) hold their own nested list —
+            // render the nested windows instead of treating the wrapper as a single entry.
+            if (item.priceChangePolicies?.length) {
+              return (
+                <div key={i} className="relative pb-4 last:pb-0">
+                  {(item.name || item.description) && (
+                    <div className="pl-8 mb-2">
+                      <span className="text-sm font-semibold text-foreground">{item.name}</span>
+                      {item.description && (
+                        <p className="text-xs text-muted-foreground">{item.description}</p>
+                      )}
                     </div>
                   )}
-                  {item.description && (
-                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      {item.description}
-                    </p>
-                  )}
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {item.value != null && (
-                      <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
-                        Value: <span className="text-foreground">{item.value}</span>
-                      </span>
-                    )}
-                    {stepLabel && (
-                      <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
-                        Steps: <span className="text-foreground">{stepLabel}</span>
-                      </span>
-                    )}
-                    {item.basis && (
-                      <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
-                        Basis: <span className="text-foreground">{formatLabel(item.basis)}</span>
-                      </span>
-                    )}
-                  </div>
+                  {item.priceChangePolicies.map((nested, j) => (
+                    <TimelineEntryCard
+                      key={j}
+                      item={nested}
+                      index={j}
+                      isLast={j === item.priceChangePolicies!.length - 1}
+                    />
+                  ))}
                 </div>
-              </div>
+              );
+            }
+            return (
+              <TimelineEntryCard key={i} item={item} index={i} isLast={i === items.length - 1} />
             );
           })}
         </div>
@@ -490,6 +564,7 @@ function PolicyGroupSection({ groupKey, items }: { groupKey: string; items: Poli
                       {durationLabel}
                     </span>
                   )}
+                  <ScheduleBadge schedule={item.schedule} />
                 </div>
                 {item.description && (
                   <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p>
@@ -516,6 +591,7 @@ function PolicyGroupSection({ groupKey, items }: { groupKey: string; items: Poli
                     </span>
                   )}
                 </div>
+                <HeadsList heads={item.heads} />
               </div>
             </div>
           </div>

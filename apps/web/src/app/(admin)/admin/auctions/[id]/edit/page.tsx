@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { auctionsApi, AuctionUpdationRQ, AuctionUnitType, PolicyItemRQ } from '@repo/api';
+import { auctionsApi, AuctionUpdationRQ, AuctionUnitType } from '@repo/api';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
@@ -14,146 +14,13 @@ import { AuctionStep1Details, Step1State } from '../../_components/AuctionStep1D
 import { AuctionStep2Units, Step2State, initialStep2 } from '../../_components/AuctionStep2Units';
 import { AuctionStep3Media, AuctionUploadedFile } from '../../_components/AuctionStep3Media';
 import { AuctionStep3Policies, initialStep3 } from '../../_components/AuctionStep3Policies';
-import { AuctionStep5Workflow } from '../../_components/AuctionStep5Workflow';
 import type { Step3State } from '../../_components/AuctionStep3Types';
-
-function buildDurationFromDaysHours(days: string, hours: string): string {
-  const d = parseInt(days, 10) || 0;
-  const h = parseInt(hours, 10) || 0;
-  return `PT${d * 24 + h}H`;
-}
-
-function buildWindowDuration(hours: string, minutes: string): string {
-  const h = parseInt(hours, 10) || 0;
-  const m = parseInt(minutes, 10) || 0;
-  if (h > 0 && m > 0) return `PT${h}H${m}M`;
-  if (h > 0) return `PT${h}H`;
-  if (m > 0) return `PT${m}M`;
-  return 'PT0S';
-}
-
-function parseDurationHours(duration: string): { days: string; hours: string } {
-  const match = duration.match(/PT(\d+)H/);
-  const totalHours = match ? parseInt(match[1]!, 10) : 0;
-  const days = Math.floor(totalHours / 24);
-  const hours = totalHours % 24;
-  return { days: days > 0 ? String(days) : '', hours: String(hours) };
-}
-
-function parseDurationWindow(duration: string): { hours: string; minutes: string } {
-  const h = duration.match(/(\d+)H/);
-  const m = duration.match(/(\d+)M/);
-  return { hours: h ? h[1]! : '0', minutes: m ? m[1]! : '0' };
-}
-
-function parseDurationMinutes(duration: string): string {
-  const m = duration.match(/(\d+)M/);
-  return m ? m[1]! : '10';
-}
-
-function mapPoliciesToStep3(groups: Record<string, PolicyItemRQ[]>): Partial<Step3State> {
-  const out: Partial<Step3State> = {};
-
-  const participation = groups['PARTICIPATION_ELIGIBILITY'];
-  if (participation?.length) {
-    out.participationPolicies = participation.map((p) => {
-      const { days, hours } = parseDurationHours(p.preStartDeadlineDuration ?? 'PT0S');
-      return {
-        name: p.name ?? '',
-        description: p.description ?? '',
-        type: resolveStr(p.type),
-        basis: resolveStr(p.basis) as 'FIXED_AMOUNT' | 'PERCENTAGE' | '',
-        value: String(p.value ?? ''),
-        deadlineDays: days,
-        deadlineHours: hours,
-      };
-    });
-  }
-
-  const preconditions = groups['PRECONDITION'];
-  if (preconditions?.length) {
-    out.preconditions = preconditions.map((p) => {
-      const { days, hours } = parseDurationHours(p.preStartValidationDuration ?? 'PT0S');
-      return {
-        name: p.name ?? '',
-        description: p.description ?? '',
-        type: resolveStr(p.type),
-        count: String(p.count ?? ''),
-        validationDays: days,
-        validationHours: hours,
-      };
-    });
-  }
-
-  const offerBased = groups['OFFER_BASED_PRICE_CHANGE'];
-  if (offerBased?.length) {
-    out.priceChangePolicies = offerBased.map((p) => {
-      const { hours, minutes } = parseDurationWindow(p.windowDuration ?? 'PT0S');
-      return {
-        name: p.name ?? '',
-        description: p.description ?? '',
-        type: resolveStr(p.type),
-        windowHours: hours,
-        windowMinutes: minutes,
-        steps: p.steps ?? [],
-        value: String(p.value ?? ''),
-      };
-    });
-  }
-
-  const clockBased = groups['CLOCK_BASED_PRICE_CHANGE'];
-  if (clockBased?.length) {
-    out.priceChangePolicyType = resolveStr(clockBased[0]!.type);
-  }
-
-  const extension = groups['EXTENSION'] ?? groups['AUCTION_EXTENSION'];
-  if (extension?.length) {
-    const ext = extension[0]!;
-    out.extensionEnabled = true;
-    out.extensionType = resolveStr(ext.type);
-    out.extensionName = ext.name ?? '';
-    out.extensionDescription = ext.description ?? '';
-    out.extensionReference = resolveStr(ext.reference) || 'FROM_LATEST_OFFER_TIME';
-    out.extensionDurationMinutes = parseDurationMinutes(ext.duration ?? 'PT10M');
-    out.extensionLimit = String(ext.limit ?? 0);
-  }
-
-  const winnerDet = groups['WINNER_DETERMINATION'];
-  if (winnerDet?.length) {
-    const w = winnerDet[0]!;
-    out.winnerDeterminationType = resolveStr(w.type);
-    out.winnerDeterminationKth = String(w.kth ?? 1);
-    out.winnerDeterminationName = w.name ?? '';
-    out.winnerDeterminationDescription = w.description ?? '';
-  }
-
-  const winnerPrice = groups['WINNER_PRICE_DETERMINATION'];
-  if (winnerPrice?.length) {
-    const w = winnerPrice[0]!;
-    out.winnerPriceDeterminationType = resolveStr(w.type);
-    out.winnerPriceDeterminationKth = String(w.kth ?? 1);
-    out.winnerPriceDeterminationName = w.name ?? '';
-    out.winnerPriceDeterminationDescription = w.description ?? '';
-  }
-
-  const clearing = groups['CLEARING'];
-  if (clearing?.length) {
-    const c = clearing[0]!;
-    out.clearingType = resolveStr(c.type);
-    out.clearingName = c.name ?? '';
-    out.clearingDescription = c.description ?? '';
-  }
-
-  const tieBreaking = groups['TIE_BREAKING'];
-  if (tieBreaking?.length) {
-    const t = tieBreaking[0]!;
-    out.tieBreakingType = resolveStr(t.type);
-    out.tieBreakingName = t.name ?? '';
-    out.tieBreakingDescription = t.description ?? '';
-  }
-
-  return out;
-}
+import {
+  buildPolicies,
+  mapSavedPolicies,
+  validatePolicies,
+} from '../../_components/AuctionStep3PolicyMapping';
+import { AuctionStep5Workflow } from '../../_components/AuctionStep5Workflow';
 
 /** Normalises API fields that arrive as either a plain string or { KEY: "Label" } */
 function resolveStr(value: unknown): string {
@@ -368,7 +235,7 @@ export default function EditAuctionPage() {
         }
 
         if (savedPolicies && Object.keys(savedPolicies).length > 0) {
-          setStep3((prev) => ({ ...prev, ...mapPoliciesToStep3(savedPolicies) }));
+          setStep3((prev) => ({ ...prev, ...mapSavedPolicies(savedPolicies) }));
         }
       })
       .catch(() => setStep1GeneralError('Failed to load auction.'))
@@ -526,174 +393,10 @@ export default function EditAuctionPage() {
 
   // ── Step 3 ─────────────────────────────────────────────────────────────────
 
-  const validateStep3 = (): Record<string, string> => {
-    const errs: Record<string, string> = {};
-
-    step3.participationPolicies.forEach((p, i) => {
-      if (!p.type) {
-        errs[`participation_type_${i}`] = 'Please select a policy type.';
-      } else if (!p.basis) {
-        errs[`participation_basis_${i}`] = 'Please select a basis.';
-      } else if (!p.value || isNaN(parseFloat(p.value)) || parseFloat(p.value) <= 0) {
-        errs[`participation_value_${i}`] = 'A positive value is required.';
-      }
-    });
-
-    step3.preconditions.forEach((pc, i) => {
-      if (!pc.type) {
-        errs[`precondition_type_${i}`] = 'Please select a precondition type.';
-      } else if (
-        pc.type === 'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY' &&
-        (!pc.count || parseInt(pc.count, 10) < 1)
-      ) {
-        errs[`precondition_count_${i}`] = 'Minimum participants must be at least 1.';
-      }
-    });
-
-    step3.priceChangePolicies.forEach((p, i) => {
-      if (!p.type) {
-        errs[`priceChange_type_${i}`] = 'Please select a policy type.';
-      } else if (!p.steps || p.steps.length === 0) {
-        errs[`priceChange_steps_${i}`] = 'At least one step multiplier is required.';
-      } else if (!p.value || isNaN(parseFloat(p.value)) || parseFloat(p.value) <= 0) {
-        errs[`priceChange_value_${i}`] = 'A positive step value is required.';
-      }
-    });
-
-    return errs;
-  };
-
-  const buildPolicies = (): Record<string, PolicyItemRQ[]> => {
-    const policies: Record<string, PolicyItemRQ[]> = {};
-
-    const participationItems = step3.participationPolicies.filter(
-      (p) => p.type && p.basis && p.value,
-    );
-    if (participationItems.length > 0) {
-      policies['PARTICIPATION_ELIGIBILITY'] = participationItems.map((p, i, arr) => ({
-        type: p.type,
-        name: p.name || undefined,
-        description: p.description || undefined,
-        priority: i + 1,
-        basis: p.basis as 'FIXED_AMOUNT' | 'PERCENTAGE',
-        value: parseFloat(p.value),
-        preStartDeadlineDuration:
-          i === arr.length - 1
-            ? 'PT0S'
-            : buildDurationFromDaysHours(p.deadlineDays, p.deadlineHours),
-      }));
-    }
-
-    const preconditionItems = step3.preconditions.filter((p) => p.type);
-    if (preconditionItems.length > 0) {
-      policies['PRECONDITION'] = preconditionItems.map((p) => {
-        const item: PolicyItemRQ = {
-          type: p.type,
-          name: p.name || undefined,
-          description: p.description || undefined,
-        };
-        if (p.type === 'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY') {
-          item.count = parseInt(p.count, 10);
-        }
-        if (p.validationDays || p.validationHours) {
-          item.preStartValidationDuration = buildDurationFromDaysHours(
-            p.validationDays,
-            p.validationHours,
-          );
-        }
-        return item;
-      });
-    }
-
-    const isClockBased = auctionType.includes('CLOCK_BASED');
-    const isStepBased = auctionType.includes('STEP_PRICED') || auctionType.includes('STEP_BASED');
-
-    if (isClockBased && step3.priceChangePolicyType) {
-      policies['CLOCK_BASED_PRICE_CHANGE'] = [{ type: step3.priceChangePolicyType }];
-    } else if (isStepBased && step3.priceChangePolicies.length > 0) {
-      const items = step3.priceChangePolicies.filter((p) => p.type && p.value);
-      if (items.length > 0) {
-        policies['OFFER_BASED_PRICE_CHANGE'] = items.map((p, i, arr) => {
-          const isLast = i === arr.length - 1;
-          const item: PolicyItemRQ = {
-            type: p.type,
-            name: p.name || undefined,
-            description: p.description || undefined,
-            priority: i + 1,
-            windowDuration: isLast ? 'PT0S' : buildWindowDuration(p.windowHours, p.windowMinutes),
-            value: parseFloat(p.value),
-          };
-          if (p.steps.length > 0) {
-            item.steps = p.steps;
-          }
-          return item;
-        });
-      }
-    } else if (!isClockBased && !isStepBased && step3.priceChangePolicyType) {
-      policies['OFFER_BASED_PRICE_CHANGE'] = [{ type: step3.priceChangePolicyType }];
-    }
-
-    if (step3.extensionEnabled && step3.extensionType) {
-      policies['EXTENSION'] = [
-        {
-          type: step3.extensionType,
-          name: step3.extensionName || undefined,
-          description: step3.extensionDescription || undefined,
-          reference: step3.extensionReference,
-          duration: `PT${parseInt(step3.extensionDurationMinutes, 10) || 10}M`,
-          limit: parseInt(step3.extensionLimit, 10) || 0,
-        },
-      ];
-    }
-
-    if (step3.winnerDeterminationType) {
-      const item: PolicyItemRQ = {
-        type: step3.winnerDeterminationType,
-        name: step3.winnerDeterminationName || undefined,
-        description: step3.winnerDeterminationDescription || undefined,
-      };
-      if (step3.winnerDeterminationKth) item.kth = parseInt(step3.winnerDeterminationKth, 10);
-      policies['WINNER_DETERMINATION'] = [item];
-    }
-
-    if (step3.winnerPriceDeterminationType) {
-      const item: PolicyItemRQ = {
-        type: step3.winnerPriceDeterminationType,
-        name: step3.winnerPriceDeterminationName || undefined,
-        description: step3.winnerPriceDeterminationDescription || undefined,
-      };
-      if (step3.winnerPriceDeterminationKth)
-        item.kth = parseInt(step3.winnerPriceDeterminationKth, 10);
-      policies['WINNER_PRICE_DETERMINATION'] = [item];
-    }
-
-    if (step3.clearingType) {
-      policies['CLEARING'] = [
-        {
-          type: step3.clearingType,
-          name: step3.clearingName || undefined,
-          description: step3.clearingDescription || undefined,
-        },
-      ];
-    }
-
-    if (step3.tieBreakingType) {
-      policies['TIE_BREAKING'] = [
-        {
-          type: step3.tieBreakingType,
-          name: step3.tieBreakingName || undefined,
-          description: step3.tieBreakingDescription || undefined,
-        },
-      ];
-    }
-
-    return policies;
-  };
-
   const handleStep3Submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStep3GeneralError(null);
-    const errs = validateStep3();
+    const errs = validatePolicies(step3);
     if (Object.keys(errs).length) {
       setStep3Errors(errs);
       return;
@@ -701,7 +404,7 @@ export default function EditAuctionPage() {
     setStep3Errors({});
     setSavingStep3(true);
     try {
-      const policies = buildPolicies();
+      const policies = buildPolicies(step3, step1.currencyUnit || 'INR');
       if (Object.keys(policies).length > 0) {
         await auctionsApi.setAuctionPolicyGroups(id, policies);
       }

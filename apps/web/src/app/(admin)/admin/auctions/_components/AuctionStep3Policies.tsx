@@ -2,169 +2,28 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
-import { auctionsApi, PolicyGroup, PolicyItemRQ } from '@repo/api';
+import { auctionsApi, PolicyGroup } from '@repo/api';
 import { Button } from '@repo/ui';
 import { DismissibleError, SelectOption } from './AuctionShared';
 import { POLICY_DEFAULTS } from './PolicyShared';
-import { PolicyParticipationSection } from './PolicyParticipationSection';
+import { mapSavedPolicies } from './AuctionStep3PolicyMapping';
+import { PolicyPaymentSection } from './PolicyPaymentSection';
 import { PolicyPreconditionsSection } from './PolicyPreconditionsSection';
 import { PolicyPriceProgressionSection } from './PolicyPriceProgressionSection';
 import { PolicyExtensionSection } from './PolicyExtensionSection';
 import { PolicyWinnerSection } from './PolicyWinnerSection';
-import { PolicyClearingSection } from './PolicyClearingSection';
-import { PolicyTieBreakingSection } from './PolicyTieBreakingSection';
 
 // Re-export types so pages can import from a single location
 export type {
-  ParticipationEligibilityItem,
+  PaymentPolicyItem,
+  PolicyHeadItem,
   PreconditionItem,
   PriceChangeItem,
   Step3State,
 } from './AuctionStep3Types';
 export { initialStep3 } from './AuctionStep3Types';
 
-import type {
-  Step3State,
-  PriceChangeItem,
-  ParticipationEligibilityItem,
-} from './AuctionStep3Types';
-
-// ─── helpers to parse durations ──────────────────────────────────────────────
-
-function parseDurationHours(duration: string): { days: string; hours: string } {
-  const match = duration.match(/PT(\d+)H/);
-  const totalHours = match ? parseInt(match[1]!, 10) : 0;
-  const days = Math.floor(totalHours / 24);
-  const hours = totalHours % 24;
-  return { days: days > 0 ? String(days) : '', hours: String(hours) };
-}
-
-function parseDurationWindow(duration: string): { hours: string; minutes: string } {
-  const h = duration.match(/(\d+)H/);
-  const m = duration.match(/(\d+)M/);
-  return { hours: h ? h[1]! : '0', minutes: m ? m[1]! : '0' };
-}
-
-function parseDurationMinutes(duration: string): string {
-  const m = duration.match(/(\d+)M/);
-  return m ? m[1]! : '10';
-}
-
-/** Normalise a field that the API may return as either a plain string or { KEY: "Label" } */
-function resolveType(value: unknown): string {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>);
-    if (entries.length > 0) return String(entries[0]![0]);
-  }
-  return String(value);
-}
-
-/** Map saved policy groups from the API into Step3State fields */
-function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partial<Step3State> {
-  const out: Partial<Step3State> = {};
-
-  const participation = groups['PARTICIPATION_ELIGIBILITY'];
-  if (participation?.length) {
-    out.participationPolicies = participation.map((p) => {
-      const { days, hours } = parseDurationHours(p.preStartDeadlineDuration ?? 'PT0S');
-      return {
-        name: p.name ?? '',
-        description: p.description ?? '',
-        type: resolveType(p.type),
-        basis: resolveType(p.basis) as 'FIXED_AMOUNT' | 'PERCENTAGE' | '',
-        value: String(p.value ?? ''),
-        deadlineDays: days,
-        deadlineHours: hours,
-      };
-    });
-  }
-
-  const preconditions = groups['PRECONDITION'];
-  if (preconditions?.length) {
-    out.preconditions = preconditions.map((p) => {
-      const { days, hours } = parseDurationHours(p.preStartValidationDuration ?? 'PT0S');
-      return {
-        name: p.name ?? '',
-        description: p.description ?? '',
-        type: resolveType(p.type),
-        count: String(p.count ?? ''),
-        validationDays: days,
-        validationHours: hours,
-      };
-    });
-  }
-
-  const offerBased = groups['OFFER_BASED_PRICE_CHANGE'];
-  if (offerBased?.length) {
-    out.priceChangePolicies = offerBased.map((p) => {
-      const { hours, minutes } = parseDurationWindow(p.windowDuration ?? 'PT0S');
-      return {
-        name: p.name ?? '',
-        description: p.description ?? '',
-        type: resolveType(p.type),
-        windowHours: hours,
-        windowMinutes: minutes,
-        steps: p.steps ?? [],
-        value: String(p.value ?? ''),
-      };
-    });
-  }
-
-  const clockBased = groups['CLOCK_BASED_PRICE_CHANGE'];
-  if (clockBased?.length) {
-    out.priceChangePolicyType = resolveType(clockBased[0]!.type);
-  }
-
-  const extension = groups['EXTENSION'] ?? groups['AUCTION_EXTENSION'];
-  if (extension?.length) {
-    const ext = extension[0]!;
-    out.extensionEnabled = true;
-    out.extensionType = resolveType(ext.type);
-    out.extensionName = ext.name ?? '';
-    out.extensionDescription = ext.description ?? '';
-    out.extensionReference = resolveType(ext.reference) || 'FROM_LATEST_OFFER_TIME';
-    out.extensionDurationMinutes = parseDurationMinutes(ext.duration ?? 'PT10M');
-    out.extensionLimit = String(ext.limit ?? 0);
-  }
-
-  const winnerDet = groups['WINNER_DETERMINATION'];
-  if (winnerDet?.length) {
-    const w = winnerDet[0]!;
-    out.winnerDeterminationType = resolveType(w.type);
-    out.winnerDeterminationKth = String(w.kth ?? 1);
-    out.winnerDeterminationName = w.name ?? '';
-    out.winnerDeterminationDescription = w.description ?? '';
-  }
-
-  const winnerPrice = groups['WINNER_PRICE_DETERMINATION'];
-  if (winnerPrice?.length) {
-    const w = winnerPrice[0]!;
-    out.winnerPriceDeterminationType = resolveType(w.type);
-    out.winnerPriceDeterminationKth = String(w.kth ?? 1);
-    out.winnerPriceDeterminationName = w.name ?? '';
-    out.winnerPriceDeterminationDescription = w.description ?? '';
-  }
-
-  const clearing = groups['CLEARING'];
-  if (clearing?.length) {
-    const c = clearing[0]!;
-    out.clearingType = resolveType(c.type);
-    out.clearingName = c.name ?? '';
-    out.clearingDescription = c.description ?? '';
-  }
-
-  const tieBreaking = groups['TIE_BREAKING'];
-  if (tieBreaking?.length) {
-    const t = tieBreaking[0]!;
-    out.tieBreakingType = resolveType(t.type);
-    out.tieBreakingName = t.name ?? '';
-    out.tieBreakingDescription = t.description ?? '';
-  }
-
-  return out;
-}
+import type { Step3State } from './AuctionStep3Types';
 
 /** For mandatory groups: seed one empty item if the group exists but form is empty */
 function seedMandatoryDefaults(current: Step3State, groups: PolicyGroup[]): Partial<Step3State> {
@@ -176,39 +35,35 @@ function seedMandatoryDefaults(current: Step3State, groups: PolicyGroup[]): Part
     return Object.keys(g.types[0]!)[0] ?? '';
   };
 
-  // Participation Eligibility — seed one "Any one can participate" item if none exist
-  if (hasGroup('PARTICIPATION_ELIGIBILITY') && current.participationPolicies.length === 0) {
-    const emptyParticipation: ParticipationEligibilityItem = {
-      name: '',
-      description: '',
-      type: '',
-      basis: '',
-      value: '',
-      deadlineDays: '',
-      deadlineHours: '0',
-    };
-    patch.participationPolicies = [emptyParticipation];
+  // Payment — mandatory
+  if (hasGroup('PAYMENT') && current.paymentPolicies.length === 0) {
+    patch.paymentPolicies = [
+      {
+        name: '',
+        description: '',
+        scheduleReference: 'AUCTION_START_TIME',
+        offsetDays: '',
+        offsetHours: '0',
+        heads: [{ name: '', description: '', type: '', basis: '', value: '', refundable: false }],
+      },
+    ];
   }
 
   // Price Progression — mandatory
-  const isStepBased = hasGroup('OFFER_BASED_PRICE_CHANGE');
-  const isClockBased = hasGroup('CLOCK_BASED_PRICE_CHANGE');
-  if (isStepBased && current.priceChangePolicies.length === 0) {
-    const firstType = firstOption('OFFER_BASED_PRICE_CHANGE');
+  if (hasGroup('PRICE_PROGRESSION') && current.priceChangePolicies.length === 0) {
+    const firstType = firstOption('PRICE_PROGRESSION');
     const defaults = firstType ? POLICY_DEFAULTS[firstType] : undefined;
-    const item: PriceChangeItem = {
-      type: firstType,
-      name: defaults?.name ?? '',
-      description: defaults?.description ?? '',
-      windowHours: '0',
-      windowMinutes: '0',
-      steps: [],
-      value: '',
-    };
-    patch.priceChangePolicies = [item];
-  }
-  if (isClockBased && !current.priceChangePolicyType) {
-    patch.priceChangePolicyType = firstOption('CLOCK_BASED_PRICE_CHANGE');
+    patch.priceChangePolicies = [
+      {
+        type: firstType,
+        name: defaults?.name ?? '',
+        description: defaults?.description ?? '',
+        windowHours: '0',
+        windowMinutes: '0',
+        steps: [],
+        value: '',
+      },
+    ];
   }
 
   // Winner Determination — mandatory
@@ -227,15 +82,6 @@ function seedMandatoryDefaults(current: Step3State, groups: PolicyGroup[]): Part
     patch.winnerPriceDeterminationType = firstType;
     patch.winnerPriceDeterminationName = defaults?.name ?? '';
     patch.winnerPriceDeterminationDescription = defaults?.description ?? '';
-  }
-
-  // Clearing — mandatory
-  if (hasGroup('CLEARING') && !current.clearingType) {
-    const firstType = firstOption('CLEARING');
-    const defaults = firstType ? POLICY_DEFAULTS[firstType] : undefined;
-    patch.clearingType = firstType;
-    patch.clearingName = defaults?.name ?? '';
-    patch.clearingDescription = defaults?.description ?? '';
   }
 
   return patch;
@@ -326,10 +172,6 @@ export function AuctionStep3Policies({
 
   const hasGroup = (groupName: string) => groups.some((g) => g.name === groupName);
 
-  const isStepBased = hasGroup('OFFER_BASED_PRICE_CHANGE');
-  const isClockBased = hasGroup('CLOCK_BASED_PRICE_CHANGE');
-  const priceChangeGroup = isClockBased ? 'CLOCK_BASED_PRICE_CHANGE' : 'OFFER_BASED_PRICE_CHANGE';
-  const hasPriceChange = isStepBased || isClockBased;
   const extensionGroupName = hasGroup('EXTENSION') ? 'EXTENSION' : 'AUCTION_EXTENSION';
   const hasExtension = hasGroup('EXTENSION') || hasGroup('AUCTION_EXTENSION');
 
@@ -349,17 +191,18 @@ export function AuctionStep3Policies({
     <form onSubmit={onSubmit} className="space-y-6">
       <DismissibleError message={generalError} />
 
-      {/* Participation Eligibility */}
-      <PolicyParticipationSection
-        policies={form.participationPolicies}
-        onChange={(v) => onChange({ participationPolicies: v })}
-        options={getGroupOptions('PARTICIPATION_ELIGIBILITY')}
-        openingPrice={openingPrice}
-        precision={precision}
-        currencyUnit={currencyUnit}
-        fieldErrors={fieldErrors}
-        groupDescription={getGroupDescription('PARTICIPATION_ELIGIBILITY')}
-      />
+      {/* Payment */}
+      {hasGroup('PAYMENT') && (
+        <PolicyPaymentSection
+          policies={form.paymentPolicies}
+          onChange={(v) => onChange({ paymentPolicies: v })}
+          openingPrice={openingPrice}
+          precision={precision}
+          currencyUnit={currencyUnit}
+          fieldErrors={fieldErrors}
+          groupDescription={getGroupDescription('PAYMENT')}
+        />
+      )}
 
       {/* Preconditions */}
       {(hasGroup('PRECONDITION') || getGroupOptions('PRECONDITION').length > 0) && (
@@ -373,17 +216,13 @@ export function AuctionStep3Policies({
       )}
 
       {/* Price Progression */}
-      {hasPriceChange && (
+      {hasGroup('PRICE_PROGRESSION') && (
         <PolicyPriceProgressionSection
-          auctionType={isStepBased ? 'STEP_BASED' : 'CLOCK_BASED'}
           priceChangePolicies={form.priceChangePolicies}
-          priceChangePolicyType={form.priceChangePolicyType}
           onPoliciesChange={(v) => onChange({ priceChangePolicies: v })}
-          onPolicyTypeChange={(v) => onChange({ priceChangePolicyType: v })}
-          stepBasedOptions={getGroupOptions('OFFER_BASED_PRICE_CHANGE')}
-          clockBasedOptions={getGroupOptions('CLOCK_BASED_PRICE_CHANGE')}
+          options={getGroupOptions('PRICE_PROGRESSION')}
           fieldErrors={fieldErrors}
-          groupDescription={getGroupDescription(priceChangeGroup)}
+          groupDescription={getGroupDescription('PRICE_PROGRESSION')}
         />
       )}
 
@@ -477,56 +316,6 @@ export function AuctionStep3Policies({
           fieldErrors={fieldErrors}
           winnerGroupInfo={getGroupDescription('WINNER_DETERMINATION')}
           winnerPriceGroupInfo={getGroupDescription('WINNER_PRICE_DETERMINATION')}
-        />
-      )}
-
-      {/* Clearing */}
-      {hasGroup('CLEARING') && (
-        <PolicyClearingSection
-          clearingType={form.clearingType}
-          clearingName={form.clearingName}
-          clearingDescription={form.clearingDescription}
-          onFieldChange={setField}
-          onAdd={() => {
-            const opts = getGroupOptions('CLEARING');
-            const first = opts[0];
-            const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
-            onChange({
-              clearingType: first?.value ?? '',
-              clearingName: defaults?.name ?? '',
-              clearingDescription: defaults?.description ?? '',
-            });
-          }}
-          onRemove={() => onChange({ clearingType: '', clearingName: '', clearingDescription: '' })}
-          options={getGroupOptions('CLEARING')}
-          fieldErrors={fieldErrors}
-          groupDescription={getGroupDescription('CLEARING')}
-        />
-      )}
-
-      {/* Tie Breaking */}
-      {hasGroup('TIE_BREAKING') && (
-        <PolicyTieBreakingSection
-          tieBreakingType={form.tieBreakingType}
-          tieBreakingName={form.tieBreakingName}
-          tieBreakingDescription={form.tieBreakingDescription}
-          onFieldChange={setField}
-          onAdd={() => {
-            const opts = getGroupOptions('TIE_BREAKING');
-            const first = opts[0];
-            const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
-            onChange({
-              tieBreakingType: first?.value ?? '',
-              tieBreakingName: defaults?.name ?? '',
-              tieBreakingDescription: defaults?.description ?? '',
-            });
-          }}
-          onRemove={() =>
-            onChange({ tieBreakingType: '', tieBreakingName: '', tieBreakingDescription: '' })
-          }
-          options={getGroupOptions('TIE_BREAKING')}
-          fieldErrors={fieldErrors}
-          groupDescription={getGroupDescription('TIE_BREAKING')}
         />
       )}
 

@@ -26,6 +26,7 @@ interface LeafletMapInnerProps {
   latitude?: number;
   longitude?: number;
   onPick: (lat: number, lng: number) => void;
+  height?: number;
 }
 
 function ClickHandler({ onPick }: { onPick: (lat: number, lng: number) => void }) {
@@ -83,7 +84,12 @@ function DraggableMarker({
   );
 }
 
-export default function LeafletMapInner({ latitude, longitude, onPick }: LeafletMapInnerProps) {
+export default function LeafletMapInner({
+  latitude,
+  longitude,
+  onPick,
+  height = 420,
+}: LeafletMapInnerProps) {
   const hasPosition =
     typeof latitude === 'number' &&
     typeof longitude === 'number' &&
@@ -96,7 +102,7 @@ export default function LeafletMapInner({ latitude, longitude, onPick }: Leaflet
       center={position ?? DEFAULT_CENTER}
       zoom={position ? PIN_ZOOM : DEFAULT_ZOOM}
       scrollWheelZoom
-      style={{ height: '420px', width: '100%' }}
+      style={{ height: `${height}px`, width: '100%' }}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

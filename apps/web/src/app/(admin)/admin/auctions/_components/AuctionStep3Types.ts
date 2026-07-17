@@ -1,11 +1,19 @@
-export interface ParticipationEligibilityItem {
+export interface PolicyHeadItem {
   name: string;
   description: string;
   type: string;
-  basis: 'FIXED_AMOUNT' | 'PERCENTAGE' | '';
+  basis: string;
   value: string;
-  deadlineDays: string;
-  deadlineHours: string;
+  refundable: boolean;
+}
+
+export interface PaymentPolicyItem {
+  name: string;
+  description: string;
+  scheduleReference: string;
+  offsetDays: string;
+  offsetHours: string;
+  heads: PolicyHeadItem[];
 }
 
 export interface PreconditionItem {
@@ -28,10 +36,9 @@ export interface PriceChangeItem {
 }
 
 export interface Step3State {
-  participationPolicies: ParticipationEligibilityItem[];
+  paymentPolicies: PaymentPolicyItem[];
   preconditions: PreconditionItem[];
   priceChangePolicies: PriceChangeItem[];
-  priceChangePolicyType: string;
   extensionEnabled: boolean;
   extensionType: string;
   extensionName: string;
@@ -47,19 +54,12 @@ export interface Step3State {
   winnerPriceDeterminationKth: string;
   winnerPriceDeterminationName: string;
   winnerPriceDeterminationDescription: string;
-  clearingType: string;
-  clearingName: string;
-  clearingDescription: string;
-  tieBreakingType: string;
-  tieBreakingName: string;
-  tieBreakingDescription: string;
 }
 
 export const initialStep3: Step3State = {
-  participationPolicies: [],
+  paymentPolicies: [],
   preconditions: [],
   priceChangePolicies: [],
-  priceChangePolicyType: '',
   extensionEnabled: false,
   extensionType: '',
   extensionName: '',
@@ -75,10 +75,4 @@ export const initialStep3: Step3State = {
   winnerPriceDeterminationKth: '1',
   winnerPriceDeterminationName: '',
   winnerPriceDeterminationDescription: '',
-  clearingType: '',
-  clearingName: '',
-  clearingDescription: '',
-  tieBreakingType: '',
-  tieBreakingName: '',
-  tieBreakingDescription: '',
 };

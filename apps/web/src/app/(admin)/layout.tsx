@@ -56,11 +56,13 @@ interface NavItem {
 interface NavGroup {
   label: string;
   items: NavItem[];
+  collapsible?: boolean;
 }
 
 const navGroups: NavGroup[] = [
   {
     label: 'User Management',
+    collapsible: true,
     items: [
       { href: '/admin/users', label: 'Users', icon: Users, description: 'Manage accounts' },
       { href: '/admin/roles', label: 'Roles', icon: ShieldCheck, description: 'Access roles' },
@@ -74,6 +76,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: 'Master',
+    collapsible: true,
     items: [
       {
         href: '/admin/master/categories',
@@ -109,6 +112,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: 'Listings',
+    collapsible: true,
     items: [
       {
         label: 'Managed Types',
@@ -134,6 +138,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: 'Auctions',
+    collapsible: true,
     items: [
       {
         href: '/admin/auctions',
@@ -245,6 +250,16 @@ const subRouteTitles: { match: RegExp; label: string; description: string }[] = 
   },
 ];
 
+function groupHasActiveItem(group: NavGroup, pathname: string): boolean {
+  return group.items.some((item) =>
+    item.subItems
+      ? item.subItems.some((sub) => pathname.startsWith(sub.href))
+      : item.href
+        ? pathname.startsWith(item.href)
+        : false,
+  );
+}
+
 interface SidebarContentProps {
   pathname: string;
   username: string;
@@ -253,6 +268,29 @@ interface SidebarContentProps {
 }
 
 function SidebarContent({ pathname, username, onNavClick, onSignOut }: SidebarContentProps) {
+  // Collapsed by default — only the group containing the active page starts open
+  const [openTopGroups, setOpenTopGroups] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    navGroups.forEach((group) => {
+      if (group.collapsible) initial[group.label] = groupHasActiveItem(group, pathname);
+    });
+    return initial;
+  });
+
+  // Open a top-level group if navigation lands on one of its items
+  React.useEffect(() => {
+    navGroups.forEach((group) => {
+      if (!group.collapsible) return;
+      if (groupHasActiveItem(group, pathname)) {
+        setOpenTopGroups((prev) => ({ ...prev, [group.label]: true }));
+      }
+    });
+  }, [pathname]);
+
+  const toggleTopGroup = (label: string) => {
+    setOpenTopGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+  };
+
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     navGroups.forEach((group) => {
@@ -312,117 +350,139 @@ function SidebarContent({ pathname, username, onNavClick, onSignOut }: SidebarCo
 
       {/* Nav groups */}
       <nav className="flex-1 py-4 px-3 space-y-5 overflow-y-auto">
-        {navGroups.map((group) => (
-          <div key={group.label}>
-            <p className="px-3 mb-1.5 font-body text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
-              {group.label}
-            </p>
-            <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const { href, label, icon: Icon, description, subItems } = item;
+        {navGroups.map((group) => {
+          const isTopOpen = group.collapsible ? openTopGroups[group.label] !== false : true;
+          return (
+            <div key={group.label}>
+              {group.collapsible ? (
+                <button
+                  type="button"
+                  onClick={() => toggleTopGroup(group.label)}
+                  className="w-full flex items-center justify-between px-3 mb-1.5 outline-none group"
+                >
+                  <span className="font-body text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
+                    {group.label}
+                  </span>
+                  <ChevronDown
+                    className={`h-3 w-3 text-muted-foreground transition-transform duration-200 ${
+                      isTopOpen ? '' : '-rotate-90'
+                    }`}
+                  />
+                </button>
+              ) : (
+                <p className="px-3 mb-1.5 font-body text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
+                  {group.label}
+                </p>
+              )}
+              {isTopOpen && (
+                <div className="space-y-0.5">
+                  {group.items.map((item) => {
+                    const { href, label, icon: Icon, description, subItems } = item;
 
-                if (subItems) {
-                  const isOpen = !!openGroups[label];
-                  const hasActiveSub = subItems.some((sub) => {
-                    return sub.href === '/admin/metadata'
-                      ? pathname.startsWith(sub.href) &&
-                          !pathname.startsWith('/admin/metadata/components')
-                      : pathname.startsWith(sub.href);
-                  });
+                    if (subItems) {
+                      const isOpen = !!openGroups[label];
+                      const hasActiveSub = subItems.some((sub) => {
+                        return sub.href === '/admin/metadata'
+                          ? pathname.startsWith(sub.href) &&
+                              !pathname.startsWith('/admin/metadata/components')
+                          : pathname.startsWith(sub.href);
+                      });
 
-                  return (
-                    <div key={label} className="space-y-0.5">
-                      <button
-                        onClick={() => toggleGroup(label)}
-                        className={`group flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left outline-none ${
-                          hasActiveSub
-                            ? 'text-foreground bg-secondary/40'
+                      return (
+                        <div key={label} className="space-y-0.5">
+                          <button
+                            onClick={() => toggleGroup(label)}
+                            className={`group flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left outline-none ${
+                              hasActiveSub
+                                ? 'text-foreground bg-secondary/40'
+                                : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                            }`}
+                          >
+                            <Icon
+                              className={`h-4 w-4 shrink-0 transition-colors ${hasActiveSub ? 'text-primary' : ''}`}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-body font-medium">{label}</div>
+                              <div className="font-body text-[10px] truncate text-muted-foreground">
+                                {description}
+                              </div>
+                            </div>
+                            <ChevronRight
+                              className={`h-4 w-4 shrink-0 transition-transform duration-200 opacity-70 ${
+                                isOpen ? 'rotate-90' : ''
+                              }`}
+                            />
+                          </button>
+
+                          {isOpen && (
+                            <div className="pl-6 space-y-0.5 mt-1 border-l border-border/60 ml-5">
+                              {subItems.map((sub) => {
+                                const subActive =
+                                  sub.href === '/admin/metadata'
+                                    ? pathname.startsWith(sub.href) &&
+                                      !pathname.startsWith('/admin/metadata/components')
+                                    : pathname.startsWith(sub.href);
+                                const SubIcon = sub.icon || Icon;
+                                return (
+                                  <Link
+                                    key={sub.href}
+                                    href={sub.href}
+                                    onClick={onNavClick}
+                                    className={`group flex items-center gap-3 px-3 py-2 rounded-md text-xs font-medium transition-all ${
+                                      subActive
+                                        ? 'bg-primary/10 text-primary font-semibold'
+                                        : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                                    }`}
+                                  >
+                                    <SubIcon
+                                      className={`h-3.5 w-3.5 shrink-0 ${
+                                        subActive
+                                          ? 'text-primary'
+                                          : 'text-muted-foreground/75 group-hover:text-foreground'
+                                      }`}
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-body">{sub.label}</div>
+                                    </div>
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    const active = href ? pathname.startsWith(href) : false;
+                    return (
+                      <Link
+                        key={href}
+                        href={href || '#'}
+                        onClick={onNavClick}
+                        className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                          active
+                            ? 'bg-primary text-primary-foreground shadow-gold'
                             : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
                         }`}
                       >
-                        <Icon
-                          className={`h-4 w-4 shrink-0 transition-colors ${hasActiveSub ? 'text-primary' : ''}`}
-                        />
+                        <Icon className="h-4 w-4 shrink-0" />
                         <div className="flex-1 min-w-0">
                           <div className="font-body font-medium">{label}</div>
-                          <div className="font-body text-[10px] truncate text-muted-foreground">
+                          <div
+                            className={`font-body text-[10px] truncate ${active ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
+                          >
                             {description}
                           </div>
                         </div>
-                        <ChevronRight
-                          className={`h-4 w-4 shrink-0 transition-transform duration-200 opacity-70 ${
-                            isOpen ? 'rotate-90' : ''
-                          }`}
-                        />
-                      </button>
-
-                      {isOpen && (
-                        <div className="pl-6 space-y-0.5 mt-1 border-l border-border/60 ml-5">
-                          {subItems.map((sub) => {
-                            const subActive =
-                              sub.href === '/admin/metadata'
-                                ? pathname.startsWith(sub.href) &&
-                                  !pathname.startsWith('/admin/metadata/components')
-                                : pathname.startsWith(sub.href);
-                            const SubIcon = sub.icon || Icon;
-                            return (
-                              <Link
-                                key={sub.href}
-                                href={sub.href}
-                                onClick={onNavClick}
-                                className={`group flex items-center gap-3 px-3 py-2 rounded-md text-xs font-medium transition-all ${
-                                  subActive
-                                    ? 'bg-primary/10 text-primary font-semibold'
-                                    : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-                                }`}
-                              >
-                                <SubIcon
-                                  className={`h-3.5 w-3.5 shrink-0 ${
-                                    subActive
-                                      ? 'text-primary'
-                                      : 'text-muted-foreground/75 group-hover:text-foreground'
-                                  }`}
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-body">{sub.label}</div>
-                                </div>
-                              </Link>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
-
-                const active = href ? pathname.startsWith(href) : false;
-                return (
-                  <Link
-                    key={href}
-                    href={href || '#'}
-                    onClick={onNavClick}
-                    className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                      active
-                        ? 'bg-primary text-primary-foreground shadow-gold'
-                        : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-                    }`}
-                  >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-body font-medium">{label}</div>
-                      <div
-                        className={`font-body text-[10px] truncate ${active ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
-                      >
-                        {description}
-                      </div>
-                    </div>
-                    {active && <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-70" />}
-                  </Link>
-                );
-              })}
+                        {active && <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-70" />}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* User footer */}

@@ -12,6 +12,8 @@ export interface Coordinates {
 interface CoordinatesMapFieldProps {
   value: unknown;
   onChange: (value: Coordinates) => void;
+  /** Map height in pixels. Defaults to 420 — pass a smaller value for compact forms. */
+  mapHeight?: number;
 }
 
 interface NominatimResult {
@@ -33,7 +35,7 @@ const inputBase =
   'w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground/60';
 const numBase = `${inputBase} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`;
 
-export function CoordinatesMapField({ value, onChange }: CoordinatesMapFieldProps) {
+export function CoordinatesMapField({ value, onChange, mapHeight }: CoordinatesMapFieldProps) {
   const coordObj =
     typeof value === 'object' && value !== null && !Array.isArray(value)
       ? (value as Record<string, unknown>)
@@ -173,7 +175,7 @@ export function CoordinatesMapField({ value, onChange }: CoordinatesMapFieldProp
 
       {/* Map */}
       <div className="rounded-md overflow-hidden border border-input">
-        <LeafletMap latitude={lat} longitude={lng} onPick={setCoords} />
+        <LeafletMap latitude={lat} longitude={lng} onPick={setCoords} height={mapHeight} />
       </div>
       <p className="text-[11px] text-muted-foreground">
         Click the map or drag the marker to set the location.

@@ -5,13 +5,9 @@ import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
 
 export const POLICY_DEFAULTS: Record<string, { name: string; description: string }> = {
-  PARTICIPATION_FEE_POLICY: {
-    name: 'Participation Fee',
-    description: 'Fee payment to participate in Auction. Non refundable',
-  },
-  EMD_POLICY: {
-    name: 'Earnest Money Deposit',
-    description: 'Earnest Money Deposit required to participate in Auction. Refundable',
+  PAYMENT_POLICY: {
+    name: 'Payment Policy',
+    description: 'Payment collected from participants or the auction winner',
   },
   MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY: {
     name: 'Minimum required participants',
@@ -21,31 +17,56 @@ export const POLICY_DEFAULTS: Record<string, { name: string; description: string
     name: 'Auction extension',
     description: 'Auction extension for last moment offer protection. 0 means unlimited extensions',
   },
+  PRICE_PROGRESSION_POLICY: {
+    name: 'Price change policy',
+    description: 'Price change policy over time',
+  },
   STEP_BASED_OFFER_PRICE_POLICY: {
     name: 'Step based Offer price',
     description: 'Offers are made in step of given amount',
+  },
+  FIXED_PERCENTAGE_BASED_OFFER_PRICE_POLICY: {
+    name: 'Fixed percentage Offer price',
+    description: 'Offers increase by a fixed percentage',
+  },
+  PERCENTAGE_RANGE_BASED_OFFER_PRICE_POLICY: {
+    name: 'Percentage range Offer price',
+    description: 'Offers increase within a percentage range',
+  },
+  CLOCK_BASED_PRICE_CHANGE_POLICY: {
+    name: 'Clock based price change',
+    description: 'Price changes automatically over time',
   },
   KTH_PRICE_WINNER_DETERMINATION_POLICY: {
     name: 'Winner determination',
     description: 'Winner determined on the basis of 1st, 2nd or Kth price',
   },
-  KTH_PRICE_WINNER_PRICE_DETERMINATION_POLICY: {
-    name: 'Winner Price determination',
-    description: 'Winner can pay 1st, 2nd or Kth price.',
-  },
   KTH_WINNER_PRICE_DETERMINATION_POLICY: {
     name: 'Winner Price determination',
     description: 'Winner can pay 1st, 2nd or Kth price.',
   },
-  FULL_PAYMENT_CLEARING_POLICY: {
-    name: 'Winner Payment',
-    description: 'Winner pays the full Winning Auction Amount',
-  },
-  INSTALLMENTS_PAYMENT_CLEARING_POLICY: {
-    name: 'Installments Payment',
-    description: 'Winner pays the winning amount in installments',
-  },
 };
+
+export const PAYMENT_HEAD_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'PLATFORM_FEE', label: 'Platform Fee' },
+  { value: 'PARTICIPATION_FEE', label: 'Participation Fee' },
+  { value: 'EMD', label: 'Earnest Money Deposit (EMD)' },
+  { value: 'AUCTION_CLEARING_AMOUNT', label: 'Auction Clearing Amount' },
+  { value: 'AUCTION_CLEARING_INSTALLMENT', label: 'Auction Clearing Installment' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+export const PAYMENT_HEAD_BASIS_OPTIONS: { value: string; label: string }[] = [
+  { value: 'FIXED_AMOUNT', label: 'Fixed Amount' },
+  { value: 'PERCENTAGE_OF_OPENING_PRICE', label: 'Percentage of Opening Price' },
+  { value: 'WINNING_AMOUNT', label: 'Winning Amount' },
+  { value: 'PERCENTAGE_OF_WINNING_PRICE', label: 'Percentage of Winning Price' },
+];
+
+export const PAYMENT_SCHEDULE_REFERENCE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'AUCTION_START_TIME', label: 'Auction Start Time' },
+  { value: 'AUCTION_END_TIME', label: 'Auction End Time' },
+];
 
 export function PolicyInfoButton({ description }: { description: string }) {
   const [open, setOpen] = useState(false);

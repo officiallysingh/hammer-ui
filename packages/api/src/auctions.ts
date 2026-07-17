@@ -160,14 +160,30 @@ export interface PolicyGroup {
   types: Record<string, string>[];
 }
 
+export interface PolicyHeadRQ {
+  name?: string;
+  description?: string;
+  type: string;
+  basis: string;
+  value: number;
+  refundable?: boolean;
+}
+
+export interface PolicySchedule {
+  reference: 'AUCTION_START_TIME' | 'AUCTION_END_TIME';
+  offset: string;
+}
+
 export interface PolicyItemRQ {
   type: string;
   name?: string;
   description?: string;
-  basis?: 'FIXED_AMOUNT' | 'PERCENTAGE';
+  basis?: string;
   value?: number;
   priority?: number;
-  preStartDeadlineDuration?: string;
+  currency?: string;
+  heads?: PolicyHeadRQ[];
+  schedule?: PolicySchedule;
   preStartValidationDuration?: string;
   count?: number;
   reference?: string;
@@ -176,6 +192,7 @@ export interface PolicyItemRQ {
   windowDuration?: string;
   steps?: number[];
   kth?: number;
+  priceChangePolicies?: PolicyItemRQ[];
 }
 
 export type AuctionPoliciesGroupRQ = Record<string, PolicyItemRQ[]>;

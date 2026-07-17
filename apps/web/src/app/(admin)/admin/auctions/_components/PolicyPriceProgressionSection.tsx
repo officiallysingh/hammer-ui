@@ -16,13 +16,9 @@ import {
 } from './PolicyShared';
 
 interface Props {
-  auctionType: string;
   priceChangePolicies: PriceChangeItem[];
-  priceChangePolicyType: string;
   onPoliciesChange: (updated: PriceChangeItem[]) => void;
-  onPolicyTypeChange: (v: string) => void;
-  stepBasedOptions: SelectOption[];
-  clockBasedOptions: SelectOption[];
+  options: SelectOption[];
   fieldErrors: Record<string, string>;
   groupDescription?: string;
 }
@@ -43,24 +39,18 @@ const EMPTY_ITEM: PriceChangeItem = {
 };
 
 export function PolicyPriceProgressionSection({
-  auctionType,
   priceChangePolicies,
-  priceChangePolicyType,
   onPoliciesChange,
-  onPolicyTypeChange,
-  stepBasedOptions,
-  clockBasedOptions,
+  options,
   fieldErrors,
   groupDescription,
 }: Props) {
-  const isStepBased = auctionType === 'STEP_BASED';
-
   const dragIndexRef = useRef<number | null>(null);
   const dragHandleActiveRef = useRef(false);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const add = () => {
-    const firstType = stepBasedOptions[0]?.value ?? '';
+    const firstType = options[0]?.value ?? '';
     const defaults = firstType ? POLICY_DEFAULTS[firstType] : undefined;
     onPoliciesChange([
       ...priceChangePolicies,
@@ -76,26 +66,6 @@ export function PolicyPriceProgressionSection({
   const move = (i: number, dir: -1 | 1) => onPoliciesChange(moveItem(priceChangePolicies, i, dir));
   const update = (i: number, patch: Partial<PriceChangeItem>) =>
     onPoliciesChange(priceChangePolicies.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
-
-  if (!isStepBased) {
-    return (
-      <div className="rounded-xl border border-border bg-card p-6 space-y-4">
-        <div className="flex items-center gap-2 border-b border-border pb-2 mb-4">
-          <h3 className="text-sm font-semibold text-foreground">Price Progression</h3>
-          {groupDescription && <PolicyInfoButton description={groupDescription} />}
-        </div>
-        <SelectField
-          id="priceChangePolicyType"
-          label="Type"
-          value={priceChangePolicyType}
-          options={clockBasedOptions}
-          onChange={onPolicyTypeChange}
-          error={fieldErrors['priceChangePolicyType']}
-          placeholder="Select type..."
-        />
-      </div>
-    );
-  }
 
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
@@ -120,6 +90,7 @@ export function PolicyPriceProgressionSection({
         <div className="space-y-3">
           {priceChangePolicies.map((pc, i) => {
             const isLast = i === priceChangePolicies.length - 1;
+            const isStepBased = pc.type === 'STEP_BASED_OFFER_PRICE_POLICY';
             return (
               <div
                 key={i}
@@ -200,7 +171,7 @@ export function PolicyPriceProgressionSection({
                     label="Type"
                     required
                     value={pc.type}
-                    options={stepBasedOptions}
+                    options={options}
                     onChange={(v) => {
                       const defaults = POLICY_DEFAULTS[v];
                       update(i, {
@@ -260,25 +231,27 @@ export function PolicyPriceProgressionSection({
 
                 {pc.type && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">
-                        Step Multipliers <span className="text-destructive">*</span>
-                      </Label>
-                      <ReactSelect
-                        isMulti
-                        options={STEP_OPTIONS}
-                        value={STEP_OPTIONS.filter((o) => pc.steps.includes(Number(o.value)))}
-                        onChange={(selected) =>
-                          update(i, { steps: selected.map((s) => Number(s.value)) })
-                        }
-                        placeholder="Select steps..."
-                        menuPortalTarget={
-                          typeof document !== 'undefined' ? document.body : undefined
-                        }
-                        styles={makeReactSelectStyles<true>()}
-                      />
-                      <FieldError message={fieldErrors[`priceChange_steps_${i}`]} />
-                    </div>
+                    {isStepBased && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">
+                          Step Multipliers <span className="text-destructive">*</span>
+                        </Label>
+                        <ReactSelect
+                          isMulti
+                          options={STEP_OPTIONS}
+                          value={STEP_OPTIONS.filter((o) => pc.steps.includes(Number(o.value)))}
+                          onChange={(selected) =>
+                            update(i, { steps: selected.map((s) => Number(s.value)) })
+                          }
+                          placeholder="Select steps..."
+                          menuPortalTarget={
+                            typeof document !== 'undefined' ? document.body : undefined
+                          }
+                          styles={makeReactSelectStyles<true>()}
+                        />
+                        <FieldError message={fieldErrors[`priceChange_steps_${i}`]} />
+                      </div>
+                    )}
 
                     <div className="space-y-1.5">
                       <Label htmlFor={`pc_value_${i}`} className="text-xs font-medium">
