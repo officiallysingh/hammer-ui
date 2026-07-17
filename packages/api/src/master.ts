@@ -263,7 +263,7 @@ export const masterApi = {
 
   // Banks
   getBanks: async (): Promise<BankVM[]> => {
-    const response = await apiClient.get('/api/v1/master/banks');
+    const response = await apiClient.get('/api/v1/master/banks/');
     return response.data;
   },
 
@@ -273,7 +273,7 @@ export const masterApi = {
   },
 
   createBank: async (data: BankCreationRQ): Promise<void> => {
-    await apiClient.post('/api/v1/master/banks', data);
+    await apiClient.post('/api/v1/master/banks/', data);
   },
 
   updateBank: async (id: string, data: BankUpdationRQ): Promise<void> => {
