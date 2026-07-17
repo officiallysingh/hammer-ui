@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { masterApi, StateVM, AreaVM } from '@repo/api';
-import { Loader2, Trash2, RefreshCw, Plus, MapPinned } from 'lucide-react';
+import { Loader2, Trash2, RefreshCw, Plus, Pencil, MapPinned } from 'lucide-react';
 import { Button } from '@repo/ui';
 import { SearchInput } from '@/components/common/admin/SearchInput';
 import PageHeader from '@/components/common/admin/PageHeader';
@@ -10,6 +10,7 @@ import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
 import { AddAreaDialog } from './_components/AddAreaDialog';
+import { EditAreaDialog } from '../states/_components/EditAreaDialog';
 
 type ConfirmState = {
   open: boolean;
@@ -33,12 +34,12 @@ export default function AreasPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [stateFilter, setStateFilter] = useState('');
   const [pageIndex, setPageIndex] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalRecords, setTotalRecords] = useState(0);
 
   const [addOpen, setAddOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<AreaVM | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState>(CLOSED_CONFIRM);
 
   useEffect(() => {
@@ -53,8 +54,7 @@ export default function AreasPage() {
     setError(null);
     try {
       const result = await masterApi.searchAreas({
-        phrases: search.trim() ? [search.trim()] : undefined,
-        stateId: stateFilter || undefined,
+        searchText: search.trim() || undefined,
         page,
         size: PAGE_SIZE,
       });
@@ -71,7 +71,7 @@ export default function AreasPage() {
 
   useEffect(() => {
     fetchAreas(0);
-  }, [search, stateFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openConfirm = (title: string, description: string, onConfirm: () => void) =>
     setConfirm({ open: true, title, description, onConfirm });
@@ -103,26 +103,12 @@ export default function AreasPage() {
 
       {error && <ErrorAlert message={error} />}
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <SearchInput
-          value={search}
-          onChange={setSearch}
-          placeholder="Search areas, cities, pin codes..."
-          className="max-w-sm"
-        />
-        <select
-          value={stateFilter}
-          onChange={(e) => setStateFilter(e.target.value)}
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring max-w-xs"
-        >
-          <option value="">All states</option>
-          {states.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Search areas, cities, pin codes..."
+        className="max-w-sm"
+      />
 
       {isLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
@@ -153,6 +139,16 @@ export default function AreasPage() {
                   </span>
                 )}
               </div>
+              <Tip label="Edit area">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+                  onClick={() => setEditTarget(area)}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              </Tip>
               <Tip label="Delete area">
                 <Button
                   variant="ghost"
@@ -214,6 +210,13 @@ export default function AreasPage() {
           setAddOpen(false);
           fetchAreas(pageIndex);
         }}
+      />
+
+      <EditAreaDialog
+        area={editTarget}
+        states={states}
+        onClose={() => setEditTarget(null)}
+        onUpdated={() => fetchAreas(pageIndex)}
       />
 
       <ConfirmDialog

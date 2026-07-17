@@ -5,7 +5,9 @@ import { apiClient } from './client';
 // States / Cities / Areas
 export interface StateVM {
   id: string;
+  code?: string;
   name: string;
+  isUT?: boolean;
   cities?: CityVM[];
 }
 
@@ -20,7 +22,8 @@ export interface AreaVM {
   id: string;
   name: string;
   pinCode?: string;
-  coordinates?: { latitude?: number; longitude?: number };
+  latitude?: number;
+  longitude?: number;
   city?: CityVM;
 }
 
@@ -55,15 +58,13 @@ export interface PaginatedAreas {
 }
 
 export interface CitiesSearchFilter {
-  phrases?: string[];
-  stateId?: string;
+  searchText?: string;
   page?: number;
   size?: number;
 }
 
 export interface AreasSearchFilter {
-  phrases?: string[];
-  stateId?: string;
+  searchText?: string;
   cityId?: string;
   page?: number;
   size?: number;
@@ -71,17 +72,39 @@ export interface AreasSearchFilter {
 
 // Request Models
 export interface StateCreationRQ {
+  code: string;
   name: string;
+  isUT: boolean;
+}
+
+export interface StateUpdationRQ {
+  code?: string;
+  name?: string;
+  isUT?: boolean;
 }
 
 export interface CityCreationRQ {
   name: string;
 }
 
+export interface CityUpdationRQ {
+  name?: string;
+  stateId?: string;
+}
+
 export interface AreaCreationRQ {
   name: string;
   pinCode?: string;
-  coordinates?: { latitude?: number; longitude?: number };
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface AreaUpdationRQ {
+  name?: string;
+  pinCode?: string;
+  latitude?: number;
+  longitude?: number;
+  cityId?: string;
 }
 
 export interface CategoryVM {
@@ -138,6 +161,10 @@ export const masterApi = {
     await apiClient.post('/api/v1/master/states', data);
   },
 
+  updateState: async (id: string, data: StateUpdationRQ): Promise<void> => {
+    await apiClient.patch(`/api/v1/master/states/${id}`, data);
+  },
+
   // Cities
   getCitiesByState: async (stateId: string, expand?: ('state' | 'areas')[]): Promise<CityVM[]> => {
     const response = await apiClient.get(`/api/v1/master/states/${stateId}/cities`, {
@@ -150,12 +177,15 @@ export const masterApi = {
     await apiClient.post(`/api/v1/master/states/${stateId}/cities`, data);
   },
 
+  updateCity: async (id: string, data: CityUpdationRQ): Promise<void> => {
+    await apiClient.patch(`/api/v1/master/cities/${id}`, data);
+  },
+
   searchCities: async (filter: CitiesSearchFilter = {}): Promise<PaginatedCities> => {
-    const { phrases, stateId, page = 0, size = 16 } = filter;
+    const { searchText, page = 0, size = 16 } = filter;
     const response = await apiClient.get<PaginatedCities>('/api/v1/master/cities/search', {
       params: {
-        ...(phrases?.length ? { phrases } : {}),
-        ...(stateId ? { stateId } : {}),
+        ...(searchText ? { searchText } : {}),
         page,
         size,
       },
@@ -197,12 +227,15 @@ export const masterApi = {
     await apiClient.post(`/api/v1/master/cities/${cityId}/areas`, data);
   },
 
+  updateArea: async (id: string, data: AreaUpdationRQ): Promise<void> => {
+    await apiClient.patch(`/api/v1/master/areas/${id}`, data);
+  },
+
   searchAreas: async (filter: AreasSearchFilter = {}): Promise<PaginatedAreas> => {
-    const { phrases, stateId, cityId, page = 0, size = 16 } = filter;
+    const { searchText, cityId, page = 0, size = 16 } = filter;
     const response = await apiClient.get<PaginatedAreas>('/api/v1/master/areas/search', {
       params: {
-        ...(phrases?.length ? { phrases } : {}),
-        ...(stateId ? { stateId } : {}),
+        ...(searchText ? { searchText } : {}),
         ...(cityId ? { cityId } : {}),
         page,
         size,

@@ -7,6 +7,7 @@ import {
   Trash2,
   RefreshCw,
   Plus,
+  Pencil,
   Building2,
   ChevronDown,
   ChevronRight,
@@ -18,7 +19,9 @@ import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
 import { AddCityDialog } from './_components/AddCityDialog';
+import { EditCityDialog } from '../states/_components/EditCityDialog';
 import { AddAreaDialog } from '../states/_components/AddAreaDialog';
+import { EditAreaDialog } from '../states/_components/EditAreaDialog';
 
 type ConfirmState = {
   open: boolean;
@@ -42,7 +45,6 @@ export default function CitiesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [stateFilter, setStateFilter] = useState('');
   const [pageIndex, setPageIndex] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -55,6 +57,8 @@ export default function CitiesPage() {
   const [areasMap, setAreasMap] = useState<Record<string, AreaVM[]>>({});
   const [areasLoading, setAreasLoading] = useState<Record<string, boolean>>({});
   const [addAreaTarget, setAddAreaTarget] = useState<CityVM | null>(null);
+  const [editCityTarget, setEditCityTarget] = useState<CityVM | null>(null);
+  const [editAreaTarget, setEditAreaTarget] = useState<AreaVM | null>(null);
 
   useEffect(() => {
     masterApi
@@ -68,8 +72,7 @@ export default function CitiesPage() {
     setError(null);
     try {
       const result = await masterApi.searchCities({
-        phrases: search.trim() ? [search.trim()] : undefined,
-        stateId: stateFilter || undefined,
+        searchText: search.trim() || undefined,
         page,
         size: PAGE_SIZE,
       });
@@ -86,7 +89,7 @@ export default function CitiesPage() {
 
   useEffect(() => {
     fetchCities(0);
-  }, [search, stateFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleCity = async (cityId: string) => {
     setExpandedCities((prev) => {
@@ -105,6 +108,15 @@ export default function CitiesPage() {
       } finally {
         setAreasLoading((prev) => ({ ...prev, [cityId]: false }));
       }
+    }
+  };
+
+  const refreshAreasForCity = async (cityId: string) => {
+    try {
+      const areas = await masterApi.getAreasByCity(cityId);
+      setAreasMap((prev) => ({ ...prev, [cityId]: areas }));
+    } catch {
+      setError('Failed to refresh areas.');
     }
   };
 
@@ -138,26 +150,12 @@ export default function CitiesPage() {
 
       {error && <ErrorAlert message={error} />}
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <SearchInput
-          value={search}
-          onChange={setSearch}
-          placeholder="Search cities or states..."
-          className="max-w-sm"
-        />
-        <select
-          value={stateFilter}
-          onChange={(e) => setStateFilter(e.target.value)}
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring max-w-xs"
-        >
-          <option value="">All states</option>
-          {states.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Search cities or states..."
+        className="max-w-sm"
+      />
 
       {isLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
@@ -204,6 +202,16 @@ export default function CitiesPage() {
                     )}
                   </button>
                   <div className="flex items-center gap-0.5 shrink-0">
+                    <Tip label="Edit city">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+                        onClick={() => setEditCityTarget(city)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    </Tip>
                     <Tip label="Add area">
                       <Button
                         variant="ghost"
@@ -263,6 +271,13 @@ export default function CitiesPage() {
                           >
                             <span className="text-foreground font-medium">{area.name}</span>
                             <button
+                              onClick={() => setEditAreaTarget({ ...area, city })}
+                              className="text-muted-foreground hover:text-foreground transition-colors ml-0.5"
+                              aria-label={`Edit ${area.name}`}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                            <button
                               onClick={() =>
                                 openConfirm(
                                   'Delete area?',
@@ -277,7 +292,7 @@ export default function CitiesPage() {
                                   },
                                 )
                               }
-                              className="text-muted-foreground hover:text-destructive transition-colors ml-0.5"
+                              className="text-muted-foreground hover:text-destructive transition-colors"
                               aria-label={`Delete ${area.name}`}
                             >
                               <Trash2 className="h-3 w-3" />
@@ -334,6 +349,13 @@ export default function CitiesPage() {
         }}
       />
 
+      <EditCityDialog
+        city={editCityTarget}
+        states={states}
+        onClose={() => setEditCityTarget(null)}
+        onUpdated={() => fetchCities(pageIndex)}
+      />
+
       <AddAreaDialog
         city={addAreaTarget}
         onClose={() => setAddAreaTarget(null)}
@@ -341,6 +363,15 @@ export default function CitiesPage() {
           setAreasMap((prev) => ({ ...prev, [cityId]: areas }));
           setExpandedCities((prev) => new Set([...prev, cityId]));
           setAddAreaTarget(null);
+        }}
+      />
+
+      <EditAreaDialog
+        area={editAreaTarget}
+        states={states}
+        onClose={() => setEditAreaTarget(null)}
+        onUpdated={() => {
+          if (editAreaTarget?.city?.id) refreshAreasForCity(editAreaTarget.city.id);
         }}
       />
 

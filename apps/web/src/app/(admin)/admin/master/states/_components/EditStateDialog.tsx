@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { masterApi } from '@repo/api';
+import { useEffect, useState } from 'react';
+import { masterApi, StateVM } from '@repo/api';
 import { Loader2 } from 'lucide-react';
 import {
   Button,
@@ -23,13 +23,13 @@ import {
   STATE_CODE_ERROR,
 } from '@/lib/validation';
 
-interface AddStateDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onCreated: () => void;
+interface EditStateDialogProps {
+  state: StateVM | null;
+  onClose: () => void;
+  onUpdated: () => void;
 }
 
-export function AddStateDialog({ open, onOpenChange, onCreated }: AddStateDialogProps) {
+export function EditStateDialog({ state, onClose, onUpdated }: EditStateDialogProps) {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [isUT, setIsUT] = useState(false);
@@ -37,13 +37,15 @@ export function AddStateDialog({ open, onOpenChange, onCreated }: AddStateDialog
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const reset = () => {
-    setCode('');
-    setName('');
-    setIsUT(false);
-    setFieldErrors({});
-    setError(null);
-  };
+  useEffect(() => {
+    if (state) {
+      setCode(state.code ?? '');
+      setName(state.name);
+      setIsUT(!!state.isUT);
+      setFieldErrors({});
+      setError(null);
+    }
+  }, [state]);
 
   const clearErr = (f: string) =>
     setFieldErrors((p) => {
@@ -52,13 +54,9 @@ export function AddStateDialog({ open, onOpenChange, onCreated }: AddStateDialog
       return n;
     });
 
-  const handleOpenChange = (o: boolean) => {
-    if (!o) reset();
-    onOpenChange(o);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!state) return;
     setError(null);
     setFieldErrors({});
 
@@ -70,34 +68,51 @@ export function AddStateDialog({ open, onOpenChange, onCreated }: AddStateDialog
       return;
     }
 
+    const patch: Parameters<typeof masterApi.updateState>[1] = {};
+    if (code.trim() !== (state.code ?? '')) patch.code = code.trim();
+    if (name.trim() !== state.name) patch.name = name.trim();
+    if (isUT !== !!state.isUT) patch.isUT = isUT;
+
+    if (Object.keys(patch).length === 0) {
+      onClose();
+      return;
+    }
+
     setSaving(true);
     try {
-      await masterApi.createState({ code: code.trim(), name: name.trim(), isUT });
-      reset();
-      onCreated();
+      await masterApi.updateState(state.id, patch);
+      onUpdated();
+      onClose();
     } catch (err) {
       const parsed = parseApiError(err);
       if (Object.keys(parsed.fieldErrors).length > 0) setFieldErrors(parsed.fieldErrors);
-      else setError(parsed.general ?? 'Failed to create state.');
+      else setError(parsed.general ?? 'Failed to update state.');
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog
+      open={!!state}
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Add state</DialogTitle>
-          <DialogDescription>Create a new state.</DialogDescription>
+          <DialogTitle>Edit state</DialogTitle>
+          <DialogDescription>
+            Update <span className="font-medium text-foreground">{state?.name}</span>
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <Label htmlFor="state-code" className={fieldErrors.code ? 'text-destructive' : ''}>
+            <Label htmlFor="es-code" className={fieldErrors.code ? 'text-destructive' : ''}>
               Code <span className="text-destructive">*</span>
             </Label>
             <Input
-              id="state-code"
+              id="es-code"
               value={code}
               onChange={(e) => {
                 setCode(e.target.value.toUpperCase());
@@ -112,11 +127,11 @@ export function AddStateDialog({ open, onOpenChange, onCreated }: AddStateDialog
             {fieldErrors.code && <p className="text-xs text-destructive">{fieldErrors.code}</p>}
           </div>
           <div className="space-y-1">
-            <Label htmlFor="state-name" className={fieldErrors.name ? 'text-destructive' : ''}>
+            <Label htmlFor="es-name" className={fieldErrors.name ? 'text-destructive' : ''}>
               Name <span className="text-destructive">*</span>
             </Label>
             <Input
-              id="state-name"
+              id="es-name"
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
@@ -141,12 +156,7 @@ export function AddStateDialog({ open, onOpenChange, onCreated }: AddStateDialog
           </label>
           {error && <ErrorAlert message={error} />}
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-            >
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
             <Button type="submit" disabled={saving}>
@@ -156,7 +166,7 @@ export function AddStateDialog({ open, onOpenChange, onCreated }: AddStateDialog
                   Saving
                 </>
               ) : (
-                'Add state'
+                'Save changes'
               )}
             </Button>
           </DialogFooter>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { masterApi, CityVM, AreaVM } from '@repo/api';
+import { masterApi, StateVM, CityVM } from '@repo/api';
 import { Loader2 } from 'lucide-react';
 import {
   Button,
@@ -15,37 +15,27 @@ import {
   DialogTitle,
 } from '@repo/ui';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
-import {
-  CoordinatesMapField,
-  type Coordinates,
-} from '@/components/common/admin/CoordinatesMapField';
 import { parseApiError } from '@/lib/api-errors';
-import {
-  AREA_NAME_PATTERN,
-  AREA_NAME_ERROR,
-  AREA_PIN_CODE_PATTERN,
-  AREA_PIN_CODE_ERROR,
-} from '@/lib/validation';
+import { CITY_NAME_PATTERN, CITY_NAME_ERROR } from '@/lib/validation';
 
-interface AddAreaDialogProps {
+interface EditCityDialogProps {
   city: CityVM | null;
+  states: StateVM[];
   onClose: () => void;
-  onCreated: (cityId: string, areas: AreaVM[]) => void;
+  onUpdated: () => void;
 }
 
-export function AddAreaDialog({ city, onClose, onCreated }: AddAreaDialogProps) {
+export function EditCityDialog({ city, states, onClose, onUpdated }: EditCityDialogProps) {
   const [name, setName] = useState('');
-  const [pinCode, setPinCode] = useState('');
-  const [coordinates, setCoordinates] = useState<Coordinates>({});
+  const [stateId, setStateId] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (city) {
-      setName('');
-      setPinCode('');
-      setCoordinates({});
+      setName(city.name);
+      setStateId(city.state?.id ?? '');
       setFieldErrors({});
       setError(null);
     }
@@ -64,30 +54,29 @@ export function AddAreaDialog({ city, onClose, onCreated }: AddAreaDialogProps) 
     setError(null);
     setFieldErrors({});
 
-    const errors: Record<string, string> = {};
-    if (!AREA_NAME_PATTERN.test(name.trim())) errors.name = AREA_NAME_ERROR;
-    if (pinCode.trim() && !AREA_PIN_CODE_PATTERN.test(pinCode.trim())) {
-      errors.pinCode = AREA_PIN_CODE_ERROR;
+    if (!CITY_NAME_PATTERN.test(name.trim())) {
+      setFieldErrors({ name: CITY_NAME_ERROR });
+      return;
     }
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors);
+
+    const patch: Parameters<typeof masterApi.updateCity>[1] = {};
+    if (name.trim() !== city.name) patch.name = name.trim();
+    if (stateId && stateId !== (city.state?.id ?? '')) patch.stateId = stateId;
+
+    if (Object.keys(patch).length === 0) {
+      onClose();
       return;
     }
 
     setSaving(true);
     try {
-      await masterApi.createArea(city.id, {
-        name: name.trim(),
-        pinCode: pinCode.trim() || undefined,
-        latitude: coordinates.latitude,
-        longitude: coordinates.longitude,
-      });
-      const areas = await masterApi.getAreasByCity(city.id);
-      onCreated(city.id, areas);
+      await masterApi.updateCity(city.id, patch);
+      onUpdated();
+      onClose();
     } catch (err) {
       const parsed = parseApiError(err);
       if (Object.keys(parsed.fieldErrors).length > 0) setFieldErrors(parsed.fieldErrors);
-      else setError(parsed.general ?? 'Failed to create area.');
+      else setError(parsed.general ?? 'Failed to update city.');
     } finally {
       setSaving(false);
     }
@@ -102,24 +91,39 @@ export function AddAreaDialog({ city, onClose, onCreated }: AddAreaDialogProps) 
     >
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Add area</DialogTitle>
+          <DialogTitle>Edit city</DialogTitle>
           <DialogDescription>
-            Add an area to <span className="font-medium text-foreground">{city?.name}</span>
+            Update <span className="font-medium text-foreground">{city?.name}</span>
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <Label htmlFor="area-name" className={fieldErrors.name ? 'text-destructive' : ''}>
+            <Label htmlFor="ec-state">State</Label>
+            <select
+              id="ec-state"
+              value={stateId}
+              onChange={(e) => setStateId(e.target.value)}
+              className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              {states.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="ec-name" className={fieldErrors.name ? 'text-destructive' : ''}>
               Name <span className="text-destructive">*</span>
             </Label>
             <Input
-              id="area-name"
+              id="ec-name"
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
                 clearErr('name');
               }}
-              placeholder="Andheri"
+              placeholder="Mumbai"
               autoComplete="off"
               autoFocus
               className={
@@ -127,33 +131,6 @@ export function AddAreaDialog({ city, onClose, onCreated }: AddAreaDialogProps) 
               }
             />
             {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="area-pincode" className={fieldErrors.pinCode ? 'text-destructive' : ''}>
-              Pin code <span className="text-muted-foreground font-normal">(optional)</span>
-            </Label>
-            <Input
-              id="area-pincode"
-              value={pinCode}
-              onChange={(e) => {
-                setPinCode(e.target.value);
-                clearErr('pinCode');
-              }}
-              placeholder="400058"
-              autoComplete="off"
-              className={
-                fieldErrors.pinCode ? 'border-destructive focus-visible:ring-destructive' : ''
-              }
-            />
-            {fieldErrors.pinCode && (
-              <p className="text-xs text-destructive">{fieldErrors.pinCode}</p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label>
-              Coordinates <span className="text-muted-foreground font-normal">(optional)</span>
-            </Label>
-            <CoordinatesMapField value={coordinates} onChange={setCoordinates} />
           </div>
           {error && <ErrorAlert message={error} />}
           <DialogFooter>
@@ -167,7 +144,7 @@ export function AddAreaDialog({ city, onClose, onCreated }: AddAreaDialogProps) 
                   Saving
                 </>
               ) : (
-                'Add area'
+                'Save changes'
               )}
             </Button>
           </DialogFooter>

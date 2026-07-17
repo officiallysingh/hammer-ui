@@ -2,7 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { masterApi, StateVM, CityVM, AreaVM } from '@repo/api';
-import { Loader2, Trash2, RefreshCw, Plus, ChevronDown, ChevronRight, MapPin } from 'lucide-react';
+import {
+  Loader2,
+  Trash2,
+  RefreshCw,
+  Plus,
+  Pencil,
+  ChevronDown,
+  ChevronRight,
+  MapPin,
+} from 'lucide-react';
 import { Button } from '@repo/ui';
 import { SearchInput } from '@/components/common/admin/SearchInput';
 import PageHeader from '@/components/common/admin/PageHeader';
@@ -10,8 +19,11 @@ import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
 import { AddStateDialog } from './_components/AddStateDialog';
+import { EditStateDialog } from './_components/EditStateDialog';
 import { AddCityDialog } from './_components/AddCityDialog';
+import { EditCityDialog } from './_components/EditCityDialog';
 import { AddAreaDialog } from './_components/AddAreaDialog';
+import { EditAreaDialog } from './_components/EditAreaDialog';
 
 type ConfirmState = {
   open: boolean;
@@ -45,8 +57,11 @@ export default function StatesPage() {
 
   // Dialogs
   const [addStateOpen, setAddStateOpen] = useState(false);
+  const [editStateTarget, setEditStateTarget] = useState<StateVM | null>(null);
   const [addCityTarget, setAddCityTarget] = useState<StateVM | null>(null);
+  const [editCityTarget, setEditCityTarget] = useState<CityVM | null>(null);
   const [addAreaTarget, setAddAreaTarget] = useState<CityVM | null>(null);
+  const [editAreaTarget, setEditAreaTarget] = useState<AreaVM | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState>(CLOSED_CONFIRM);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
@@ -129,6 +144,26 @@ export default function StatesPage() {
     }
   };
 
+  // ── Refresh after edit ───────────────────────────────────────────────────────
+
+  const refreshCitiesForState = async (stateId: string) => {
+    try {
+      const cities = await masterApi.getCitiesByState(stateId);
+      setCitiesMap((prev) => ({ ...prev, [stateId]: cities }));
+    } catch {
+      setError('Failed to refresh cities.');
+    }
+  };
+
+  const refreshAreasForCity = async (cityId: string) => {
+    try {
+      const areas = await masterApi.getAreasByCity(cityId);
+      setAreasMap((prev) => ({ ...prev, [cityId]: areas }));
+    } catch {
+      setError('Failed to refresh areas.');
+    }
+  };
+
   // ── Confirm helper ─────────────────────────────────────────────────────────
 
   const openConfirm = (title: string, description: string, onConfirm: () => void) =>
@@ -199,6 +234,16 @@ export default function StatesPage() {
                       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                     )}
                     <span className="font-medium text-foreground text-sm">{state.name}</span>
+                    {state.code && (
+                      <span className="font-mono text-[10px] text-muted-foreground border border-border rounded px-1 py-0.5">
+                        {state.code}
+                      </span>
+                    )}
+                    {state.isUT && (
+                      <span className="text-[10px] font-medium text-primary bg-primary/10 rounded-full px-1.5 py-0.5">
+                        UT
+                      </span>
+                    )}
                     {citiesLoaded && (
                       <span className="text-xs text-muted-foreground ml-1">
                         ({cities.length} {cities.length === 1 ? 'city' : 'cities'})
@@ -206,6 +251,16 @@ export default function StatesPage() {
                     )}
                   </button>
                   <div className="flex items-center gap-0.5 shrink-0">
+                    <Tip label="Edit state">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+                        onClick={() => setEditStateTarget(state)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    </Tip>
                     <Tip label="Add city">
                       <Button
                         variant="ghost"
@@ -288,6 +343,16 @@ export default function StatesPage() {
                                   )}
                                 </button>
                                 <div className="flex items-center gap-0.5 shrink-0">
+                                  <Tip label="Edit city">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                      onClick={() => setEditCityTarget({ ...city, state })}
+                                    >
+                                      <Pencil className="h-3 w-3" />
+                                    </Button>
+                                  </Tip>
                                   <Tip label="Add area">
                                     <Button
                                       variant="ghost"
@@ -355,6 +420,18 @@ export default function StatesPage() {
                                           </span>
                                           <button
                                             onClick={() =>
+                                              setEditAreaTarget({
+                                                ...area,
+                                                city: { ...city, state },
+                                              })
+                                            }
+                                            className="text-muted-foreground hover:text-foreground transition-colors ml-0.5"
+                                            aria-label={`Edit ${area.name}`}
+                                          >
+                                            <Pencil className="h-3 w-3" />
+                                          </button>
+                                          <button
+                                            onClick={() =>
                                               openConfirm(
                                                 'Delete area?',
                                                 `"${area.name}" will be permanently removed.`,
@@ -368,7 +445,7 @@ export default function StatesPage() {
                                                 },
                                               )
                                             }
-                                            className="text-muted-foreground hover:text-destructive transition-colors ml-0.5"
+                                            className="text-muted-foreground hover:text-destructive transition-colors"
                                             aria-label={`Delete ${area.name}`}
                                           >
                                             <Trash2 className="h-3 w-3" />
@@ -402,6 +479,12 @@ export default function StatesPage() {
         }}
       />
 
+      <EditStateDialog
+        state={editStateTarget}
+        onClose={() => setEditStateTarget(null)}
+        onUpdated={fetchStates}
+      />
+
       <AddCityDialog
         state={addCityTarget}
         onClose={() => setAddCityTarget(null)}
@@ -409,6 +492,24 @@ export default function StatesPage() {
           setCitiesMap((prev) => ({ ...prev, [stateId]: cities }));
           setExpandedStates((prev) => new Set([...prev, stateId]));
           setAddCityTarget(null);
+        }}
+      />
+
+      <EditCityDialog
+        city={editCityTarget}
+        states={states}
+        onClose={() => setEditCityTarget(null)}
+        onUpdated={() => {
+          if (editCityTarget?.state?.id) refreshCitiesForState(editCityTarget.state.id);
+        }}
+      />
+
+      <EditAreaDialog
+        area={editAreaTarget}
+        states={states}
+        onClose={() => setEditAreaTarget(null)}
+        onUpdated={() => {
+          if (editAreaTarget?.city?.id) refreshAreasForCity(editAreaTarget.city.id);
         }}
       />
 

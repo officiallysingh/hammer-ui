@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { masterApi, StateVM, CityVM, AreaVM } from '@repo/api';
 import { Loader2 } from 'lucide-react';
 import {
@@ -27,14 +27,14 @@ import {
   AREA_PIN_CODE_ERROR,
 } from '@/lib/validation';
 
-interface AddAreaDialogProps {
-  open: boolean;
+interface EditAreaDialogProps {
+  area: AreaVM | null;
   states: StateVM[];
   onClose: () => void;
-  onCreated: (area: AreaVM) => void;
+  onUpdated: () => void;
 }
 
-export function AddAreaDialog({ open, states, onClose, onCreated }: AddAreaDialogProps) {
+export function EditAreaDialog({ area, states, onClose, onUpdated }: EditAreaDialogProps) {
   const [stateId, setStateId] = useState('');
   const [cityId, setCityId] = useState('');
   const [cities, setCities] = useState<CityVM[]>([]);
@@ -46,34 +46,40 @@ export function AddAreaDialog({ open, states, onClose, onCreated }: AddAreaDialo
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (open) {
-      setStateId(states[0]?.id ?? '');
-      setName('');
-      setPinCode('');
-      setCoordinates({});
-      setFieldErrors({});
-      setError(null);
-    }
-  }, [open, states]);
+  // Target city id to select once the cities-for-state fetch below resolves.
+  // Cleared after each consumption so a manual state-dropdown change falls back to the first city.
+  const pendingCityIdRef = useRef('');
 
   useEffect(() => {
-    if (!open || !stateId) {
+    if (area) {
+      setName(area.name);
+      setPinCode(area.pinCode ?? '');
+      setCoordinates({ latitude: area.latitude, longitude: area.longitude });
+      setFieldErrors({});
+      setError(null);
+      pendingCityIdRef.current = area.city?.id ?? '';
+      setStateId(area.city?.state?.id ?? '');
+    }
+  }, [area]);
+
+  useEffect(() => {
+    if (!stateId) {
       setCities([]);
       setCityId('');
       return;
     }
     setCitiesLoading(true);
-    setCityId('');
     masterApi
       .getCitiesByState(stateId)
       .then((data) => {
         setCities(data);
-        setCityId(data[0]?.id ?? '');
+        const pending = pendingCityIdRef.current;
+        pendingCityIdRef.current = '';
+        setCityId(data.some((c) => c.id === pending) ? pending : (data[0]?.id ?? ''));
       })
       .catch(() => setError('Failed to load cities for this state.'))
       .finally(() => setCitiesLoading(false));
-  }, [open, stateId]);
+  }, [area, stateId]);
 
   const clearErr = (f: string) =>
     setFieldErrors((p) => {
@@ -84,10 +90,7 @@ export function AddAreaDialog({ open, states, onClose, onCreated }: AddAreaDialo
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cityId) {
-      setError('Please select a city.');
-      return;
-    }
+    if (!area || !cityId) return;
     setError(null);
     setFieldErrors({});
 
@@ -101,23 +104,27 @@ export function AddAreaDialog({ open, states, onClose, onCreated }: AddAreaDialo
       return;
     }
 
+    const patch: Parameters<typeof masterApi.updateArea>[1] = {};
+    if (name.trim() !== area.name) patch.name = name.trim();
+    if (pinCode.trim() !== (area.pinCode ?? '')) patch.pinCode = pinCode.trim() || undefined;
+    if (coordinates.latitude !== area.latitude) patch.latitude = coordinates.latitude;
+    if (coordinates.longitude !== area.longitude) patch.longitude = coordinates.longitude;
+    if (cityId !== (area.city?.id ?? '')) patch.cityId = cityId;
+
+    if (Object.keys(patch).length === 0) {
+      onClose();
+      return;
+    }
+
     setSaving(true);
     try {
-      await masterApi.createArea(cityId, {
-        name: name.trim(),
-        pinCode: pinCode.trim() || undefined,
-        latitude: coordinates.latitude,
-        longitude: coordinates.longitude,
-      });
-      const areas = await masterApi.getAreasByCity(cityId);
-      const created = areas.find((a) => a.name === name.trim()) ?? areas[areas.length - 1];
-      const city = cities.find((c) => c.id === cityId);
-      const state = states.find((s) => s.id === stateId);
-      if (created) onCreated({ ...created, city: city ? { ...city, state } : undefined });
+      await masterApi.updateArea(area.id, patch);
+      onUpdated();
+      onClose();
     } catch (err) {
       const parsed = parseApiError(err);
       if (Object.keys(parsed.fieldErrors).length > 0) setFieldErrors(parsed.fieldErrors);
-      else setError(parsed.general ?? 'Failed to create area.');
+      else setError(parsed.general ?? 'Failed to update area.');
     } finally {
       setSaving(false);
     }
@@ -125,23 +132,23 @@ export function AddAreaDialog({ open, states, onClose, onCreated }: AddAreaDialo
 
   return (
     <Dialog
-      open={open}
+      open={!!area}
       onOpenChange={(o) => {
         if (!o) onClose();
       }}
     >
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Add area</DialogTitle>
-          <DialogDescription>Add an area to a city.</DialogDescription>
+          <DialogTitle>Edit area</DialogTitle>
+          <DialogDescription>
+            Update <span className="font-medium text-foreground">{area?.name}</span>
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <Label htmlFor="area-state">
-              State <span className="text-destructive">*</span>
-            </Label>
+            <Label htmlFor="ea-state">State</Label>
             <select
-              id="area-state"
+              id="ea-state"
               value={stateId}
               onChange={(e) => setStateId(e.target.value)}
               className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -154,11 +161,9 @@ export function AddAreaDialog({ open, states, onClose, onCreated }: AddAreaDialo
             </select>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="area-city">
-              City <span className="text-destructive">*</span>
-            </Label>
+            <Label htmlFor="ea-city">City</Label>
             <select
-              id="area-city"
+              id="ea-city"
               value={cityId}
               onChange={(e) => setCityId(e.target.value)}
               disabled={citiesLoading || !cities.length}
@@ -173,11 +178,11 @@ export function AddAreaDialog({ open, states, onClose, onCreated }: AddAreaDialo
             </select>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="area-name" className={fieldErrors.name ? 'text-destructive' : ''}>
+            <Label htmlFor="ea-name" className={fieldErrors.name ? 'text-destructive' : ''}>
               Name <span className="text-destructive">*</span>
             </Label>
             <Input
-              id="area-name"
+              id="ea-name"
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
@@ -193,11 +198,11 @@ export function AddAreaDialog({ open, states, onClose, onCreated }: AddAreaDialo
             {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
           </div>
           <div className="space-y-1">
-            <Label htmlFor="area-pincode" className={fieldErrors.pinCode ? 'text-destructive' : ''}>
+            <Label htmlFor="ea-pincode" className={fieldErrors.pinCode ? 'text-destructive' : ''}>
               Pin code <span className="text-muted-foreground font-normal">(optional)</span>
             </Label>
             <Input
-              id="area-pincode"
+              id="ea-pincode"
               value={pinCode}
               onChange={(e) => {
                 setPinCode(e.target.value);
@@ -231,7 +236,7 @@ export function AddAreaDialog({ open, states, onClose, onCreated }: AddAreaDialo
                   Saving
                 </>
               ) : (
-                'Add area'
+                'Save changes'
               )}
             </Button>
           </DialogFooter>
