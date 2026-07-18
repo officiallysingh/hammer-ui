@@ -37,10 +37,11 @@ function seedMandatoryDefaults(current: Step3State, groups: PolicyGroup[]): Part
 
   // Payment — mandatory
   if (hasGroup('PAYMENT') && current.paymentPolicies.length === 0) {
+    const paymentDefaults = POLICY_DEFAULTS.PAYMENT_POLICY;
     patch.paymentPolicies = [
       {
-        name: '',
-        description: '',
+        name: paymentDefaults?.name ?? '',
+        description: paymentDefaults?.description ?? '',
         scheduleReference: 'AUCTION_START_TIME',
         offsetDays: '',
         offsetHours: '0',
@@ -201,6 +202,8 @@ export function AuctionStep3Policies({
           currencyUnit={currencyUnit}
           fieldErrors={fieldErrors}
           groupDescription={getGroupDescription('PAYMENT')}
+          title="Pre Payment / Participation Eligibility Policy"
+          fixedScheduleReference="AUCTION_START_TIME"
         />
       )}
 
@@ -316,6 +319,21 @@ export function AuctionStep3Policies({
           fieldErrors={fieldErrors}
           winnerGroupInfo={getGroupDescription('WINNER_DETERMINATION')}
           winnerPriceGroupInfo={getGroupDescription('WINNER_PRICE_DETERMINATION')}
+        />
+      )}
+
+      {/* Post Payment */}
+      {hasGroup('PAYMENT') && (
+        <PolicyPaymentSection
+          policies={form.paymentPolicies}
+          onChange={(v) => onChange({ paymentPolicies: v })}
+          openingPrice={openingPrice}
+          precision={precision}
+          currencyUnit={currencyUnit}
+          fieldErrors={fieldErrors}
+          groupDescription={getGroupDescription('PAYMENT')}
+          title="Post Payment Policy"
+          fixedScheduleReference="AUCTION_END_TIME"
         />
       )}
 

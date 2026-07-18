@@ -29,6 +29,7 @@ import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
 import { TagList } from '@/components/common/admin/TagList';
 import { PhrasesInput } from '@/components/common/admin/PhrasesInput';
+import { UserAvatar } from '@/components/common/admin/UserAvatar';
 
 interface SelectOption {
   label: string;
@@ -93,6 +94,13 @@ const reactSelectStyles = {
     color: 'hsl(var(--foreground))',
   }),
 };
+
+function isSuperAdmin(user: UserDetailVM): boolean {
+  return (user.roles ?? []).some((r) => {
+    const key = `${r.name ?? ''} ${r.label ?? ''}`.toLowerCase().replace(/[^a-z]/g, '');
+    return key.includes('superadmin');
+  });
+}
 
 function VerifiedBadge({ verified }: { verified: boolean }) {
   return verified ? (
@@ -166,22 +174,22 @@ export default function UsersPage() {
     phrases?: string[];
     roles?: string[];
     permissions?: string[];
-    showRolesCol?: boolean;
     showPermsCol?: boolean;
     page?: number;
   }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const expand: ('permissions' | 'roles')[] = [];
+      // Roles are always expanded (not just when the column is shown) so the
+      // superadmin check below can gate the delete action on every row.
+      const expand: ('permissions' | 'roles')[] = ['roles'];
       if (opts?.showPermsCol ?? showPermissions) expand.push('permissions');
-      if (opts?.showRolesCol ?? showRoles) expand.push('roles');
       const page = opts?.page ?? 0;
       const result = await usersApi.getUsers(
         page,
         PAGE_SIZE,
         opts?.phrases?.length ? opts.phrases : undefined,
-        expand.length ? expand : undefined,
+        expand,
         opts?.roles?.length ? opts.roles : undefined,
         opts?.permissions?.length ? opts.permissions : undefined,
       );
@@ -208,23 +216,20 @@ export default function UsersPage() {
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-fetch when column visibility changes
-  const prevRoles = useRef(showRoles);
+  // Re-fetch when the permissions column is toggled (roles are always fetched)
   const prevPerms = useRef(showPermissions);
   useEffect(() => {
-    if (prevRoles.current !== showRoles || prevPerms.current !== showPermissions) {
-      prevRoles.current = showRoles;
+    if (prevPerms.current !== showPermissions) {
       prevPerms.current = showPermissions;
       fetchUsers({
         phrases: phrasesRef.current.length ? phrasesRef.current : undefined,
         roles: selectedRoles.map((o) => o.value),
         permissions: selectedPermissions.map((o) => o.value),
-        showRolesCol: showRoles,
         showPermsCol: showPermissions,
         page: pageIndex,
       });
     }
-  }, [showRoles, showPermissions]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [showPermissions]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const buildFilterUrl = (ph: string[], roles: SelectOption[], perms: SelectOption[]) => {
     const params = new URLSearchParams();
@@ -284,6 +289,23 @@ export default function UsersPage() {
   };
 
   const baseColumns: ColumnDef<UserDetailVM>[] = [
+    {
+      id: 'avatar',
+      header: '',
+      size: 44,
+      cell: ({ row }) => {
+        const { firstName, lastName, username, profilePicture } = row.original;
+        return (
+          <UserAvatar
+            src={profilePicture}
+            firstName={firstName}
+            lastName={lastName}
+            username={username}
+            size={28}
+          />
+        );
+      },
+    },
     {
       accessorKey: 'username',
       header: 'Username',
@@ -378,6 +400,7 @@ export default function UsersPage() {
     cell: ({ row }) => {
       const user = row.original;
       const busy = actionId === user.id;
+      const superAdmin = isSuperAdmin(user);
       return (
         <div className="flex items-center gap-0.5">
           <Tip label="Edit user">
@@ -436,13 +459,13 @@ export default function UsersPage() {
               )}
             </Button>
           </Tip>
-          <Tip label="Delete user">
+          <Tip label={superAdmin ? 'Superadmin cannot be deleted' : 'Delete user'}>
             <Button
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
               onClick={() => setConfirmId(user.id)}
-              disabled={deletingId === user.id}
+              disabled={deletingId === user.id || superAdmin}
             >
               {deletingId === user.id ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />

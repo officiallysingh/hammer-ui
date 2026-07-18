@@ -7,6 +7,7 @@ export interface UserDetailVM {
   emailId: string;
   firstName?: string;
   lastName?: string;
+  profilePicture?: string | null;
   mobileNo?: string;
   permissions?: PermissionVMRef[];
   roles?: RoleVMRef[];
@@ -16,7 +17,7 @@ export interface UserDetailVM {
   credentialsNonExpired: boolean;
   emailIdVerified: boolean;
   mobileNoVerified: boolean;
-  passwordSet: boolean;
+  passwordSet?: boolean;
   promptChangePassword: boolean;
 }
 
@@ -32,6 +33,7 @@ export interface RoleVMRef {
   name: string;
   label: string;
   description?: string;
+  permissions?: PermissionVMRef[]; // present when x-expand includes role-permissions
 }
 
 // Admin create user (POST /api/v1/users)
@@ -40,6 +42,7 @@ export interface UserCreationReq {
   emailId: string;
   firstName: string;
   lastName: string;
+  profilePicture?: string | null;
   mobileNo?: string;
   permissions?: string[];
   roles?: string[];
@@ -57,6 +60,7 @@ export interface UserUpdateReq {
   emailId?: string;
   firstName?: string;
   lastName?: string;
+  profilePicture?: string | null;
   mobileNo?: string;
   enabled?: boolean;
   credentialsNonExpired?: boolean;
@@ -151,8 +155,13 @@ export const usersApi = {
   createUser: async (data: UserCreationReq): Promise<void> => {
     await apiClient.post('/api/v1/users', data);
   },
-  getUserById: async (id: string): Promise<UserDetailVM> => {
-    const response = await apiClient.get(`/api/v1/users/${id}`);
+  getUserById: async (
+    id: string,
+    expand?: ('permissions' | 'roles' | 'role-permissions' | '*')[],
+  ): Promise<UserDetailVM> => {
+    const response = await apiClient.get(`/api/v1/users/${id}`, {
+      headers: expand?.length ? { 'x-expand': expand.join(',') } : undefined,
+    });
     return response.data;
   },
   updateUser: async (id: string, data: UserUpdateReq): Promise<void> => {

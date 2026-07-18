@@ -18,7 +18,12 @@ import {
   TooltipTrigger,
 } from '@repo/ui';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
+import { AvatarUpload } from '@/components/common/admin/AvatarUpload';
 import { parseApiError } from '@/lib/api-errors';
+
+function initialsOf(firstName: string, lastName: string) {
+  return `${firstName.trim()[0] ?? ''}${lastName.trim()[0] ?? ''}`.toUpperCase() || undefined;
+}
 
 const PWD_RULES =
   '6–12 characters · at least 1 uppercase · 1 lowercase · 1 digit · allowed special: @$!%*?&^';
@@ -116,9 +121,10 @@ interface CreateUserFormValues {
   firstName: string;
   lastName: string;
   mobile: string;
+  profilePicture: string | undefined;
   enabled: boolean;
-  emailVerified: boolean;
-  mobileVerified: boolean;
+  askToVerifyEmail: boolean;
+  askToVerifyMobile: boolean;
   promptChangePwd: boolean;
 }
 
@@ -128,9 +134,10 @@ const EMPTY_CREATE_USER_FORM: CreateUserFormValues = {
   firstName: '',
   lastName: '',
   mobile: '',
+  profilePicture: undefined,
   enabled: true,
-  emailVerified: true,
-  mobileVerified: true,
+  askToVerifyEmail: false,
+  askToVerifyMobile: false,
   promptChangePwd: true,
 };
 
@@ -182,9 +189,10 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         mobileNo: form.mobile.trim() || undefined,
+        profilePicture: form.profilePicture,
         enabled: form.enabled,
-        emailIdVerified: form.emailVerified,
-        mobileNoVerified: form.mobileVerified,
+        emailIdVerified: !form.askToVerifyEmail,
+        mobileNoVerified: !form.askToVerifyMobile,
         // promptChangePassword=true means credentialsNonExpired=false
         credentialsNonExpired: !form.promptChangePwd,
         promptChangePassword: form.promptChangePwd,
@@ -212,6 +220,11 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
           <DialogDescription>Create a new user in the system.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <AvatarUpload
+            value={form.profilePicture}
+            onChange={(v) => setField('profilePicture', v)}
+            fallbackText={initialsOf(form.firstName, form.lastName)}
+          />
           <FieldInput
             id="cu-username"
             label="Username"
@@ -285,14 +298,14 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
               description="User can log in"
             />
             <ToggleField
-              label="Email verified"
-              value={form.emailVerified}
-              onChange={(value) => setField('emailVerified', value)}
+              label="Ask to verify email"
+              value={form.askToVerifyEmail}
+              onChange={(value) => setField('askToVerifyEmail', value)}
             />
             <ToggleField
-              label="Mobile verified"
-              value={form.mobileVerified}
-              onChange={(value) => setField('mobileVerified', value)}
+              label="Ask to verify mobile"
+              value={form.askToVerifyMobile}
+              onChange={(value) => setField('askToVerifyMobile', value)}
             />
             <ToggleField
               label="Prompt change password"
@@ -343,6 +356,7 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
     firstName: string;
     lastName: string;
     mobile: string;
+    profilePicture: string | undefined;
   }
 
   const [form, setForm] = useState<EditUserFormValues>({
@@ -350,6 +364,7 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
     firstName: '',
     lastName: '',
     mobile: '',
+    profilePicture: undefined,
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -365,6 +380,7 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
         firstName: user.firstName ?? '',
         lastName: user.lastName ?? '',
         mobile: user.mobileNo ?? '',
+        profilePicture: user.profilePicture ?? undefined,
       });
       setFieldErrors({});
       setError(null);
@@ -385,17 +401,20 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
     setFieldErrors({});
     setSaving(true);
     try {
+      const pictureChanged = form.profilePicture !== (user.profilePicture ?? undefined);
       await usersApi.updateUser(user.id, {
         emailId: form.email.trim() || undefined,
         firstName: form.firstName.trim() || undefined,
         lastName: form.lastName.trim() || undefined,
         mobileNo: form.mobile.trim() || undefined,
+        ...(pictureChanged ? { profilePicture: form.profilePicture ?? null } : {}),
       });
       onUpdated({
         emailId: form.email.trim(),
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         mobileNo: form.mobile.trim(),
+        ...(pictureChanged ? { profilePicture: form.profilePicture ?? null } : {}),
       });
       onClose();
     } catch (err) {
@@ -423,6 +442,11 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <AvatarUpload
+            value={form.profilePicture}
+            onChange={(v) => setField('profilePicture', v)}
+            fallbackText={initialsOf(form.firstName, form.lastName)}
+          />
           <FieldInput
             id="eu-email"
             label="Email"

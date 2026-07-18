@@ -24,6 +24,7 @@ import { useAuthStore } from '@/store/authStore';
 import { parseApiError } from '@/lib/api-errors';
 import { StepIndicator } from './StepIndicator';
 import { AuthIllustration } from '@/components/auth/AuthIllustration';
+import { AvatarUpload } from '@/components/common/admin/AvatarUpload';
 
 const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)[A-Za-z\d@$!%*?&^]{6,12}$/;
 const OTP_COOLDOWN = 30;
@@ -35,6 +36,7 @@ interface OidcNewUserFormProps {
   firstName: string;
   lastName: string;
   emailIdVerified: boolean;
+  picture?: string;
 }
 
 export function OidcNewUserForm({
@@ -42,6 +44,7 @@ export function OidcNewUserForm({
   firstName,
   lastName,
   emailIdVerified,
+  picture,
 }: OidcNewUserFormProps) {
   const router = useRouter();
   const { setUser, setUserInfo } = useAuthStore();
@@ -57,6 +60,7 @@ export function OidcNewUserForm({
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [firstNameError, setFirstNameError] = useState<string | null>(null);
   const [lastNameError, setLastNameError] = useState<string | null>(null);
+  const [profilePicture, setProfilePicture] = useState<string | undefined>(undefined);
 
   // Step 2 — mobile
   const [mobile, setMobile] = useState('');
@@ -79,6 +83,21 @@ export function OidcNewUserForm({
     const t = setInterval(() => setCooldown((s) => (s <= 1 ? 0 : s - 1)), 1000);
     return () => clearInterval(t);
   }, [cooldown]);
+
+  // Pull the Google profile picture in as base64 so it can be edited/removed like any other upload
+  useEffect(() => {
+    if (!picture) return;
+    let cancelled = false;
+    fetch(`/api/oidc-picture?url=${encodeURIComponent(picture)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.dataUrl) setProfilePicture(data.dataUrl);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [picture]);
 
   // ── Step 1 ─────────────────────────────────────────────────────────────────
   const handleDetailsNext = async (e: React.FormEvent) => {
@@ -194,6 +213,7 @@ export function OidcNewUserForm({
         lastName: newLastName.trim(),
         mobileNo: mobile.trim(),
         password,
+        profilePicture: profilePicture ?? null,
       });
       const loginData = await authApi.login({ username: username.trim(), password });
       setUser({ username: loginData.username, authenticated: true });
@@ -269,6 +289,14 @@ export function OidcNewUserForm({
               {/* Step 1 — Details */}
               {step === 'details' && (
                 <form onSubmit={handleDetailsNext} className="space-y-4">
+                  <AvatarUpload
+                    value={profilePicture}
+                    onChange={setProfilePicture}
+                    fallbackText={
+                      `${newFirstName.trim()[0] ?? ''}${newLastName.trim()[0] ?? ''}`.toUpperCase() ||
+                      undefined
+                    }
+                  />
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label htmlFor="fn" className={firstNameError ? 'text-destructive' : ''}>

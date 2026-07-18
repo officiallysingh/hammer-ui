@@ -21,6 +21,7 @@ function OidcAuthInner() {
   const firstName = params.get('firstName') ?? '';
   const lastName = params.get('lastName') ?? '';
   const emailIdVerified = params.get('emailIdVerified') === 'true';
+  const picture = params.get('picture') ?? '';
 
   // Derive initial status synchronously — no setState in effect for the error case
   const initialStatus = !authenticated ? 'error' : isNewUser ? 'new_user' : 'loading';
@@ -85,6 +86,7 @@ function OidcAuthInner() {
       firstName={firstName}
       lastName={lastName}
       emailIdVerified={emailIdVerified}
+      picture={picture}
     />
   );
 }

@@ -2,8 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, CalendarClock, Loader2 } from 'lucide-react';
-import { Button, Input, Label, DateTimePicker } from '@repo/ui';
+import { Button, Label, DateTimePicker } from '@repo/ui';
 import { auctionsApi } from '@repo/api';
+import { DismissibleError, FieldError } from './AuctionShared';
+import { SELECT_CLS } from './PolicyShared';
+import { parseApiError } from '@/lib/api-errors';
 
 interface Props {
   auctionId: string;
@@ -24,6 +27,61 @@ function formatDuration(days: number, hours: number, minutes: number) {
   return `${days}d ${hours}h ${minutes}m`;
 }
 
+function NumberSelect({
+  id,
+  label,
+  value,
+  onChange,
+  max,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  max: number;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={SELECT_CLS}
+      >
+        {Array.from({ length: max + 1 }, (_, i) => (
+          <option key={i} value={String(i)}>
+            {i}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function validateSchedule(finalStart: string, finalEnd: string): Record<string, string> {
+  const errs: Record<string, string> = {};
+  const now = new Date();
+  const start = new Date(finalStart);
+  const end = new Date(finalEnd);
+
+  if (!finalStart || Number.isNaN(start.getTime())) {
+    errs.startTime = 'Start date & time is required.';
+  } else if (start <= now) {
+    errs.startTime = 'Start date & time must be in the future.';
+  }
+
+  if (!finalEnd || Number.isNaN(end.getTime())) {
+    errs.endTime = 'End date & time is required.';
+  } else if (end <= now) {
+    errs.endTime = 'End date & time must be in the future.';
+  } else if (!Number.isNaN(start.getTime()) && end <= start) {
+    errs.endTime = 'End date & time must be after start time.';
+  }
+
+  return errs;
+}
+
 export function AuctionStep5Workflow({
   auctionId,
   onBack,
@@ -42,6 +100,15 @@ export function AuctionStep5Workflow({
   const [durationHours, setDurationHours] = useState('0');
   const [durationMinutes, setDurationMinutes] = useState('0');
   const [scheduleMode, setScheduleMode] = useState<'duration' | 'end'>('duration');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [generalError, setGeneralError] = useState<string | null>(null);
+
+  const clearErr = (f: string) =>
+    setFieldErrors((p) => {
+      const n = { ...p };
+      delete n[f];
+      return n;
+    });
 
   useEffect(() => {
     let mounted = true;
@@ -91,18 +158,27 @@ export function AuctionStep5Workflow({
   const handleScheduleSubmit = async (publish: boolean) => {
     const finalStart = startTime;
     const finalEnd = scheduleMode === 'duration' ? computedEndTime : endTime;
-    if (!finalStart || !finalEnd) return;
+
+    setGeneralError(null);
+    const errs = validateSchedule(finalStart, finalEnd);
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      return;
+    }
+    setFieldErrors({});
+
     setSaving(publish ? 'publish' : 'schedule');
     try {
-      await auctionsApi.scheduleAuction(
-        auctionId,
-        {
-          startTime: new Date(finalStart).toISOString(),
-          endTime: new Date(finalEnd).toISOString(),
-        },
+      await auctionsApi.scheduleAuction(auctionId, {
+        startTime: new Date(finalStart).toISOString(),
+        endTime: new Date(finalEnd).toISOString(),
         publish,
-      );
+      });
       onFinish();
+    } catch (err) {
+      const parsed = parseApiError(err);
+      if (Object.keys(parsed.fieldErrors).length > 0) setFieldErrors(parsed.fieldErrors);
+      else setGeneralError(parsed.general ?? 'Failed to schedule auction.');
     } finally {
       setSaving(null);
     }
@@ -158,10 +234,20 @@ export function AuctionStep5Workflow({
             <p className="text-sm font-semibold text-foreground">Schedule</p>
           </div>
 
+          <DismissibleError message={generalError} />
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="startTime">Start date & time</Label>
-              <DateTimePicker id="startTime" value={startTime} onChange={setStartTime} />
+              <DateTimePicker
+                id="startTime"
+                value={startTime}
+                onChange={(v) => {
+                  setStartTime(v);
+                  clearErr('startTime');
+                }}
+              />
+              <FieldError message={fieldErrors.startTime} />
             </div>
 
             <div className="space-y-2">
@@ -188,44 +274,53 @@ export function AuctionStep5Workflow({
           </div>
 
           {scheduleMode === 'duration' ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="durationDays">Days</Label>
-                <Input
+            <div className="space-y-1.5">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <NumberSelect
                   id="durationDays"
-                  type="number"
-                  min={0}
+                  label="Days"
+                  max={30}
                   value={durationDays}
-                  onChange={(e) => setDurationDays(e.target.value)}
+                  onChange={(v) => {
+                    setDurationDays(v);
+                    clearErr('endTime');
+                  }}
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="durationHours">Hours</Label>
-                <Input
+                <NumberSelect
                   id="durationHours"
-                  type="number"
-                  min={0}
+                  label="Hours"
                   max={23}
                   value={durationHours}
-                  onChange={(e) => setDurationHours(e.target.value)}
+                  onChange={(v) => {
+                    setDurationHours(v);
+                    clearErr('endTime');
+                  }}
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="durationMinutes">Minutes</Label>
-                <Input
+                <NumberSelect
                   id="durationMinutes"
-                  type="number"
-                  min={0}
+                  label="Minutes"
                   max={59}
                   value={durationMinutes}
-                  onChange={(e) => setDurationMinutes(e.target.value)}
+                  onChange={(v) => {
+                    setDurationMinutes(v);
+                    clearErr('endTime');
+                  }}
                 />
               </div>
+              <FieldError message={fieldErrors.endTime} />
             </div>
           ) : (
             <div className="space-y-1.5">
               <Label htmlFor="endTime">End date & time</Label>
-              <DateTimePicker id="endTime" value={endTime} onChange={setEndTime} />
+              <DateTimePicker
+                id="endTime"
+                value={endTime}
+                onChange={(v) => {
+                  setEndTime(v);
+                  clearErr('endTime');
+                }}
+              />
+              <FieldError message={fieldErrors.endTime} />
             </div>
           )}
 
@@ -266,10 +361,7 @@ export function AuctionStep5Workflow({
                   Saving...
                 </>
               ) : (
-                <>
-                  Schedule
-                  <ArrowRight className="h-4 w-4" />
-                </>
+                'Schedule'
               )}
             </Button>
             <Button
@@ -284,10 +376,7 @@ export function AuctionStep5Workflow({
                   Saving...
                 </>
               ) : (
-                <>
-                  Schedule & Publish
-                  <ArrowRight className="h-4 w-4" />
-                </>
+                'Schedule & Publish'
               )}
             </Button>
           </div>

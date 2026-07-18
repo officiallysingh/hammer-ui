@@ -8,7 +8,12 @@ import { Button, Input, Label } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { MultiSelect } from '@/components/common/admin/MultiSelect';
+import { AvatarUpload } from '@/components/common/admin/AvatarUpload';
 import { parseApiError } from '@/lib/api-errors';
+
+function initialsOf(firstName: string, lastName: string) {
+  return `${firstName.trim()[0] ?? ''}${lastName.trim()[0] ?? ''}`.toUpperCase() || undefined;
+}
 
 function Field({
   id,
@@ -88,9 +93,10 @@ interface NewUserFormValues {
   firstName: string;
   lastName: string;
   mobile: string;
+  profilePicture: string | undefined;
   enabled: boolean;
-  emailVerified: boolean;
-  mobileVerified: boolean;
+  askToVerifyEmail: boolean;
+  askToVerifyMobile: boolean;
   promptChangePwd: boolean;
   selectedRoles: string[];
   selectedPerms: string[];
@@ -102,9 +108,10 @@ const EMPTY_NEW_USER_FORM: NewUserFormValues = {
   firstName: '',
   lastName: '',
   mobile: '',
+  profilePicture: undefined,
   enabled: true,
-  emailVerified: true,
-  mobileVerified: true,
+  askToVerifyEmail: false,
+  askToVerifyMobile: false,
   promptChangePwd: true,
   selectedRoles: [],
   selectedPerms: [],
@@ -157,9 +164,10 @@ export default function NewUserPage() {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         mobileNo: form.mobile.trim() || undefined,
+        profilePicture: form.profilePicture,
         enabled: form.enabled,
-        emailIdVerified: form.emailVerified,
-        mobileNoVerified: form.mobileVerified,
+        emailIdVerified: !form.askToVerifyEmail,
+        mobileNoVerified: !form.askToVerifyMobile,
         credentialsNonExpired: !form.promptChangePwd,
         promptChangePassword: form.promptChangePwd,
         accountNonLocked: true,
@@ -194,6 +202,11 @@ export default function NewUserPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="rounded-xl border border-border bg-card p-6 space-y-4">
           <h3 className="text-sm font-semibold text-foreground">Account details</h3>
+          <AvatarUpload
+            value={form.profilePicture}
+            onChange={(v) => setField('profilePicture', v)}
+            fallbackText={initialsOf(form.firstName, form.lastName)}
+          />
           <Field
             id="username"
             label="Username"
@@ -305,14 +318,14 @@ export default function NewUserPage() {
             onChange={(value) => setField('enabled', value)}
           />
           <Toggle
-            label="Email verified"
-            value={form.emailVerified}
-            onChange={(value) => setField('emailVerified', value)}
+            label="Ask to verify email"
+            value={form.askToVerifyEmail}
+            onChange={(value) => setField('askToVerifyEmail', value)}
           />
           <Toggle
-            label="Mobile verified"
-            value={form.mobileVerified}
-            onChange={(value) => setField('mobileVerified', value)}
+            label="Ask to verify mobile"
+            value={form.askToVerifyMobile}
+            onChange={(value) => setField('askToVerifyMobile', value)}
           />
           <Toggle
             label="Prompt change password"

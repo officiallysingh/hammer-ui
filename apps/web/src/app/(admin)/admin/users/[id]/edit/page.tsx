@@ -8,7 +8,12 @@ import { Button, Input, Label } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { MultiSelect } from '@/components/common/admin/MultiSelect';
+import { AvatarUpload } from '@/components/common/admin/AvatarUpload';
 import { parseApiError } from '@/lib/api-errors';
+
+function initialsOf(firstName: string, lastName: string) {
+  return `${firstName.trim()[0] ?? ''}${lastName.trim()[0] ?? ''}`.toUpperCase() || undefined;
+}
 
 function Field({
   id,
@@ -99,9 +104,10 @@ export default function EditUserPage() {
     firstName: string;
     lastName: string;
     mobile: string;
+    profilePicture: string | undefined;
     enabled: boolean;
-    emailVerified: boolean;
-    mobileVerified: boolean;
+    askToVerifyEmail: boolean;
+    askToVerifyMobile: boolean;
     promptChangePwd: boolean;
     selectedRoles: string[];
     selectedPerms: string[];
@@ -112,9 +118,10 @@ export default function EditUserPage() {
     firstName: '',
     lastName: '',
     mobile: '',
+    profilePicture: undefined,
     enabled: true,
-    emailVerified: true,
-    mobileVerified: true,
+    askToVerifyEmail: false,
+    askToVerifyMobile: false,
     promptChangePwd: false,
     selectedRoles: [],
     selectedPerms: [],
@@ -137,7 +144,11 @@ export default function EditUserPage() {
   const [username, setUsername] = useState('');
 
   useEffect(() => {
-    Promise.all([usersApi.getUserById(id), adminApi.getRoles(), adminApi.getPermissions()])
+    Promise.all([
+      usersApi.getUserById(id, ['roles', 'permissions']),
+      adminApi.getRoles(),
+      adminApi.getPermissions(),
+    ])
       .then(([u, roles, permissions]) => {
         originalRef.current = u;
         setUsername(u.username ?? '');
@@ -149,9 +160,10 @@ export default function EditUserPage() {
           firstName: u.firstName ?? '',
           lastName: u.lastName ?? '',
           mobile: u.mobileNo ?? '',
+          profilePicture: u.profilePicture ?? undefined,
           enabled: u.enabled,
-          emailVerified: u.emailIdVerified,
-          mobileVerified: u.mobileNoVerified,
+          askToVerifyEmail: !u.emailIdVerified,
+          askToVerifyMobile: !u.mobileNoVerified,
           promptChangePwd: u.promptChangePassword,
           selectedRoles: roleIds,
           selectedPerms: permIds.filter((id) => permIdSet.has(id)),
@@ -192,9 +204,13 @@ export default function EditUserPage() {
       patch.lastName = form.lastName.trim() || undefined;
     if (form.mobile.trim() !== (orig.mobileNo ?? ''))
       patch.mobileNo = form.mobile.trim() || undefined;
+    if (form.profilePicture !== (orig.profilePicture ?? undefined))
+      patch.profilePicture = form.profilePicture ?? null;
     if (form.enabled !== orig.enabled) patch.enabled = form.enabled;
-    if (form.emailVerified !== orig.emailIdVerified) patch.emailIdVerified = form.emailVerified;
-    if (form.mobileVerified !== orig.mobileNoVerified) patch.mobileNoVerified = form.mobileVerified;
+    if (form.askToVerifyEmail !== !orig.emailIdVerified)
+      patch.emailIdVerified = !form.askToVerifyEmail;
+    if (form.askToVerifyMobile !== !orig.mobileNoVerified)
+      patch.mobileNoVerified = !form.askToVerifyMobile;
     if (form.promptChangePwd !== orig.promptChangePassword)
       patch.credentialsNonExpired = !form.promptChangePwd;
 
@@ -253,6 +269,11 @@ export default function EditUserPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="rounded-xl border border-border bg-card p-6 space-y-4">
           <h3 className="text-sm font-semibold text-foreground">Account details</h3>
+          <AvatarUpload
+            value={form.profilePicture}
+            onChange={(v) => setField('profilePicture', v)}
+            fallbackText={initialsOf(form.firstName, form.lastName)}
+          />
           <Field id="username" label="Username" value={username} disabled />
           <Field
             id="email"
@@ -350,14 +371,14 @@ export default function EditUserPage() {
             onChange={(v) => setField('enabled', v)}
           />
           <Toggle
-            label="Email verified"
-            value={form.emailVerified}
-            onChange={(v) => setField('emailVerified', v)}
+            label="Ask to verify email"
+            value={form.askToVerifyEmail}
+            onChange={(v) => setField('askToVerifyEmail', v)}
           />
           <Toggle
-            label="Mobile verified"
-            value={form.mobileVerified}
-            onChange={(v) => setField('mobileVerified', v)}
+            label="Ask to verify mobile"
+            value={form.askToVerifyMobile}
+            onChange={(v) => setField('askToVerifyMobile', v)}
           />
           <Toggle
             label="Prompt change password"

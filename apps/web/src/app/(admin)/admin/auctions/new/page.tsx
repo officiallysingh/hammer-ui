@@ -7,12 +7,10 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
 import { parseApiError } from '@/lib/api-errors';
-import { useAuthStore } from '@/store/authStore';
 import { SelectOption } from '../_components/AuctionShared';
 import { AuctionStepIndicator } from '../_components/AuctionStepIndicator';
 import { AuctionStep1Details, Step1State, initialStep1 } from '../_components/AuctionStep1Details';
 import { AuctionStep2Units, Step2State, initialStep2 } from '../_components/AuctionStep2Units';
-import { AuctionStep3Media, AuctionUploadedFile } from '../_components/AuctionStep3Media';
 import {
   AuctionStep3Policies,
   Step3State,
@@ -31,9 +29,6 @@ function deriveAuctionType(priceProgression: string, unitType: string): string {
 export default function NewAuctionPage() {
   const router = useRouter();
 
-  const { user } = useAuthStore();
-  const username = user?.username ?? 'unknown';
-
   const [step, setStep] = useState(1);
 
   // Step 1
@@ -51,10 +46,7 @@ export default function NewAuctionPage() {
   const [createdAuctionId, setCreatedAuctionId] = useState<string | null>(null);
   const [createdAuctionType, setCreatedAuctionType] = useState('');
 
-  // Step 3 – Media
-  const [mediaUploads, setMediaUploads] = useState<AuctionUploadedFile[]>([]);
-
-  // Step 4 – Policies
+  // Step 3 – Policies
   const [step3, setStep3] = useState<Step3State>(initialStep3);
   const [step3Errors, setStep3Errors] = useState<Record<string, string>>({});
   const [step3GeneralError, setStep3GeneralError] = useState<string | null>(null);
@@ -286,7 +278,7 @@ export default function NewAuctionPage() {
       if (Object.keys(policies).length > 0) {
         await auctionsApi.setAuctionPolicyGroups(createdAuctionId, policies);
       }
-      setStep(5);
+      setStep(4);
     } catch (err) {
       const parsed = parseApiError(err);
       if (Object.keys(parsed.fieldErrors).length) setStep3Errors(parsed.fieldErrors);
@@ -370,18 +362,7 @@ export default function NewAuctionPage() {
         />
       )}
 
-      {step === 3 && createdAuctionId && (
-        <AuctionStep3Media
-          auctionId={createdAuctionId}
-          username={username}
-          uploads={mediaUploads}
-          onUploadsChange={setMediaUploads}
-          onNext={() => setStep(4)}
-          onBack={() => setStep(2)}
-        />
-      )}
-
-      {step === 4 && (
+      {step === 3 && (
         <AuctionStep3Policies
           auctionId={createdAuctionId ?? undefined}
           form={step3}
@@ -395,8 +376,17 @@ export default function NewAuctionPage() {
           generalError={step3GeneralError}
           saving={savingStep3}
           onSubmit={handleStep3Submit}
-          onBack={() => setStep(3)}
+          onBack={() => setStep(2)}
           onSkip={JSON.stringify(step3) === JSON.stringify(initialStep3) ? handleSkip : undefined}
+        />
+      )}
+
+      {step === 4 && createdAuctionId && (
+        <AuctionStep5Workflow
+          auctionId={createdAuctionId}
+          onBack={() => setStep(3)}
+          onNext={() => setStep(5)}
+          onFinish={() => router.push('/admin/auctions')}
         />
       )}
 
@@ -404,15 +394,6 @@ export default function NewAuctionPage() {
         <AuctionStep5Workflow
           auctionId={createdAuctionId}
           onBack={() => setStep(4)}
-          onNext={() => setStep(6)}
-          onFinish={() => router.push('/admin/auctions')}
-        />
-      )}
-
-      {step === 6 && createdAuctionId && (
-        <AuctionStep5Workflow
-          auctionId={createdAuctionId}
-          onBack={() => setStep(5)}
           onFinish={() => router.push('/admin/auctions')}
           showScheduleOnly
         />

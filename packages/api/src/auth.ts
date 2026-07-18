@@ -27,6 +27,7 @@ export interface SignupParams {
   lastName: string;
   mobileNo: string;
   password?: string;
+  profilePicture?: string | null;
 }
 
 export interface SendOtpParams {

@@ -9,12 +9,17 @@ import {
   DayHourDropdowns,
   NameDescriptionFields,
   PAYMENT_HEAD_BASIS_OPTIONS,
-  PAYMENT_HEAD_TYPE_OPTIONS,
+  PAYMENT_HEAD_TYPE_OPTIONS_PRE,
+  PAYMENT_HEAD_TYPE_OPTIONS_POST,
   PAYMENT_SCHEDULE_REFERENCE_OPTIONS,
+  POLICY_DEFAULTS,
   PolicyInfoButton,
+  SELECT_CLS,
   SortButtons,
   moveItem,
 } from './PolicyShared';
+
+type ScheduleReference = 'AUCTION_START_TIME' | 'AUCTION_END_TIME';
 
 interface Props {
   policies: PaymentPolicyItem[];
@@ -24,6 +29,8 @@ interface Props {
   currencyUnit: string;
   fieldErrors: Record<string, string>;
   groupDescription?: string;
+  title: string;
+  fixedScheduleReference: ScheduleReference;
 }
 
 const EMPTY_HEAD: PolicyHeadItem = {
@@ -35,14 +42,17 @@ const EMPTY_HEAD: PolicyHeadItem = {
   refundable: false,
 };
 
-const EMPTY_POLICY: PaymentPolicyItem = {
-  name: '',
-  description: '',
-  scheduleReference: 'AUCTION_START_TIME',
-  offsetDays: '',
-  offsetHours: '0',
-  heads: [{ ...EMPTY_HEAD }],
-};
+function makeEmptyPolicy(scheduleReference: ScheduleReference): PaymentPolicyItem {
+  const defaults = POLICY_DEFAULTS.PAYMENT_POLICY;
+  return {
+    name: defaults?.name ?? '',
+    description: defaults?.description ?? '',
+    scheduleReference,
+    offsetDays: '',
+    offsetHours: '0',
+    heads: [{ ...EMPTY_HEAD }],
+  };
+}
 
 export function PolicyPaymentSection({
   policies,
@@ -52,16 +62,49 @@ export function PolicyPaymentSection({
   currencyUnit,
   fieldErrors,
   groupDescription,
+  title,
+  fixedScheduleReference,
 }: Props) {
   const dragIndexRef = useRef<number | null>(null);
   const dragHandleActiveRef = useRef(false);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
-  const add = () => onChange([...policies, { ...EMPTY_POLICY, heads: [{ ...EMPTY_HEAD }] }]);
+  const visible = policies
+    .map((p, i) => ({ p, i }))
+    .filter(({ p }) => (p.scheduleReference || 'AUCTION_START_TIME') === fixedScheduleReference);
+
+  const reorderVisible = (reorderFn: (subset: PaymentPolicyItem[]) => PaymentPolicyItem[]) => {
+    const indices = visible.map((v) => v.i);
+    const subset = visible.map((v) => v.p);
+    const reordered = reorderFn(subset);
+    const updated = [...policies];
+    indices.forEach((origIdx, k) => {
+      updated[origIdx] = reordered[k]!;
+    });
+    onChange(updated);
+  };
+
+  const add = () => onChange([...policies, makeEmptyPolicy(fixedScheduleReference)]);
   const remove = (i: number) => onChange(policies.filter((_, idx) => idx !== i));
-  const move = (i: number, dir: -1 | 1) => onChange(moveItem(policies, i, dir));
+  const move = (i: number, dir: -1 | 1) => {
+    const localIdx = visible.findIndex((v) => v.i === i);
+    reorderVisible((subset) => moveItem(subset, localIdx, dir));
+  };
   const update = (i: number, patch: Partial<PaymentPolicyItem>) =>
     onChange(policies.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
+
+  const headTypeOptions = (scheduleReference: ScheduleReference) =>
+    scheduleReference === 'AUCTION_END_TIME'
+      ? PAYMENT_HEAD_TYPE_OPTIONS_POST
+      : PAYMENT_HEAD_TYPE_OPTIONS_PRE;
+
+  const updateScheduleReference = (i: number, scheduleReference: ScheduleReference) => {
+    const validTypes = new Set(headTypeOptions(scheduleReference).map((o) => o.value));
+    update(i, {
+      scheduleReference,
+      heads: policies[i]!.heads.map((h) => (validTypes.has(h.type) ? h : { ...h, type: '' })),
+    });
+  };
 
   const addHead = (i: number) => update(i, { heads: [...policies[i]!.heads, { ...EMPTY_HEAD }] });
   const removeHead = (i: number, j: number) =>
@@ -75,10 +118,7 @@ export function PolicyPaymentSection({
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div className="flex items-center justify-between border-b border-border pb-2 mb-4">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-foreground">
-            {' '}
-            Pre Payment / Participation Eligibility Policy
-          </h3>
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
           {groupDescription && <PolicyInfoButton description={groupDescription} />}
         </div>
         <button
@@ -91,11 +131,11 @@ export function PolicyPaymentSection({
         </button>
       </div>
 
-      {policies.length === 0 ? (
+      {visible.length === 0 ? (
         <p className="text-sm text-muted-foreground">No payment policies defined.</p>
       ) : (
         <div className="space-y-3">
-          {policies.map((pp, i) => (
+          {visible.map(({ p: pp, i }, localIdx) => (
             <div
               key={i}
               draggable
@@ -104,22 +144,24 @@ export function PolicyPaymentSection({
                   e.preventDefault();
                   return;
                 }
-                dragIndexRef.current = i;
+                dragIndexRef.current = localIdx;
                 e.dataTransfer.effectAllowed = 'move';
               }}
               onDragOver={(e) => {
                 e.preventDefault();
-                setDragOverIdx(i);
+                setDragOverIdx(localIdx);
               }}
               onDragLeave={() => setDragOverIdx(null)}
               onDrop={(e) => {
                 e.preventDefault();
                 const from = dragIndexRef.current;
-                if (from !== null && from !== i) {
-                  const updated = [...policies];
-                  const [moved] = updated.splice(from, 1);
-                  updated.splice(i, 0, moved!);
-                  onChange(updated);
+                if (from !== null && from !== localIdx) {
+                  reorderVisible((subset) => {
+                    const updated = [...subset];
+                    const [moved] = updated.splice(from, 1);
+                    updated.splice(localIdx, 0, moved!);
+                    return updated;
+                  });
                 }
                 dragIndexRef.current = null;
                 setDragOverIdx(null);
@@ -129,11 +171,11 @@ export function PolicyPaymentSection({
                 dragIndexRef.current = null;
                 setDragOverIdx(null);
               }}
-              className={`rounded-lg border bg-muted/20 p-3 space-y-3 ${dragOverIdx === i ? 'border-primary shadow-sm' : 'border-border/70'}`}
+              className={`rounded-lg border bg-muted/20 p-3 space-y-3 ${dragOverIdx === localIdx ? 'border-primary shadow-sm' : 'border-border/70'}`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
-                  {policies.length > 1 && (
+                  {visible.length > 1 && (
                     <>
                       <GripVertical
                         className="h-4 w-4 text-muted-foreground cursor-grab shrink-0"
@@ -142,13 +184,15 @@ export function PolicyPaymentSection({
                         }}
                       />
                       <SortButtons
-                        index={i}
-                        total={policies.length}
+                        index={localIdx}
+                        total={visible.length}
                         onMove={(dir) => move(i, dir)}
                       />
                     </>
                   )}
-                  <span className="text-xs font-medium text-muted-foreground">Policy {i + 1}</span>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Policy {localIdx + 1}
+                  </span>
                 </div>
                 <button
                   type="button"
@@ -172,9 +216,11 @@ export function PolicyPaymentSection({
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium">Due Relative To</Label>
                   <select
-                    value={pp.scheduleReference}
-                    onChange={(e) => update(i, { scheduleReference: e.target.value })}
-                    className="w-full rounded-md border border-input bg-background px-3 py-[7px] text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    value={pp.scheduleReference || fixedScheduleReference}
+                    onChange={(e) =>
+                      updateScheduleReference(i, e.target.value as ScheduleReference)
+                    }
+                    className={SELECT_CLS}
                   >
                     {PAYMENT_SCHEDULE_REFERENCE_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>
@@ -249,7 +295,9 @@ export function PolicyPaymentSection({
                             label="Type"
                             required
                             value={head.type}
-                            options={PAYMENT_HEAD_TYPE_OPTIONS}
+                            options={headTypeOptions(
+                              (pp.scheduleReference || fixedScheduleReference) as ScheduleReference,
+                            )}
                             onChange={(v) => updateHead(i, j, { type: v })}
                             error={fieldErrors[`payment_head_type_${i}_${j}`]}
                             placeholder="Select type..."

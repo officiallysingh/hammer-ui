@@ -47,10 +47,16 @@ export const POLICY_DEFAULTS: Record<string, { name: string; description: string
   },
 };
 
-export const PAYMENT_HEAD_TYPE_OPTIONS: { value: string; label: string }[] = [
+// Pre-payment (AUCTION_START_TIME) fee head types
+export const PAYMENT_HEAD_TYPE_OPTIONS_PRE: { value: string; label: string }[] = [
   { value: 'PLATFORM_FEE', label: 'Platform Fee' },
   { value: 'PARTICIPATION_FEE', label: 'Participation Fee' },
   { value: 'EMD', label: 'Earnest Money Deposit (EMD)' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+// Post-payment (AUCTION_END_TIME) fee head types
+export const PAYMENT_HEAD_TYPE_OPTIONS_POST: { value: string; label: string }[] = [
   { value: 'AUCTION_CLEARING_AMOUNT', label: 'Auction Clearing Amount' },
   { value: 'AUCTION_CLEARING_INSTALLMENT', label: 'Auction Clearing Installment' },
   { value: 'OTHER', label: 'Other' },
