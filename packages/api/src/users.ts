@@ -78,6 +78,7 @@ export interface UserInfo {
   emailId: string;
   firstName?: string;
   lastName?: string;
+  profilePicture?: string | null;
   mobileNo?: string;
   permissions: string[];
   roles?: string[];

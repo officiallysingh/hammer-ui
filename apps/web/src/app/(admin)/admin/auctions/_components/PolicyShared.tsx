@@ -5,10 +5,6 @@ import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
 
 export const POLICY_DEFAULTS: Record<string, { name: string; description: string }> = {
-  PAYMENT_POLICY: {
-    name: 'Payment Policy',
-    description: 'Payment collected from participants or the auction winner',
-  },
   MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY: {
     name: 'Minimum required participants',
     description: 'Minimum required participants, if not met then the Auction will be cancelled',
@@ -62,17 +58,38 @@ export const PAYMENT_HEAD_TYPE_OPTIONS_POST: { value: string; label: string }[] 
   { value: 'OTHER', label: 'Other' },
 ];
 
-export const PAYMENT_HEAD_BASIS_OPTIONS: { value: string; label: string }[] = [
+// Pre-payment (AUCTION_START_TIME) basis options
+export const PAYMENT_HEAD_BASIS_OPTIONS_PRE: { value: string; label: string }[] = [
   { value: 'FIXED_AMOUNT', label: 'Fixed Amount' },
   { value: 'PERCENTAGE_OF_OPENING_PRICE', label: 'Percentage of Opening Price' },
-  { value: 'WINNING_AMOUNT', label: 'Winning Amount' },
-  { value: 'PERCENTAGE_OF_WINNING_PRICE', label: 'Percentage of Winning Price' },
+  { value: 'OTHER', label: 'Other' },
 ];
 
-export const PAYMENT_SCHEDULE_REFERENCE_OPTIONS: { value: string; label: string }[] = [
-  { value: 'AUCTION_START_TIME', label: 'Auction Start Time' },
-  { value: 'AUCTION_END_TIME', label: 'Auction End Time' },
+// Post-payment (AUCTION_END_TIME) basis options
+export const PAYMENT_HEAD_BASIS_OPTIONS_POST: { value: string; label: string }[] = [
+  { value: 'WINNING_AMOUNT', label: 'Winning Amount' },
+  { value: 'PERCENTAGE_OF_WINNING_PRICE', label: 'Percentage of Winning Price' },
+  { value: 'OTHER', label: 'Other' },
 ];
+
+export const PAYMENT_POLICY_NAME_DEFAULTS: Record<
+  'AUCTION_START_TIME' | 'AUCTION_END_TIME',
+  { name: string; description: string }
+> = {
+  AUCTION_START_TIME: {
+    name: 'Pre Payment',
+    description: 'Payment required to participate in auction',
+  },
+  AUCTION_END_TIME: {
+    name: 'Post Payment',
+    description: 'Payment collected from participants or the auction winner',
+  },
+};
+
+export const PAYMENT_HEAD_DEFAULT: { name: string; description: string } = {
+  name: 'EMD',
+  description: 'Earnest money deposit',
+};
 
 export function PolicyInfoButton({ description }: { description: string }) {
   const [open, setOpen] = useState(false);
@@ -168,12 +185,14 @@ export function DayHourDropdowns({
   onDaysChange,
   onHoursChange,
   label,
+  suffix,
 }: {
   daysValue: string;
   hoursValue: string;
   onDaysChange: (v: string) => void;
   onHoursChange: (v: string) => void;
   label?: string;
+  suffix?: string;
 }) {
   return (
     <div className="space-y-1.5">
@@ -203,7 +222,7 @@ export function DayHourDropdowns({
             </option>
           ))}
         </select>
-        <span className="text-sm text-muted-foreground">hours</span>
+        <span className="text-sm text-muted-foreground">hours{suffix ? ` ${suffix}` : ''}</span>
       </div>
     </div>
   );

@@ -39,7 +39,7 @@ export function AuctionStepIndicator({
                       : 'bg-muted text-muted-foreground'
                 } ${clickable ? 'cursor-pointer hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-emerald-400/40' : ''}`}
               >
-                {done ? '✓' : s}
+                {s}
               </div>
               <span
                 className={`text-xs font-medium whitespace-nowrap ${active ? 'text-foreground' : 'text-muted-foreground'}`}

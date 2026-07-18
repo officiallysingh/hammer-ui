@@ -20,6 +20,7 @@ import { useAuthStore } from '@/store/authStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { parseApiError } from '@/lib/api-errors';
 import { TextCaptcha, type TextCaptchaHandle } from './TextCaptcha';
+import { AvatarUpload } from '@/components/common/admin/AvatarUpload';
 
 const OTP_RESEND_COOLDOWN_SEC = 30;
 
@@ -159,6 +160,7 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [signupPassword, setSignupPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [profilePicture, setProfilePicture] = useState<string | undefined>(undefined);
 
   // ── CAPTCHA ────────────────────────────────────────────────────────────────
   const loginCaptchaRef = useRef<TextCaptchaHandle>(null);
@@ -426,6 +428,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         firstName,
         lastName,
         password: signupPassword,
+        profilePicture: profilePicture ?? null,
       });
       router.push('/login?registered=1');
     } catch (err) {
@@ -722,6 +725,13 @@ export function AuthForm({ mode }: AuthFormProps) {
             </div>
           )}
           <form onSubmit={handleSignupDetails} className="space-y-4">
+            <AvatarUpload
+              value={profilePicture}
+              onChange={setProfilePicture}
+              fallbackText={
+                `${firstName.trim()[0] ?? ''}${lastName.trim()[0] ?? ''}`.toUpperCase() || undefined
+              }
+            />
             <div className="space-y-1.5">
               <Label htmlFor="signup-username" className={usernameError ? 'text-destructive' : ''}>
                 Username

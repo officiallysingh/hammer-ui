@@ -8,13 +8,13 @@ import { PaymentPolicyItem, PolicyHeadItem } from './AuctionStep3Types';
 import {
   DayHourDropdowns,
   NameDescriptionFields,
-  PAYMENT_HEAD_BASIS_OPTIONS,
+  PAYMENT_HEAD_BASIS_OPTIONS_PRE,
+  PAYMENT_HEAD_BASIS_OPTIONS_POST,
   PAYMENT_HEAD_TYPE_OPTIONS_PRE,
   PAYMENT_HEAD_TYPE_OPTIONS_POST,
-  PAYMENT_SCHEDULE_REFERENCE_OPTIONS,
-  POLICY_DEFAULTS,
+  PAYMENT_POLICY_NAME_DEFAULTS,
+  PAYMENT_HEAD_DEFAULT,
   PolicyInfoButton,
-  SELECT_CLS,
   SortButtons,
   moveItem,
 } from './PolicyShared';
@@ -34,8 +34,8 @@ interface Props {
 }
 
 const EMPTY_HEAD: PolicyHeadItem = {
-  name: '',
-  description: '',
+  name: PAYMENT_HEAD_DEFAULT.name,
+  description: PAYMENT_HEAD_DEFAULT.description,
   type: '',
   basis: '',
   value: '',
@@ -43,10 +43,10 @@ const EMPTY_HEAD: PolicyHeadItem = {
 };
 
 function makeEmptyPolicy(scheduleReference: ScheduleReference): PaymentPolicyItem {
-  const defaults = POLICY_DEFAULTS.PAYMENT_POLICY;
+  const defaults = PAYMENT_POLICY_NAME_DEFAULTS[scheduleReference];
   return {
-    name: defaults?.name ?? '',
-    description: defaults?.description ?? '',
+    name: defaults.name,
+    description: defaults.description,
     scheduleReference,
     offsetDays: '',
     offsetHours: '0',
@@ -93,18 +93,15 @@ export function PolicyPaymentSection({
   const update = (i: number, patch: Partial<PaymentPolicyItem>) =>
     onChange(policies.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
 
-  const headTypeOptions = (scheduleReference: ScheduleReference) =>
-    scheduleReference === 'AUCTION_END_TIME'
+  const headTypeOptions =
+    fixedScheduleReference === 'AUCTION_END_TIME'
       ? PAYMENT_HEAD_TYPE_OPTIONS_POST
       : PAYMENT_HEAD_TYPE_OPTIONS_PRE;
 
-  const updateScheduleReference = (i: number, scheduleReference: ScheduleReference) => {
-    const validTypes = new Set(headTypeOptions(scheduleReference).map((o) => o.value));
-    update(i, {
-      scheduleReference,
-      heads: policies[i]!.heads.map((h) => (validTypes.has(h.type) ? h : { ...h, type: '' })),
-    });
-  };
+  const basisOptions =
+    fixedScheduleReference === 'AUCTION_END_TIME'
+      ? PAYMENT_HEAD_BASIS_OPTIONS_POST
+      : PAYMENT_HEAD_BASIS_OPTIONS_PRE;
 
   const addHead = (i: number) => update(i, { heads: [...policies[i]!.heads, { ...EMPTY_HEAD }] });
   const removeHead = (i: number, j: number) =>
@@ -212,36 +209,23 @@ export function PolicyPaymentSection({
                 onDescriptionChange={(v) => update(i, { description: v })}
               />
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Due Relative To</Label>
-                  <select
-                    value={pp.scheduleReference || fixedScheduleReference}
-                    onChange={(e) =>
-                      updateScheduleReference(i, e.target.value as ScheduleReference)
-                    }
-                    className={SELECT_CLS}
-                  >
-                    {PAYMENT_SCHEDULE_REFERENCE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <DayHourDropdowns
-                  label="Offset"
-                  daysValue={pp.offsetDays}
-                  hoursValue={pp.offsetHours}
-                  onDaysChange={(v) => update(i, { offsetDays: v })}
-                  onHoursChange={(v) => update(i, { offsetHours: v })}
-                />
-              </div>
+              <DayHourDropdowns
+                label={fixedScheduleReference === 'AUCTION_END_TIME' ? 'Pay within' : 'Pay before'}
+                suffix={
+                  fixedScheduleReference === 'AUCTION_END_TIME'
+                    ? 'after auction completion'
+                    : 'before auction start'
+                }
+                daysValue={pp.offsetDays}
+                hoursValue={pp.offsetHours}
+                onDaysChange={(v) => update(i, { offsetDays: v })}
+                onHoursChange={(v) => update(i, { offsetHours: v })}
+              />
 
-              {/* Fee heads */}
+              {/* Payment Head */}
               <div className="rounded-lg border border-border/60 bg-background/60 p-3 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-muted-foreground">Fee Heads</span>
+                  <span className="text-xs font-semibold text-muted-foreground">Payment Head</span>
                   <button
                     type="button"
                     onClick={() => addHead(i)}
@@ -267,7 +251,7 @@ export function PolicyPaymentSection({
                       >
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-medium text-muted-foreground">
-                            Head {j + 1}
+                            Payment Head {j + 1}
                           </span>
                           {pp.heads.length > 1 && (
                             <button
@@ -295,10 +279,13 @@ export function PolicyPaymentSection({
                             label="Type"
                             required
                             value={head.type}
-                            options={headTypeOptions(
-                              (pp.scheduleReference || fixedScheduleReference) as ScheduleReference,
-                            )}
-                            onChange={(v) => updateHead(i, j, { type: v })}
+                            options={headTypeOptions}
+                            onChange={(v) =>
+                              updateHead(i, j, {
+                                type: v,
+                                ...(v === 'EMD' ? { refundable: true } : {}),
+                              })
+                            }
                             error={fieldErrors[`payment_head_type_${i}_${j}`]}
                             placeholder="Select type..."
                           />
@@ -307,7 +294,7 @@ export function PolicyPaymentSection({
                             label="Basis"
                             required
                             value={head.basis}
-                            options={PAYMENT_HEAD_BASIS_OPTIONS}
+                            options={basisOptions}
                             onChange={(v) => updateHead(i, j, { basis: v, value: '' })}
                             error={fieldErrors[`payment_head_basis_${i}_${j}`]}
                             placeholder="Select basis..."
@@ -350,10 +337,13 @@ export function PolicyPaymentSection({
                               <FieldError message={fieldErrors[`payment_head_value_${i}_${j}`]} />
                             </div>
                             <div className="flex items-end pb-1.5">
-                              <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                              <label
+                                className={`flex items-center gap-2 text-sm text-foreground ${head.type === 'EMD' ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
+                              >
                                 <input
                                   type="checkbox"
-                                  checked={head.refundable}
+                                  checked={head.type === 'EMD' ? true : head.refundable}
+                                  disabled={head.type === 'EMD'}
                                   onChange={(e) =>
                                     updateHead(i, j, { refundable: e.target.checked })
                                   }

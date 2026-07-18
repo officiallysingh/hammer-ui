@@ -1,5 +1,3 @@
-import { Check } from 'lucide-react';
-
 type Step = 'details' | 'mobile' | 'mobile_otp' | 'password';
 
 const VISUAL_STEPS = ['details', 'mobile', 'password'];
@@ -23,7 +21,7 @@ export function StepIndicator({ current }: StepIndicatorProps) {
                   : 'bg-muted text-muted-foreground'
             }`}
           >
-            {i < visualIdx ? <Check className="h-3.5 w-3.5" /> : i + 1}
+            {i + 1}
           </div>
           {i < VISUAL_STEPS.length - 1 && (
             <div

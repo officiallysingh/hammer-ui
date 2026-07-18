@@ -1,5 +1,3 @@
-import { Check } from 'lucide-react';
-
 const STEPS = ['Details', 'Media', 'Custom Properties'];
 
 interface StepIndicatorProps {
@@ -41,7 +39,7 @@ export function StepIndicator({ current, onStepClick, editMode }: StepIndicatorP
                       : 'bg-muted text-muted-foreground'
                 } ${clickable ? 'cursor-pointer hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-emerald-400/40' : ''}`}
               >
-                {done ? <Check className="h-4 w-4" /> : s}
+                {s}
               </div>
               <span
                 className={`text-xs font-medium whitespace-nowrap ${active ? 'text-foreground' : 'text-muted-foreground'}`}

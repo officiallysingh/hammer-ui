@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Eye, Loader2, Package, Trash2 } from 'lucide-react';
 import { listingsApi, blobsApi, AuctionUnitType, ListingSummaryVM } from '@repo/api';
 import { Button, Input, Label } from '@repo/ui';
 import { DismissibleError, FieldError, SectionHeading, SelectOption } from './AuctionShared';
 import { ListingSearchField } from './ListingSearchField';
 import { TagsCategorySection } from './TagsCategorySection';
+import { ListingViewDialog } from '../../listings/_components/ListingViewDialog';
 
 // ─── UI unit category ─────────────────────────────────────────────────────────
 // "Atomic" covers both SINGLE_UNIT (1 item) and BUNDLE (2+ items).
@@ -104,6 +105,8 @@ export function AuctionStep2Units({
   submitLabel = 'Save & Continue',
   submitWithArrow = false,
 }: AuctionStep2UnitsProps) {
+  const [viewListingId, setViewListingId] = useState<string | null>(null);
+
   // ── Hydrate summaries/names for all atomic items that are missing one ────────
   // Covers edit mode (items loaded from API with no summaries) and the normal
   // add flow (addAtomicItem already sets summaries, so nothing is fetched).
@@ -282,318 +285,325 @@ export function AuctionStep2Units({
   };
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
-      <DismissibleError message={generalError} />
+    <>
+      <form onSubmit={onSubmit} className="space-y-6">
+        <DismissibleError message={generalError} />
 
-      <div className="rounded-xl border border-border bg-card p-6 space-y-4">
-        <SectionHeading>Auction Unit</SectionHeading>
+        <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+          <SectionHeading>Auction Unit</SectionHeading>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Unit Category */}
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium">
-              Unit Type <span className="text-destructive">*</span>
-            </Label>
-            <input
-              type="text"
-              readOnly
-              value={selectedUnitLabel}
-              className="w-full rounded-md border border-input bg-muted px-3 py-[7px] text-sm text-muted-foreground cursor-default"
-            />
-            {/* Show derived type badge for Atomic */}
-            {isAtomic && form.unitType && (
-              <p className="text-[11px] text-muted-foreground">
-                Derived:{' '}
-                <span className="font-medium text-foreground">
-                  {form.unitType === 'SINGLE_UNIT' ? 'Single Unit' : 'Bundle'}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Unit Category */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">
+                Unit Type <span className="text-destructive">*</span>
+              </Label>
+              <input
+                type="text"
+                readOnly
+                value={selectedUnitLabel}
+                className="w-full rounded-md border border-input bg-muted px-3 py-[7px] text-sm text-muted-foreground cursor-default"
+              />
+              {/* Show derived type badge for Atomic */}
+              {isAtomic && form.unitType && (
+                <p className="text-[11px] text-muted-foreground">
+                  Derived:{' '}
+                  <span className="font-medium text-foreground">
+                    {form.unitType === 'SINGLE_UNIT' ? 'Single Unit' : 'Bundle'}
+                  </span>
+                  {form.unitType === 'SINGLE_UNIT'
+                    ? ' — one item selected'
+                    : ` — ${form.items.length} items`}
+                </p>
+              )}
+              <FieldError message={fieldErrors.unitType} />
+            </div>
+
+            {/* Opening Price */}
+            <div className="space-y-1.5">
+              <Label htmlFor="openingPrice" className="text-sm font-medium">
+                {isAtomic && form.items.length > 1 ? 'Total Opening Price' : 'Opening Price'}{' '}
+                <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="openingPrice"
+                type="number"
+                min={0}
+                step={precision > 0 ? (1 / Math.pow(10, precision)).toFixed(precision) : '1'}
+                value={form.openingPrice}
+                onChange={(e) => onChange({ openingPrice: e.target.value })}
+                placeholder={precision > 0 ? `0.${'0'.repeat(precision)}` : '0'}
+              />
+              <FieldError message={fieldErrors.openingPrice} />
+            </div>
+          </div>
+
+          {/* ── Atomic items ─────────────────────────────────────────────────── */}
+          {isAtomic && (
+            <div className="space-y-4">
+              <Label className="text-sm font-medium">
+                Listing <span className="text-destructive">*</span>
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  (1 item = Single Unit · 2+ items = Bundle)
                 </span>
-                {form.unitType === 'SINGLE_UNIT'
-                  ? ' — one item selected'
-                  : ` — ${form.items.length} items`}
-              </p>
-            )}
-            <FieldError message={fieldErrors.unitType} />
-          </div>
+              </Label>
 
-          {/* Opening Price */}
-          <div className="space-y-1.5">
-            <Label htmlFor="openingPrice" className="text-sm font-medium">
-              {isAtomic && form.items.length > 1 ? 'Total Opening Price' : 'Opening Price'}{' '}
-              <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="openingPrice"
-              type="number"
-              min={0}
-              step={precision > 0 ? (1 / Math.pow(10, precision)).toFixed(precision) : '1'}
-              value={form.openingPrice}
-              onChange={(e) => onChange({ openingPrice: e.target.value })}
-              placeholder={precision > 0 ? `0.${'0'.repeat(precision)}` : '0'}
-            />
-            <FieldError message={fieldErrors.openingPrice} />
-          </div>
+              {/* Search to add more */}
+              <ListingSearchField
+                addMode
+                onSelect={(id, name, summary, quantity) =>
+                  addAtomicItem(id, name, summary, quantity)
+                }
+              />
+
+              {/* Selected items table */}
+              {form.items.length > 0 && (
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/40">
+                        <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground w-10" />
+                        <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">
+                          Name
+                        </th>
+                        <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground hidden sm:table-cell">
+                          Description
+                        </th>
+                        <th className="text-center px-3 py-2 text-xs font-semibold text-muted-foreground w-16">
+                          Qty
+                        </th>
+                        <th className="px-2 py-2 w-16" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {form.items.map((itemId, i) => {
+                        const s = form.itemSummaries[i];
+                        const qty = form.itemQuantities[i] ?? '1';
+                        return (
+                          <tr key={itemId} className="bg-card">
+                            <td className="px-3 py-2">
+                              {s?.thumbnailId ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={blobsApi.getDownloadUrl(s.thumbnailId)}
+                                  alt=""
+                                  className="w-8 h-8 rounded object-cover border border-border"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded bg-muted flex items-center justify-center border border-border">
+                                  <Package className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-3 py-2">
+                              <p className="font-medium text-foreground truncate max-w-[150px]">
+                                {s?.name || form.itemNames[i] || itemId}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground font-mono">
+                                {itemId.slice(-8)}
+                              </p>
+                            </td>
+                            <td className="px-3 py-2 hidden sm:table-cell">
+                              <p className="text-xs text-muted-foreground truncate max-w-[180px]">
+                                {s?.description ?? '—'}
+                              </p>
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => updateAtomicQuantity(i, -1)}
+                                  disabled={parseInt(qty, 10) <= 1}
+                                  className="h-6 w-6 rounded border border-border text-sm disabled:opacity-40"
+                                >
+                                  −
+                                </button>
+                                <span className="min-w-6 text-sm font-medium text-foreground">
+                                  {qty}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => updateAtomicQuantity(i, 1)}
+                                  disabled={
+                                    s?.availableQuantity !== undefined &&
+                                    parseInt(qty, 10) >= s.availableQuantity
+                                  }
+                                  className="h-6 w-6 rounded border border-border text-sm disabled:opacity-40"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </td>
+                            <td className="px-2 py-2">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewListingId(itemId)}
+                                  className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => removeAtomicItem(i)}
+                                  className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <FieldError message={fieldErrors.item} />
+            </div>
+          )}
+
+          {/* ── Non-atomic (MULTI_UNIT / LOT) items ──────────────────────────── */}
+          {isNonAtomic && (
+            <div className="space-y-4">
+              <Label className="text-sm font-medium">
+                Listings <span className="text-destructive">*</span>
+              </Label>
+
+              <ListingSearchField
+                addMode
+                onSelect={(id, name, summary) => addMultiItem(id, name, summary)}
+              />
+
+              {form.multiItems.length > 0 && (
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/40">
+                        <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground w-10" />
+                        <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">
+                          Name
+                        </th>
+                        <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground hidden sm:table-cell">
+                          Description
+                        </th>
+                        <th className="text-right px-3 py-2 text-xs font-semibold text-muted-foreground">
+                          Avail.
+                        </th>
+                        <th className="px-2 py-2 w-16" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {form.multiItems.map((itemId, i) => {
+                        const s = form.multiItemSummaries[i];
+                        return (
+                          <tr key={itemId} className="bg-card">
+                            <td className="px-3 py-2">
+                              {s?.thumbnailId ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={blobsApi.getDownloadUrl(s.thumbnailId)}
+                                  alt=""
+                                  className="w-8 h-8 rounded object-cover border border-border"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded bg-muted flex items-center justify-center border border-border">
+                                  <Package className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-3 py-2">
+                              <p className="font-medium text-foreground truncate max-w-[150px]">
+                                {s?.name || form.multiItemNames[i] || itemId}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground font-mono">
+                                {itemId.slice(-8)}
+                              </p>
+                            </td>
+                            <td className="px-3 py-2 hidden sm:table-cell">
+                              <p className="text-xs text-muted-foreground truncate max-w-[180px]">
+                                {s?.description ?? '—'}
+                              </p>
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <span className="text-xs font-medium">
+                                {s?.availableQuantity ?? '—'}
+                              </span>
+                            </td>
+                            <td className="px-2 py-2">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewListingId(itemId)}
+                                  className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => removeMultiItem(i)}
+                                  className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <FieldError message={fieldErrors.item} />
+            </div>
+          )}
         </div>
 
-        {/* ── Atomic items ─────────────────────────────────────────────────── */}
-        {isAtomic && (
-          <div className="space-y-4">
-            <Label className="text-sm font-medium">
-              Listing <span className="text-destructive">*</span>
-              <span className="ml-1 text-xs font-normal text-muted-foreground">
-                (1 item = Single Unit · 2+ items = Bundle)
-              </span>
-            </Label>
+        <TagsCategorySection
+          value={{
+            categories: form.categories,
+            subCategories: form.subCategories,
+            tags: form.tags,
+          }}
+          onChange={(patch) => onChange(patch)}
+        />
 
-            {/* Search to add more */}
-            <ListingSearchField
-              addMode
-              onSelect={(id, name, summary, quantity) => addAtomicItem(id, name, summary, quantity)}
-            />
-
-            {/* Selected items table */}
-            {form.items.length > 0 && (
-              <div className="rounded-lg border border-border overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/40">
-                      <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground w-10" />
-                      <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">
-                        Name
-                      </th>
-                      <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground hidden sm:table-cell">
-                        Description
-                      </th>
-                      <th className="text-center px-3 py-2 text-xs font-semibold text-muted-foreground w-16">
-                        Qty
-                      </th>
-                      <th className="px-2 py-2 w-16" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/50">
-                    {form.items.map((itemId, i) => {
-                      const s = form.itemSummaries[i];
-                      const qty = form.itemQuantities[i] ?? '1';
-                      return (
-                        <tr key={itemId} className="bg-card">
-                          <td className="px-3 py-2">
-                            {s?.thumbnailId ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={blobsApi.getDownloadUrl(s.thumbnailId)}
-                                alt=""
-                                className="w-8 h-8 rounded object-cover border border-border"
-                              />
-                            ) : (
-                              <div className="w-8 h-8 rounded bg-muted flex items-center justify-center border border-border">
-                                <Package className="h-4 w-4 text-muted-foreground" />
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-3 py-2">
-                            <p className="font-medium text-foreground truncate max-w-[150px]">
-                              {s?.name || form.itemNames[i] || itemId}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground font-mono">
-                              {itemId.slice(-8)}
-                            </p>
-                          </td>
-                          <td className="px-3 py-2 hidden sm:table-cell">
-                            <p className="text-xs text-muted-foreground truncate max-w-[180px]">
-                              {s?.description ?? '—'}
-                            </p>
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => updateAtomicQuantity(i, -1)}
-                                disabled={parseInt(qty, 10) <= 1}
-                                className="h-6 w-6 rounded border border-border text-sm disabled:opacity-40"
-                              >
-                                −
-                              </button>
-                              <span className="min-w-6 text-sm font-medium text-foreground">
-                                {qty}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => updateAtomicQuantity(i, 1)}
-                                disabled={
-                                  s?.availableQuantity !== undefined &&
-                                  parseInt(qty, 10) >= s.availableQuantity
-                                }
-                                className="h-6 w-6 rounded border border-border text-sm disabled:opacity-40"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </td>
-                          <td className="px-2 py-2">
-                            <div className="flex items-center justify-end gap-1">
-                              <a
-                                href={`/admin/listings/${itemId}/view`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                              >
-                                <Eye className="h-3.5 w-3.5" />
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => removeAtomicItem(i)}
-                                className="p-1 text-muted-foreground hover:text-destructive transition-colors"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <FieldError message={fieldErrors.item} />
-          </div>
-        )}
-
-        {/* ── Non-atomic (MULTI_UNIT / LOT) items ──────────────────────────── */}
-        {isNonAtomic && (
-          <div className="space-y-4">
-            <Label className="text-sm font-medium">
-              Listings <span className="text-destructive">*</span>
-            </Label>
-
-            <ListingSearchField
-              addMode
-              onSelect={(id, name, summary) => addMultiItem(id, name, summary)}
-            />
-
-            {form.multiItems.length > 0 && (
-              <div className="rounded-lg border border-border overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/40">
-                      <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground w-10" />
-                      <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">
-                        Name
-                      </th>
-                      <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground hidden sm:table-cell">
-                        Description
-                      </th>
-                      <th className="text-right px-3 py-2 text-xs font-semibold text-muted-foreground">
-                        Avail.
-                      </th>
-                      <th className="px-2 py-2 w-16" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/50">
-                    {form.multiItems.map((itemId, i) => {
-                      const s = form.multiItemSummaries[i];
-                      return (
-                        <tr key={itemId} className="bg-card">
-                          <td className="px-3 py-2">
-                            {s?.thumbnailId ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={blobsApi.getDownloadUrl(s.thumbnailId)}
-                                alt=""
-                                className="w-8 h-8 rounded object-cover border border-border"
-                              />
-                            ) : (
-                              <div className="w-8 h-8 rounded bg-muted flex items-center justify-center border border-border">
-                                <Package className="h-4 w-4 text-muted-foreground" />
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-3 py-2">
-                            <p className="font-medium text-foreground truncate max-w-[150px]">
-                              {s?.name || form.multiItemNames[i] || itemId}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground font-mono">
-                              {itemId.slice(-8)}
-                            </p>
-                          </td>
-                          <td className="px-3 py-2 hidden sm:table-cell">
-                            <p className="text-xs text-muted-foreground truncate max-w-[180px]">
-                              {s?.description ?? '—'}
-                            </p>
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <span className="text-xs font-medium">
-                              {s?.availableQuantity ?? '—'}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2">
-                            <div className="flex items-center justify-end gap-1">
-                              <a
-                                href={`/admin/listings/${itemId}/view`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                              >
-                                <Eye className="h-3.5 w-3.5" />
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => removeMultiItem(i)}
-                                className="p-1 text-muted-foreground hover:text-destructive transition-colors"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <FieldError message={fieldErrors.item} />
-          </div>
-        )}
-      </div>
-
-      <TagsCategorySection
-        value={{ categories: form.categories, subCategories: form.subCategories, tags: form.tags }}
-        onChange={(patch) => onChange(patch)}
-      />
-
-      <div className="flex justify-between gap-3">
-        <Button type="button" variant="outline" onClick={onBack} disabled={saving}>
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Back
-        </Button>
-        {onSkip ? (
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onSkip}
-            disabled={saving}
-            className="gap-2"
-          >
-            Skip <ArrowRight className="h-4 w-4" />
+        <div className="flex justify-between gap-3">
+          <Button type="button" variant="outline" onClick={onBack} disabled={saving}>
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back
           </Button>
-        ) : (
-          <Button type="submit" disabled={saving} className="gap-2">
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                {submitLabel}
-                {submitWithArrow && <ArrowRight className="h-4 w-4" />}
-              </>
-            )}
-          </Button>
-        )}
-      </div>
-    </form>
+          {onSkip ? (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onSkip}
+              disabled={saving}
+              className="gap-2"
+            >
+              Skip <ArrowRight className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button type="submit" disabled={saving} className="gap-2">
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  {submitLabel}
+                  {submitWithArrow && <ArrowRight className="h-4 w-4" />}
+                </>
+              )}
+            </Button>
+          )}
+        </div>
+      </form>
+      <ListingViewDialog listingId={viewListingId} onClose={() => setViewListingId(null)} />
+    </>
   );
 }

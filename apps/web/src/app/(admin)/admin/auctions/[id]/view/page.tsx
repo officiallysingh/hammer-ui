@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   auctionsApi,
+  listingsApi,
   blobsApi,
-  BlobVM,
   AuctionVM,
+  AuctionUnitVM,
   AuctionWorkflowStep,
   PolicyItemRQ,
   AuctionPoliciesGroupRQ,
@@ -22,15 +23,13 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
-  ChevronRight,
-  Play,
-  FileText,
-  Download,
-  ImageIcon,
+  Eye,
+  Package,
   Info,
 } from 'lucide-react';
 import { Button, Badge } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
+import { ListingViewDialog } from '../../../listings/_components/ListingViewDialog';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -67,182 +66,6 @@ function formatDateTime(iso?: string): string {
   } catch {
     return iso;
   }
-}
-
-// ── Blob media-type helpers ────────────────────────────────────────────────────
-
-function blobMimeType(blob: BlobVM): string {
-  if (!blob.mediaType) return '';
-  if (typeof blob.mediaType === 'string') return blob.mediaType;
-  const { type, subtype } = blob.mediaType as { type?: string; subtype?: string };
-  return type && subtype ? `${type}/${subtype}` : (type ?? '');
-}
-
-function isImage(blob: BlobVM) {
-  return blobMimeType(blob).startsWith('image/');
-}
-
-function isVideo(blob: BlobVM) {
-  return blobMimeType(blob).startsWith('video/');
-}
-
-function isDoc(blob: BlobVM) {
-  return !isImage(blob) && !isVideo(blob);
-}
-
-// ── Media gallery ─────────────────────────────────────────────────────────────
-
-function AuctionMediaGallery({ blobs }: { blobs: BlobVM[] }) {
-  const images = blobs.filter(isImage);
-  const videos = blobs.filter(isVideo);
-  const docs = blobs.filter(isDoc);
-  const mediaItems = [...images, ...videos];
-
-  const thumbnail = images.find((b) => b.metadata?.['thumbnail'] === 'true') ?? images[0];
-
-  const [activeId, setActiveId] = useState<string>(() => thumbnail?.id ?? mediaItems[0]?.id ?? '');
-  const [docNames, setDocNames] = useState<Record<string, string>>({});
-  const docIds = docs.map((blob) => blob.id).join('|');
-
-  useEffect(() => {
-    let active = true;
-
-    const loadMissingNames = async () => {
-      const missing = docs.filter((blob) => !blob.fileName && !docNames[blob.id]);
-      if (!missing.length) return;
-
-      const resolved = await Promise.all(
-        missing.map(async (blob) => {
-          try {
-            const detail = await blobsApi.getBlobById(blob.id);
-            return [blob.id, detail.fileName ?? blob.id] as const;
-          } catch {
-            return [blob.id, blob.id] as const;
-          }
-        }),
-      );
-
-      if (!active) return;
-      setDocNames((prev) => {
-        const next = { ...prev };
-        resolved.forEach(([id, name]) => {
-          next[id] = name;
-        });
-        return next;
-      });
-    };
-
-    void loadMissingNames();
-    return () => {
-      active = false;
-    };
-  }, [docIds, docs, docNames]);
-
-  if (!blobs.length) return null;
-
-  const activeBlob = mediaItems.find((b) => b.id === activeId) ?? mediaItems[0];
-  const activeIsVideo = activeBlob ? isVideo(activeBlob) : false;
-
-  return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-3 bg-muted/40 border-b border-border">
-        <ImageIcon className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-semibold text-foreground">Media</span>
-        <span className="text-xs text-muted-foreground ml-auto">
-          {images.length > 0 && `${images.length} image${images.length !== 1 ? 's' : ''}`}
-          {images.length > 0 && videos.length > 0 && ' · '}
-          {videos.length > 0 && `${videos.length} video${videos.length !== 1 ? 's' : ''}`}
-          {(images.length > 0 || videos.length > 0) && docs.length > 0 && ' · '}
-          {docs.length > 0 && `${docs.length} doc${docs.length !== 1 ? 's' : ''}`}
-        </span>
-      </div>
-
-      <div className="p-4 space-y-3">
-        {/* Main viewer */}
-        {mediaItems.length > 0 && activeBlob && (
-          <div className="relative rounded-xl overflow-hidden border border-border bg-muted aspect-video">
-            {activeIsVideo ? (
-              <video
-                key={activeBlob.id}
-                src={blobsApi.getDownloadUrl(activeBlob.id)}
-                controls
-                className="w-full h-full object-contain"
-              />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={blobsApi.getDownloadUrl(activeBlob.id)}
-                alt={activeBlob.fileName ?? 'image'}
-                className="w-full h-full object-contain"
-              />
-            )}
-          </div>
-        )}
-
-        {/* Thumbnail strip */}
-        {mediaItems.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {mediaItems.map((blob) => (
-              <button
-                key={blob.id}
-                type="button"
-                onClick={() => setActiveId(blob.id)}
-                className={`shrink-0 w-16 h-16 rounded-lg border-2 overflow-hidden transition-all relative ${
-                  blob.id === activeId
-                    ? 'border-primary ring-2 ring-primary/30'
-                    : 'border-border hover:border-primary/40'
-                }`}
-              >
-                {isVideo(blob) ? (
-                  <div className="w-full h-full bg-muted flex items-center justify-center">
-                    <Play className="h-5 w-5 text-muted-foreground fill-muted-foreground" />
-                  </div>
-                ) : (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={blobsApi.getDownloadUrl(blob.id)}
-                    alt={blob.fileName ?? ''}
-                    className="w-full h-full object-cover"
-                  />
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Documents */}
-        {docs.length > 0 && (
-          <div className="space-y-1.5 pt-1 border-t border-border/50">
-            <p className="text-xs font-medium text-muted-foreground">Documents</p>
-            {docs.map((blob) => {
-              const displayName = blob.fileName ?? docNames[blob.id] ?? blob.id;
-              return (
-                <div
-                  key={blob.id}
-                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/30 border border-border/50 text-sm"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="truncate text-foreground text-xs" title={displayName}>
-                      {displayName}
-                    </span>
-                  </div>
-                  <a
-                    href={blobsApi.getDownloadUrl(blob.id)}
-                    download={blob.fileName ?? displayName}
-                    className="shrink-0 ml-3 inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-border bg-background hover:bg-muted transition-colors"
-                  >
-                    <Download className="h-3 w-3" />
-                    Download
-                  </a>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
 }
 
 // ── Status badge ──────────────────────────────────────────────────────────────
@@ -601,67 +424,197 @@ function PolicyGroupSection({ groupKey, items }: { groupKey: string; items: Poli
   );
 }
 
-// ── Unit display ──────────────────────────────────────────────────────────────
+// ── Unit item row (hydrated with listing thumbnail) ───────────────────────────
 
-function UnitDisplay({ auction }: { auction: AuctionVM }) {
+interface UnitItemRow {
+  id: string;
+  name: string;
+  description?: string;
+  quantity?: number;
+  thumbnailId?: string | null;
+}
+
+function extractUnitItems(
+  unit: AuctionUnitVM | undefined,
+): { id: string; name?: string; description?: string; quantity?: number }[] {
+  if (!unit) return [];
+  const raw = unit.items ?? (unit.item ? [unit.item] : []);
+  return raw.map((it) =>
+    typeof it === 'object' && it !== null
+      ? { id: it.id, name: it.name, description: it.description, quantity: it.quantity }
+      : { id: it },
+  );
+}
+
+// ── Auction Unit section (full width, listing-style table) ────────────────────
+
+function AuctionUnitSection({ auction }: { auction: AuctionVM }) {
   const unit = auction.unit;
-  if (!unit) return <p className="text-sm text-muted-foreground px-4 py-3">No unit configured.</p>;
+  const baseItems = extractUnitItems(unit);
+  const baseItemsKey = baseItems.map((it) => it.id).join(',');
 
-  const unitType = resolveStr(unit.type);
-  const items = unit.items ?? (unit.item ? [unit.item] : []);
+  const [rows, setRows] = useState<UnitItemRow[]>(
+    baseItems.map((it) => ({
+      id: it.id,
+      name: it.name ?? it.id,
+      description: it.description,
+      quantity: it.quantity,
+    })),
+  );
+  const [viewListingId, setViewListingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!baseItemsKey) return;
+    let cancelled = false;
+    Promise.all(
+      baseItems.map((it) =>
+        listingsApi
+          .getListingById(it.id)
+          .then((listing) => {
+            const thumb =
+              listing.blobs?.find((b) => b.metadata?.['thumbnail'] === 'true') ??
+              listing.blobs?.[0];
+            const row: UnitItemRow = {
+              id: it.id,
+              name: it.name ?? listing.name,
+              description: it.description ?? listing.description,
+              quantity: it.quantity,
+              thumbnailId: thumb?.id ?? null,
+            };
+            return row;
+          })
+          .catch(
+            (): UnitItemRow => ({
+              id: it.id,
+              name: it.name ?? it.id,
+              description: it.description,
+              quantity: it.quantity,
+            }),
+          ),
+      ),
+    ).then((results) => {
+      if (!cancelled) setRows(results);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseItemsKey]);
+
+  const unitType = resolveStr(unit?.type);
 
   return (
-    <div className="divide-y divide-border/50">
-      <DetailRow label="Unit Type">{formatLabel(unitType) || '—'}</DetailRow>
-      <DetailRow label="Opening Price">
-        {unit.openingPrice != null ? (
-          <span className="font-medium">
-            {auction.monetaryOptions?.currencyUnit
-              ? `${resolveStr(auction.monetaryOptions.currencyUnit)} `
-              : ''}
-            {unit.openingPrice.toLocaleString()}
-          </span>
-        ) : (
-          '—'
-        )}
-      </DetailRow>
-      {unit.standingPrice != null && (
-        <DetailRow label="Standing Price">
-          {auction.monetaryOptions?.currencyUnit
-            ? `${resolveStr(auction.monetaryOptions.currencyUnit)} `
-            : ''}
-          {unit.standingPrice.toLocaleString()}
-        </DetailRow>
-      )}
-      {unit.quantity != null && <DetailRow label="Quantity">{unit.quantity}</DetailRow>}
-      {items.length > 0 && (
-        <DetailRow label={items.length === 1 ? 'Item' : 'Items'}>
-          <div className="grid gap-2">
-            {items.map((it, i) => {
-              const name = typeof it === 'object' && it !== null ? (it.name ?? it.id) : it;
-              const qty = typeof it === 'object' && it !== null ? it.quantity : undefined;
-              return (
-                <div
-                  key={i}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/30 px-3 py-2.5"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-foreground">{name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {formatLabel(unitType) || 'Unit item'}
-                    </div>
-                  </div>
-                  {qty != null && (
-                    <div className="shrink-0 rounded-full border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground">
-                      Qty {qty}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-3 bg-muted/40 border-b border-border">
+        <Layers className="h-4 w-4 text-muted-foreground" />
+        <span className="text-sm font-semibold text-foreground">Auction Unit</span>
+      </div>
+
+      {!unit ? (
+        <p className="text-sm text-muted-foreground px-4 py-3">No unit configured.</p>
+      ) : (
+        <>
+          <div className="divide-y divide-border/50">
+            <DetailRow label="Unit Type">{formatLabel(unitType) || '—'}</DetailRow>
+            <DetailRow label="Opening Price">
+              {unit.openingPrice != null ? (
+                <span className="font-medium">
+                  {auction.monetaryOptions?.currencyUnit
+                    ? `${resolveStr(auction.monetaryOptions.currencyUnit)} `
+                    : ''}
+                  {unit.openingPrice.toLocaleString()}
+                </span>
+              ) : (
+                '—'
+              )}
+            </DetailRow>
+            {unit.standingPrice != null && (
+              <DetailRow label="Standing Price">
+                {auction.monetaryOptions?.currencyUnit
+                  ? `${resolveStr(auction.monetaryOptions.currencyUnit)} `
+                  : ''}
+                {unit.standingPrice.toLocaleString()}
+              </DetailRow>
+            )}
+            {unit.quantity != null && <DetailRow label="Quantity">{unit.quantity}</DetailRow>}
           </div>
-        </DetailRow>
+
+          {rows.length > 0 && (
+            <div className="p-4">
+              <div className="rounded-lg border border-border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/40">
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground w-10" />
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">
+                        Name
+                      </th>
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground hidden sm:table-cell">
+                        Description
+                      </th>
+                      <th className="text-center px-3 py-2 text-xs font-semibold text-muted-foreground w-16">
+                        Qty
+                      </th>
+                      <th className="px-2 py-2 w-16" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/50">
+                    {rows.map((row) => (
+                      <tr key={row.id} className="bg-card">
+                        <td className="px-3 py-2">
+                          {row.thumbnailId ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={blobsApi.getDownloadUrl(row.thumbnailId)}
+                              alt=""
+                              className="w-8 h-8 rounded object-cover border border-border"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded bg-muted flex items-center justify-center border border-border">
+                              <Package className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          <p className="font-medium text-foreground truncate max-w-[220px]">
+                            {row.name}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground font-mono">
+                            {row.id.slice(-8)}
+                          </p>
+                        </td>
+                        <td className="px-3 py-2 hidden sm:table-cell">
+                          <p className="text-xs text-muted-foreground truncate max-w-[260px]">
+                            {row.description ?? '—'}
+                          </p>
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <span className="text-sm font-medium text-foreground">
+                            {row.quantity ?? '—'}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2">
+                          <div className="flex items-center justify-end">
+                            <button
+                              type="button"
+                              onClick={() => setViewListingId(row.id)}
+                              className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
       )}
+
+      <ListingViewDialog listingId={viewListingId} onClose={() => setViewListingId(null)} />
     </div>
   );
 }
@@ -676,20 +629,17 @@ export default function AuctionViewPage() {
   const [auction, setAuction] = useState<AuctionVM | null>(null);
   const [workflow, setWorkflow] = useState<AuctionWorkflowStep[]>([]);
   const [policies, setPolicies] = useState<AuctionPoliciesGroupRQ | null>(null);
-  const [blobs, setBlobs] = useState<BlobVM[]>([]);
 
   useEffect(() => {
     Promise.all([
       auctionsApi.getAuctionById(id),
       auctionsApi.getAuctionWorkflow(id).catch(() => [] as AuctionWorkflowStep[]),
       auctionsApi.getAuctionPolicies(id).catch(() => null),
-      blobsApi.getBlobsByEntityId(id).catch(() => [] as BlobVM[]),
     ])
-      .then(([a, wf, pol, blobList]) => {
+      .then(([a, wf, pol]) => {
         setAuction(a);
         setWorkflow(wf);
         setPolicies(pol);
-        setBlobs(blobList);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -716,7 +666,6 @@ export default function AuctionViewPage() {
     );
   }
 
-  const status = resolveStr(auction.status);
   const format = formatLabel(auction.format);
   const auctionType = formatLabel(auction.type);
   const policyEntries = policies
@@ -803,9 +752,6 @@ export default function AuctionViewPage() {
               <DetailRow label="End Time">{formatDateTime(auction.schedule?.endTime)}</DetailRow>
             </SectionCard>
           )}
-
-          {/* Media gallery */}
-          <AuctionMediaGallery blobs={blobs} />
         </div>
 
         {/* Right column */}
@@ -856,11 +802,6 @@ export default function AuctionViewPage() {
             </DetailRow>
           </SectionCard>
 
-          {/* Unit */}
-          <SectionCard title="Auction Unit" icon={Layers}>
-            <UnitDisplay auction={auction} />
-          </SectionCard>
-
           {/* Workflow */}
           {workflow.length > 0 && (
             <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -880,6 +821,9 @@ export default function AuctionViewPage() {
           )}
         </div>
       </div>
+
+      {/* Auction Unit — full width */}
+      <AuctionUnitSection auction={auction} />
 
       {/* Policies — full width */}
       {policyEntries.length > 0 && (

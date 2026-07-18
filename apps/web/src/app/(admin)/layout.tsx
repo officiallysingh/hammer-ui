@@ -37,6 +37,7 @@ import {
 } from '@repo/ui';
 import { authApi } from '@repo/api';
 import { ThemeToggle } from '@/components/common/Header/ThemeToggle';
+import { UserAvatar } from '@/components/common/admin/UserAvatar';
 
 interface NavSubItem {
   href: string;
@@ -515,7 +516,7 @@ function SidebarContent({ pathname, username, onNavClick, onSignOut }: SidebarCo
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, clearUser, isAdmin } = useAuthStore();
+  const { user, clearUser, isAdmin, userInfo } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   React.useEffect(() => {
@@ -594,11 +595,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-secondary transition-colors outline-none">
                   {/* Avatar */}
-                  <div className="w-8 h-8 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
-                    <span className="font-body text-xs font-bold text-primary uppercase">
-                      {user.username.charAt(0)}
-                    </span>
-                  </div>
+                  <UserAvatar
+                    src={userInfo?.profilePicture}
+                    firstName={userInfo?.firstName}
+                    lastName={userInfo?.lastName}
+                    username={user.username}
+                    size={32}
+                  />
                   {/* Name — hidden on small screens */}
                   <div className="hidden sm:flex flex-col items-start min-w-0">
                     <span className="font-body text-sm font-medium text-foreground leading-none truncate max-w-[120px]">
@@ -615,11 +618,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {/* Header */}
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex items-center gap-3 py-1">
-                    <div className="w-9 h-9 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
-                      <span className="font-body text-sm font-bold text-primary uppercase">
-                        {user.username.charAt(0)}
-                      </span>
-                    </div>
+                    <UserAvatar
+                      src={userInfo?.profilePicture}
+                      firstName={userInfo?.firstName}
+                      lastName={userInfo?.lastName}
+                      username={user.username}
+                      size={36}
+                    />
                     <div className="flex flex-col min-w-0">
                       <span className="font-body text-sm font-semibold text-foreground truncate">
                         {user.username}

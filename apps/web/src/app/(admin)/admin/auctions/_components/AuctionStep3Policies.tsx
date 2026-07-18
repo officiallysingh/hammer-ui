@@ -5,7 +5,11 @@ import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
 import { auctionsApi, PolicyGroup } from '@repo/api';
 import { Button } from '@repo/ui';
 import { DismissibleError, SelectOption } from './AuctionShared';
-import { POLICY_DEFAULTS } from './PolicyShared';
+import {
+  POLICY_DEFAULTS,
+  PAYMENT_POLICY_NAME_DEFAULTS,
+  PAYMENT_HEAD_DEFAULT,
+} from './PolicyShared';
 import { mapSavedPolicies } from './AuctionStep3PolicyMapping';
 import { PolicyPaymentSection } from './PolicyPaymentSection';
 import { PolicyPreconditionsSection } from './PolicyPreconditionsSection';
@@ -37,15 +41,24 @@ function seedMandatoryDefaults(current: Step3State, groups: PolicyGroup[]): Part
 
   // Payment — mandatory
   if (hasGroup('PAYMENT') && current.paymentPolicies.length === 0) {
-    const paymentDefaults = POLICY_DEFAULTS.PAYMENT_POLICY;
+    const paymentDefaults = PAYMENT_POLICY_NAME_DEFAULTS.AUCTION_START_TIME;
     patch.paymentPolicies = [
       {
-        name: paymentDefaults?.name ?? '',
-        description: paymentDefaults?.description ?? '',
+        name: paymentDefaults.name,
+        description: paymentDefaults.description,
         scheduleReference: 'AUCTION_START_TIME',
         offsetDays: '',
         offsetHours: '0',
-        heads: [{ name: '', description: '', type: '', basis: '', value: '', refundable: false }],
+        heads: [
+          {
+            name: PAYMENT_HEAD_DEFAULT.name,
+            description: PAYMENT_HEAD_DEFAULT.description,
+            type: '',
+            basis: '',
+            value: '',
+            refundable: false,
+          },
+        ],
       },
     ];
   }
@@ -332,7 +345,7 @@ export function AuctionStep3Policies({
           currencyUnit={currencyUnit}
           fieldErrors={fieldErrors}
           groupDescription={getGroupDescription('PAYMENT')}
-          title="Post Payment Policy"
+          title="Post Payment / Winning Amount Payment Policy"
           fixedScheduleReference="AUCTION_END_TIME"
         />
       )}
