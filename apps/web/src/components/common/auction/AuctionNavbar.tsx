@@ -28,6 +28,7 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import { authApi } from '@repo/api';
 import { ThemeToggle } from '@/components/common/Header/ThemeToggle';
+import { UserAvatar } from '@/components/common/admin/UserAvatar';
 
 const navLinks = [
   { label: 'Live Auctions', href: '#auctions' },
@@ -98,11 +99,13 @@ const AuctionNavbar = () => {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-secondary transition-colors outline-none">
-                    <div className="w-8 h-8 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
-                      <span className="font-body text-xs font-bold text-primary uppercase">
-                        {displayName.charAt(0)}
-                      </span>
-                    </div>
+                    <UserAvatar
+                      src={userInfo?.profilePicture}
+                      firstName={userInfo?.firstName}
+                      lastName={userInfo?.lastName}
+                      username={user?.username}
+                      size={32}
+                    />
                     <span className="hidden lg:block text-sm font-medium text-foreground max-w-[100px] truncate">
                       {displayName}
                     </span>
@@ -112,11 +115,13 @@ const AuctionNavbar = () => {
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex items-center gap-3 py-1">
-                      <div className="w-9 h-9 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
-                        <span className="font-body text-sm font-bold text-primary uppercase">
-                          {displayName.charAt(0)}
-                        </span>
-                      </div>
+                      <UserAvatar
+                        src={userInfo?.profilePicture}
+                        firstName={userInfo?.firstName}
+                        lastName={userInfo?.lastName}
+                        username={user?.username}
+                        size={36}
+                      />
                       <div className="flex flex-col min-w-0">
                         <span className="font-body text-sm font-semibold text-foreground truncate">
                           {displayName}
@@ -206,11 +211,13 @@ const AuctionNavbar = () => {
             {isLoggedIn ? (
               <>
                 <div className="flex items-center gap-3 py-1">
-                  <div className="w-9 h-9 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
-                    <span className="font-body text-sm font-bold text-primary uppercase">
-                      {displayName.charAt(0)}
-                    </span>
-                  </div>
+                  <UserAvatar
+                    src={userInfo?.profilePicture}
+                    firstName={userInfo?.firstName}
+                    lastName={userInfo?.lastName}
+                    username={user?.username}
+                    size={36}
+                  />
                   <div>
                     <p className="text-sm font-medium text-foreground">{displayName}</p>
                     <p className="text-xs text-muted-foreground">

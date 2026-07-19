@@ -97,6 +97,7 @@ export interface SelfUpdateReq {
   firstName?: string;
   lastName?: string;
   mobileNo?: string;
+  profilePicture?: string | null;
 }
 
 export interface PaginatedUsers {

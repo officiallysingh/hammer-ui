@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
-import Image from 'next/image';
 import {
   Users,
   ShieldCheck,
@@ -39,6 +38,12 @@ import { authApi } from '@repo/api';
 import { ThemeToggle } from '@/components/common/Header/ThemeToggle';
 import { UserAvatar } from '@/components/common/admin/UserAvatar';
 
+// ── Nav structure ─────────────────────────────────────────────────────────────
+// Three kinds of nav entries:
+//   1. flat    — a direct link rendered at the top level (no group wrapper)
+//   2. group   — collapsible section with direct-link children
+//   3. grouped subItems — an expandable item inside a group whose children are links
+
 interface NavSubItem {
   href: string;
   label: string;
@@ -55,15 +60,25 @@ interface NavItem {
 }
 
 interface NavGroup {
+  kind: 'group';
   label: string;
   items: NavItem[];
-  collapsible?: boolean;
 }
 
-const navGroups: NavGroup[] = [
+interface NavFlat {
+  kind: 'flat';
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  description: string;
+}
+
+type NavEntry = NavGroup | NavFlat;
+
+const navEntries: NavEntry[] = [
   {
+    kind: 'group',
     label: 'User Management',
-    collapsible: true,
     items: [
       { href: '/admin/users', label: 'Users', icon: Users, description: 'Manage accounts' },
       { href: '/admin/roles', label: 'Roles', icon: ShieldCheck, description: 'Access roles' },
@@ -76,8 +91,8 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    kind: 'group',
     label: 'Master',
-    collapsible: true,
     items: [
       {
         href: '/admin/master/categories',
@@ -91,34 +106,19 @@ const navGroups: NavGroup[] = [
         icon: MapPin,
         description: 'States, cities & areas',
       },
-      {
-        href: '/admin/master/cities',
-        label: 'Cities',
-        icon: Building2,
-        description: 'All cities',
-      },
-      {
-        href: '/admin/master/areas',
-        label: 'Areas',
-        icon: MapPinned,
-        description: 'All areas',
-      },
-      {
-        href: '/admin/master/banks',
-        label: 'Banks',
-        icon: Landmark,
-        description: 'Bank accounts',
-      },
+      { href: '/admin/master/cities', label: 'Cities', icon: Building2, description: 'All cities' },
+      { href: '/admin/master/areas', label: 'Areas', icon: MapPinned, description: 'All areas' },
+      { href: '/admin/master/banks', label: 'Banks', icon: Landmark, description: 'Bank accounts' },
     ],
   },
   {
-    label: 'Listings',
-    collapsible: true,
+    kind: 'group',
+    label: 'Managed Types',
     items: [
       {
         label: 'Managed Types',
         icon: Database,
-        description: 'Managed types & components',
+        description: 'Types & components',
         subItems: [
           {
             href: '/admin/metadata/components',
@@ -134,45 +134,60 @@ const navGroups: NavGroup[] = [
           },
         ],
       },
-      { href: '/admin/listings', label: 'Listings', icon: List, description: 'Auction listings' },
     ],
   },
+  // ── Flat items ──────────────────────────────────────────────────────────────
   {
+    kind: 'flat',
+    href: '/admin/listings',
+    label: 'Listings',
+    icon: List,
+    description: 'Auction listings',
+  },
+  {
+    kind: 'flat',
+    href: '/admin/auctions',
     label: 'Auctions',
-    collapsible: true,
-    items: [
-      {
-        href: '/admin/auctions',
-        label: 'Auctions',
-        icon: Gavel,
-        description: 'Manage auctions',
-      },
-    ],
+    icon: Gavel,
+    description: 'Manage auctions',
   },
 ];
 
-// Flat list for topbar label lookup
-const allNavItems = navGroups.flatMap((g) =>
-  g.items.flatMap((item) =>
-    item.subItems
-      ? item.subItems.map((sub) => ({
-          href: sub.href,
-          label: sub.label,
-          description: sub.description,
-          icon: sub.icon || item.icon,
-        }))
-      : [
+// ── Flat list for topbar label lookup ─────────────────────────────────────────
+const allNavItems: { href: string; label: string; description: string; icon: React.ElementType }[] =
+  [
+    ...navEntries.flatMap((entry) => {
+      if (entry.kind === 'flat') {
+        return [
           {
-            href: item.href || '',
-            label: item.label,
-            description: item.description,
-            icon: item.icon,
+            href: entry.href,
+            label: entry.label,
+            description: entry.description,
+            icon: entry.icon,
           },
-        ],
-  ),
-);
+        ];
+      }
+      return entry.items.flatMap((item) =>
+        item.subItems
+          ? item.subItems.map((sub) => ({
+              href: sub.href,
+              label: sub.label,
+              description: sub.description,
+              icon: sub.icon ?? item.icon,
+            }))
+          : [
+              {
+                href: item.href ?? '',
+                label: item.label,
+                description: item.description,
+                icon: item.icon,
+              },
+            ],
+      );
+    }),
+  ];
 
-// Sub-route title overrides
+// ── Sub-route title overrides ─────────────────────────────────────────────────
 const subRouteTitles: { match: RegExp; label: string; description: string }[] = [
   {
     match: /\/admin\/master\/states$/,
@@ -194,31 +209,15 @@ const subRouteTitles: { match: RegExp; label: string; description: string }[] = 
     label: 'Add sub-category',
     description: 'Create a new sub-category',
   },
-  {
-    match: /\/admin\/users\/new$/,
-    label: 'Add user',
-    description: 'Create a new user account',
-  },
-  {
-    match: /\/admin\/users\/.+\/edit$/,
-    label: 'Edit user',
-    description: 'Update user details',
-  },
-  {
-    match: /\/admin\/listings\/new$/,
-    label: 'New listing',
-    description: 'Create a new listing',
-  },
+  { match: /\/admin\/users\/new$/, label: 'Add user', description: 'Create a new user account' },
+  { match: /\/admin\/users\/.+\/edit$/, label: 'Edit user', description: 'Update user details' },
+  { match: /\/admin\/listings\/new$/, label: 'New listing', description: 'Create a new listing' },
   {
     match: /\/admin\/listings\/.+\/edit$/,
     label: 'Edit listing',
     description: 'Update listing details',
   },
-  {
-    match: /\/admin\/metadata\/new$/,
-    label: 'New type',
-    description: 'Create a type definition',
-  },
+  { match: /\/admin\/metadata\/new$/, label: 'New type', description: 'Create a type definition' },
   {
     match: /\/admin\/metadata\/.+\/edit$/,
     label: 'Edit type',
@@ -234,24 +233,17 @@ const subRouteTitles: { match: RegExp; label: string; description: string }[] = 
     label: 'Edit component',
     description: 'Update component definition',
   },
-  {
-    match: /\/admin\/auctions\/new$/,
-    label: 'New auction',
-    description: 'Create a new auction',
-  },
+  { match: /\/admin\/auctions\/new$/, label: 'New auction', description: 'Create a new auction' },
   {
     match: /\/admin\/auctions\/.+\/edit$/,
     label: 'Edit auction',
     description: 'Update auction details',
   },
-  {
-    match: /\/admin\/auctions\/.+\/view$/,
-    label: 'View auction',
-    description: 'Auction details',
-  },
+  { match: /\/admin\/auctions\/.+\/view$/, label: 'View auction', description: 'Auction details' },
 ];
 
-function groupHasActiveItem(group: NavGroup, pathname: string): boolean {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function groupHasActive(group: NavGroup, pathname: string): boolean {
   return group.items.some((item) =>
     item.subItems
       ? item.subItems.some((sub) => pathname.startsWith(sub.href))
@@ -261,77 +253,74 @@ function groupHasActiveItem(group: NavGroup, pathname: string): boolean {
   );
 }
 
+function isSubItemActive(href: string, pathname: string): boolean {
+  return href === '/admin/metadata'
+    ? pathname.startsWith(href) && !pathname.startsWith('/admin/metadata/components')
+    : pathname.startsWith(href);
+}
+
+// ── SidebarContent ────────────────────────────────────────────────────────────
 interface SidebarContentProps {
   pathname: string;
   username: string;
+  userInfo: { firstName?: string; lastName?: string; profilePicture?: string | null } | null;
   onNavClick: () => void;
   onSignOut: () => void;
 }
 
-function SidebarContent({ pathname, username, onNavClick, onSignOut }: SidebarContentProps) {
-  // Collapsed by default — only the group containing the active page starts open
-  const [openTopGroups, setOpenTopGroups] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    navGroups.forEach((group) => {
-      if (group.collapsible) initial[group.label] = groupHasActiveItem(group, pathname);
-    });
-    return initial;
-  });
-
-  // Open a top-level group if navigation lands on one of its items
-  React.useEffect(() => {
-    navGroups.forEach((group) => {
-      if (!group.collapsible) return;
-      if (groupHasActiveItem(group, pathname)) {
-        setOpenTopGroups((prev) => ({ ...prev, [group.label]: true }));
+function SidebarContent({
+  pathname,
+  username,
+  userInfo,
+  onNavClick,
+  onSignOut,
+}: SidebarContentProps) {
+  // One open-state per collapsible group
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    navEntries.forEach((entry) => {
+      if (entry.kind === 'group') {
+        init[entry.label] = groupHasActive(entry, pathname);
       }
     });
-  }, [pathname]);
-
-  const toggleTopGroup = (label: string) => {
-    setOpenTopGroups((prev) => ({ ...prev, [label]: !prev[label] }));
-  };
-
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    navGroups.forEach((group) => {
-      group.items.forEach((item) => {
-        if (item.subItems) {
-          const hasActiveSub = item.subItems.some((sub) => {
-            return sub.href === '/admin/metadata'
-              ? pathname.startsWith(sub.href) && !pathname.startsWith('/admin/metadata/components')
-              : pathname.startsWith(sub.href);
-          });
-          if (hasActiveSub) {
-            initial[item.label] = true;
-          }
-        }
-      });
-    });
-    return initial;
+    return init;
   });
 
-  // Keep groups open if navigation happens externally
-  React.useEffect(() => {
-    navGroups.forEach((group) => {
-      group.items.forEach((item) => {
+  // One open-state per expandable sub-item (e.g. "Managed Types")
+  const [openSubs, setOpenSubs] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    navEntries.forEach((entry) => {
+      if (entry.kind !== 'group') return;
+      entry.items.forEach((item) => {
         if (item.subItems) {
-          const hasActiveSub = item.subItems.some((sub) => {
-            return sub.href === '/admin/metadata'
-              ? pathname.startsWith(sub.href) && !pathname.startsWith('/admin/metadata/components')
-              : pathname.startsWith(sub.href);
-          });
-          if (hasActiveSub) {
-            setOpenGroups((prev) => ({ ...prev, [item.label]: true }));
-          }
+          const active = item.subItems.some((sub) => isSubItemActive(sub.href, pathname));
+          if (active) init[item.label] = true;
+        }
+      });
+    });
+    return init;
+  });
+
+  // Auto-open group/sub when route changes
+  React.useEffect(() => {
+    navEntries.forEach((entry) => {
+      if (entry.kind !== 'group') return;
+      if (groupHasActive(entry, pathname)) {
+        setOpenGroups((prev) => ({ ...prev, [entry.label]: true }));
+      }
+      entry.items.forEach((item) => {
+        if (item.subItems) {
+          const active = item.subItems.some((sub) => isSubItemActive(sub.href, pathname));
+          if (active) setOpenSubs((prev) => ({ ...prev, [item.label]: true }));
         }
       });
     });
   }, [pathname]);
 
-  const toggleGroup = (label: string) => {
+  const toggleGroup = (label: string) =>
     setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
-  };
+
+  const toggleSub = (label: string) => setOpenSubs((prev) => ({ ...prev, [label]: !prev[label] }));
 
   return (
     <>
@@ -349,58 +338,81 @@ function SidebarContent({ pathname, username, onNavClick, onSignOut }: SidebarCo
         />
       </div>
 
-      {/* Nav groups */}
-      <nav className="flex-1 py-4 px-3 space-y-5 overflow-y-auto">
-        {navGroups.map((group) => {
-          const isTopOpen = group.collapsible ? openTopGroups[group.label] !== false : true;
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+        {navEntries.map((entry) => {
+          // ── Flat item (Listings / Auctions) ───────────────────────────────
+          if (entry.kind === 'flat') {
+            const active = pathname.startsWith(entry.href);
+            const Icon = entry.icon;
+            return (
+              <Link
+                key={entry.href}
+                href={entry.href}
+                onClick={onNavClick}
+                className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  active
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="font-body font-medium flex-1 min-w-0">{entry.label}</span>
+                {active && <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-70" />}
+              </Link>
+            );
+          }
+
+          // ── Collapsible group ─────────────────────────────────────────────
+          const isOpen = !!openGroups[entry.label];
+          const hasActive = groupHasActive(entry, pathname);
+
           return (
-            <div key={group.label}>
-              {group.collapsible ? (
-                <button
-                  type="button"
-                  onClick={() => toggleTopGroup(group.label)}
-                  className="w-full flex items-center justify-between px-3 mb-1.5 outline-none group"
+            <div key={entry.label} className="space-y-0.5">
+              {/* Group header */}
+              <button
+                type="button"
+                onClick={() => toggleGroup(entry.label)}
+                className="w-full flex items-center justify-between px-3 py-1.5 rounded-md outline-none group hover:bg-secondary/50 transition-colors"
+              >
+                <span
+                  className={`font-body text-[10px] font-semibold uppercase tracking-widest transition-colors ${
+                    hasActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
+                  }`}
                 >
-                  <span className="font-body text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
-                    {group.label}
-                  </span>
-                  <ChevronDown
-                    className={`h-3 w-3 text-muted-foreground transition-transform duration-200 ${
-                      isTopOpen ? '' : '-rotate-90'
-                    }`}
-                  />
-                </button>
-              ) : (
-                <p className="px-3 mb-1.5 font-body text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
-                  {group.label}
-                </p>
-              )}
-              {isTopOpen && (
-                <div className="space-y-0.5">
-                  {group.items.map((item) => {
+                  {entry.label}
+                </span>
+                <ChevronDown
+                  className={`h-3 w-3 text-muted-foreground transition-transform duration-200 ${
+                    isOpen ? '' : '-rotate-90'
+                  }`}
+                />
+              </button>
+
+              {/* Group items */}
+              {isOpen && (
+                <div className="space-y-0.5 pl-1">
+                  {entry.items.map((item) => {
                     const { href, label, icon: Icon, description, subItems } = item;
 
+                    // Item with sub-items (e.g. Managed Types → Components / Templates)
                     if (subItems) {
-                      const isOpen = !!openGroups[label];
-                      const hasActiveSub = subItems.some((sub) => {
-                        return sub.href === '/admin/metadata'
-                          ? pathname.startsWith(sub.href) &&
-                              !pathname.startsWith('/admin/metadata/components')
-                          : pathname.startsWith(sub.href);
-                      });
+                      const subOpen = !!openSubs[label];
+                      const subHasActive = subItems.some((s) => isSubItemActive(s.href, pathname));
 
                       return (
                         <div key={label} className="space-y-0.5">
                           <button
-                            onClick={() => toggleGroup(label)}
+                            type="button"
+                            onClick={() => toggleSub(label)}
                             className={`group flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left outline-none ${
-                              hasActiveSub
+                              subHasActive
                                 ? 'text-foreground bg-secondary/40'
                                 : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
                             }`}
                           >
                             <Icon
-                              className={`h-4 w-4 shrink-0 transition-colors ${hasActiveSub ? 'text-primary' : ''}`}
+                              className={`h-4 w-4 shrink-0 ${subHasActive ? 'text-primary' : ''}`}
                             />
                             <div className="flex-1 min-w-0">
                               <div className="font-body font-medium">{label}</div>
@@ -409,21 +421,15 @@ function SidebarContent({ pathname, username, onNavClick, onSignOut }: SidebarCo
                               </div>
                             </div>
                             <ChevronRight
-                              className={`h-4 w-4 shrink-0 transition-transform duration-200 opacity-70 ${
-                                isOpen ? 'rotate-90' : ''
-                              }`}
+                              className={`h-4 w-4 shrink-0 transition-transform duration-200 opacity-70 ${subOpen ? 'rotate-90' : ''}`}
                             />
                           </button>
 
-                          {isOpen && (
-                            <div className="pl-6 space-y-0.5 mt-1 border-l border-border/60 ml-5">
+                          {subOpen && (
+                            <div className="pl-4 ml-3 space-y-0.5 border-l border-border/60">
                               {subItems.map((sub) => {
-                                const subActive =
-                                  sub.href === '/admin/metadata'
-                                    ? pathname.startsWith(sub.href) &&
-                                      !pathname.startsWith('/admin/metadata/components')
-                                    : pathname.startsWith(sub.href);
-                                const SubIcon = sub.icon || Icon;
+                                const subActive = isSubItemActive(sub.href, pathname);
+                                const SubIcon = sub.icon ?? Icon;
                                 return (
                                   <Link
                                     key={sub.href}
@@ -442,9 +448,9 @@ function SidebarContent({ pathname, username, onNavClick, onSignOut }: SidebarCo
                                           : 'text-muted-foreground/75 group-hover:text-foreground'
                                       }`}
                                     />
-                                    <div className="flex-1 min-w-0">
-                                      <div className="font-body">{sub.label}</div>
-                                    </div>
+                                    <span className="font-body flex-1 min-w-0 truncate">
+                                      {sub.label}
+                                    </span>
                                   </Link>
                                 );
                               })}
@@ -454,15 +460,16 @@ function SidebarContent({ pathname, username, onNavClick, onSignOut }: SidebarCo
                       );
                     }
 
+                    // Plain link item inside a group
                     const active = href ? pathname.startsWith(href) : false;
                     return (
                       <Link
                         key={href}
-                        href={href || '#'}
+                        href={href ?? '#'}
                         onClick={onNavClick}
                         className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                           active
-                            ? 'bg-primary text-primary-foreground shadow-gold'
+                            ? 'bg-primary text-primary-foreground shadow-sm'
                             : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
                         }`}
                       >
@@ -470,7 +477,9 @@ function SidebarContent({ pathname, username, onNavClick, onSignOut }: SidebarCo
                         <div className="flex-1 min-w-0">
                           <div className="font-body font-medium">{label}</div>
                           <div
-                            className={`font-body text-[10px] truncate ${active ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
+                            className={`font-body text-[10px] truncate ${
+                              active ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                            }`}
                           >
                             {description}
                           </div>
@@ -486,14 +495,16 @@ function SidebarContent({ pathname, username, onNavClick, onSignOut }: SidebarCo
         })}
       </nav>
 
-      {/* User footer */}
-      <div className="border-t border-border p-4 shrink-0">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0">
-            <span className="font-body text-xs font-semibold text-foreground uppercase">
-              {username.charAt(0)}
-            </span>
-          </div>
+      {/* Sidebar footer — avatar + name + sign out */}
+      <div className="border-t border-border p-3 shrink-0">
+        <div className="flex items-center gap-3 px-1 mb-2">
+          <UserAvatar
+            src={userInfo?.profilePicture}
+            firstName={userInfo?.firstName}
+            lastName={userInfo?.lastName}
+            username={username}
+            size={34}
+          />
           <div className="min-w-0 flex-1">
             <p className="font-body text-sm font-medium text-foreground truncate">{username}</p>
             <p className="font-body text-[10px] text-muted-foreground">Administrator</p>
@@ -513,6 +524,7 @@ function SidebarContent({ pathname, username, onNavClick, onSignOut }: SidebarCo
   );
 }
 
+// ── AdminLayout ───────────────────────────────────────────────────────────────
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -526,7 +538,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!user || !isAdmin()) return null;
 
   const subRoute = subRouteTitles.find((r) => r.match.test(pathname));
-  const activeLink = allNavItems.find((l) => pathname.startsWith(l.href));
+  const activeLink = allNavItems.find((l) => l.href && pathname.startsWith(l.href));
 
   const handleSignOut = async () => {
     try {
@@ -538,16 +550,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.push('/login');
   };
 
+  const sidebarProps: SidebarContentProps = {
+    pathname,
+    username: user.username,
+    userInfo: userInfo ?? null,
+    onNavClick: () => {},
+    onSignOut: handleSignOut,
+  };
+
   return (
     <div className="h-screen flex overflow-hidden bg-background">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-64 shrink-0 border-r border-border bg-card flex-col h-full">
-        <SidebarContent
-          pathname={pathname}
-          username={user.username}
-          onNavClick={() => {}}
-          onSignOut={handleSignOut}
-        />
+        <SidebarContent {...sidebarProps} />
       </aside>
 
       {/* Mobile sidebar overlay */}
@@ -558,19 +573,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             onClick={() => setSidebarOpen(false)}
           />
           <aside className="relative w-64 bg-card border-r border-border flex flex-col z-10">
-            <SidebarContent
-              pathname={pathname}
-              username={user.username}
-              onNavClick={() => setSidebarOpen(false)}
-              onSignOut={handleSignOut}
-            />
+            <SidebarContent {...sidebarProps} onNavClick={() => setSidebarOpen(false)} />
           </aside>
         </div>
       )}
 
       {/* Main content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden h-full">
-        {/* Topbar — sticky within the main column */}
+        {/* Topbar */}
         <header className="h-16 border-b border-border bg-card px-6 flex items-center justify-between shrink-0 z-30">
           <div className="flex items-center gap-3">
             <button
@@ -589,12 +599,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </p>
             </div>
           </div>
+
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-secondary transition-colors outline-none">
-                  {/* Avatar */}
                   <UserAvatar
                     src={userInfo?.profilePicture}
                     firstName={userInfo?.firstName}
@@ -602,7 +612,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     username={user.username}
                     size={32}
                   />
-                  {/* Name — hidden on small screens */}
                   <div className="hidden sm:flex flex-col items-start min-w-0">
                     <span className="font-body text-sm font-medium text-foreground leading-none truncate max-w-[120px]">
                       {user.username}
@@ -615,7 +624,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                {/* Header */}
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex items-center gap-3 py-1">
                     <UserAvatar
