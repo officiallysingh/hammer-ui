@@ -3,16 +3,33 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { auctionsApi, AuctionVM } from '@repo/api';
-import { Loader2, Trash2, RefreshCw, Plus, Eye, Pencil } from 'lucide-react';
+import {
+  Loader2,
+  Trash2,
+  RefreshCw,
+  Plus,
+  Eye,
+  Pencil,
+  ArrowUp,
+  ArrowDown,
+  Lock,
+  Globe,
+  Users,
+  TrendingUp,
+  Calendar,
+  DollarSign,
+  Info,
+} from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
-import { Button, Badge } from '@repo/ui';
+import { Button, Badge, Tooltip, TooltipContent, TooltipTrigger } from '@repo/ui';
 import { DataTable } from '@/components/common/data-table';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
 
-/** Normalises API fields that arrive as either a plain string or a { KEY: "Label" } object. */
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function resolveStr(value?: unknown): string {
   if (!value) return '';
   if (typeof value === 'string') return value;
@@ -23,7 +40,7 @@ function resolveStr(value?: unknown): string {
   return String(value);
 }
 
-function formatLabel(value?: unknown) {
+function formatLabel(value?: unknown): string {
   const str = resolveStr(value);
   if (!str) return '—';
   return str
@@ -33,33 +50,155 @@ function formatLabel(value?: unknown) {
     .join(' ');
 }
 
-function DirectionBadge({ value }: { value?: unknown }) {
+function formatDate(iso?: string): string {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  } catch {
+    return iso;
+  }
+}
+
+// ── Status badge ──────────────────────────────────────────────────────────────
+
+function StatusBadge({ value }: { value?: unknown }) {
   const str = resolveStr(value);
   if (!str) return <span className="text-xs text-muted-foreground">—</span>;
-  const isForward = str === 'FORWARD';
+  const map: Record<string, string> = {
+    CREATED: 'bg-blue-500/10 text-blue-600 border-blue-500/30',
+    SCHEDULED: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
+    RUNNING: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30',
+    COMPLETED: 'bg-slate-500/10 text-slate-600 border-slate-500/30',
+    CANCELLED: 'bg-red-500/10 text-red-600 border-red-500/30',
+  };
   return (
-    <Badge
-      variant="outline"
-      className={`text-xs ${isForward ? 'border-emerald-500 text-emerald-600' : 'border-amber-500 text-amber-600'}`}
+    <span
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${map[str] ?? 'bg-muted text-muted-foreground border-border'}`}
     >
       {formatLabel(str)}
-    </Badge>
+    </span>
   );
 }
 
-function AccessibilityBadge({ value }: { value?: unknown }) {
+// ── Direction icon with tooltip ───────────────────────────────────────────────
+
+function DirectionCell({ value }: { value?: unknown }) {
+  const str = resolveStr(value);
+  if (!str) return <span className="text-xs text-muted-foreground">—</span>;
+  const isForward = str === 'FORWARD';
+  const Icon = isForward ? ArrowUp : ArrowDown;
+  const label = formatLabel(str);
+  const detail = isForward
+    ? 'Buyers bid upward — highest price wins'
+    : 'Sellers bid downward — lowest price wins';
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={`inline-flex items-center gap-1.5 cursor-default rounded-full px-2 py-0.5 text-xs font-medium border ${
+            isForward
+              ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30'
+              : 'bg-amber-500/10 text-amber-700 border-amber-500/30'
+          }`}
+        >
+          <Icon className="h-3 w-3 shrink-0" />
+          {label}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[180px] text-xs text-center">
+        {detail}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+// ── Accessibility icon with tooltip ──────────────────────────────────────────
+
+function AccessibilityCell({ value }: { value?: unknown }) {
   const str = resolveStr(value);
   if (!str) return <span className="text-xs text-muted-foreground">—</span>;
   const isPublic = str === 'PUBLIC';
+  const Icon = isPublic ? Globe : Lock;
+  const label = formatLabel(str);
+  const detail = isPublic
+    ? 'Open to all participants — no invite required'
+    : 'Restricted access — participants must be invited';
   return (
-    <Badge
-      variant="outline"
-      className={`text-xs ${isPublic ? 'border-blue-500 text-blue-600' : 'border-violet-500 text-violet-600'}`}
-    >
-      {formatLabel(str)}
-    </Badge>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={`inline-flex items-center gap-1.5 cursor-default rounded-full px-2 py-0.5 text-xs font-medium border ${
+            isPublic
+              ? 'bg-blue-500/10 text-blue-700 border-blue-500/30'
+              : 'bg-violet-500/10 text-violet-700 border-violet-500/30'
+          }`}
+        >
+          <Icon className="h-3 w-3 shrink-0" />
+          {label}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[200px] text-xs text-center">
+        {detail}
+      </TooltipContent>
+    </Tooltip>
   );
 }
+
+// ── Protocol details cell (participant + offer visibility) ────────────────────
+
+function ProtocolDetailsCell({ auction }: { auction: AuctionVM }) {
+  const participantVis = resolveStr(auction.protocol?.participantVisibility);
+  const offerVis = resolveStr(auction.protocol?.offerVisibility);
+  if (!participantVis && !offerVis) return <span className="text-xs text-muted-foreground">—</span>;
+
+  const participantLabel = participantVis ? formatLabel(participantVis) : null;
+  const offerLabel = offerVis ? formatLabel(offerVis) : null;
+
+  const tooltipContent = (
+    <div className="space-y-2 text-xs min-w-[180px]">
+      {participantLabel && (
+        <div>
+          <p className="font-semibold text-foreground/80 flex items-center gap-1">
+            <Users className="h-3 w-3" /> Participant Visibility
+          </p>
+          <p className="text-muted-foreground mt-0.5">Identity visible to everyone</p>
+          <p className="font-medium">{participantLabel}</p>
+        </div>
+      )}
+      {offerLabel && (
+        <div className={participantLabel ? 'pt-1.5 border-t border-border/40' : ''}>
+          <p className="font-semibold text-foreground/80 flex items-center gap-1">
+            <TrendingUp className="h-3 w-3" /> Offer Visibility
+          </p>
+          <p className="text-muted-foreground mt-0.5">Both price and rank visible to everyone</p>
+          <p className="font-medium">{offerLabel}</p>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <Info className="h-3.5 w-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="left" className="p-3">
+        {tooltipContent}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AuctionsPage() {
   const router = useRouter();
@@ -111,57 +250,107 @@ export default function AuctionsPage() {
       accessorKey: 'title',
       header: 'Title',
       cell: ({ row }) => (
-        <span className="font-medium text-sm text-foreground">{row.original.title}</span>
-      ),
-    },
-    {
-      accessorKey: 'referenceId',
-      header: 'Reference ID',
-      cell: ({ row }) => (
-        <span className="font-mono text-xs text-muted-foreground">
-          {row.original.referenceId ?? '—'}
-        </span>
+        <div className="min-w-0">
+          <button
+            type="button"
+            onClick={() => router.push(`/admin/auctions/${row.original.id}/view`)}
+            className="font-medium text-sm text-foreground hover:text-primary hover:underline text-left truncate max-w-[200px] block"
+          >
+            {row.original.title}
+          </button>
+          {row.original.referenceId && (
+            <span className="font-mono text-[10px] text-muted-foreground">
+              {row.original.referenceId}
+            </span>
+          )}
+        </div>
       ),
     },
     {
       accessorKey: 'format',
-      header: 'Format',
+      header: 'Format / Type',
       cell: ({ row }) => (
-        <span className="text-sm text-foreground">{formatLabel(row.original.format)}</span>
+        <div className="space-y-0.5">
+          <div className="text-sm text-foreground">{formatLabel(row.original.format)}</div>
+          {row.original.type && (
+            <div className="text-[11px] text-muted-foreground">
+              {formatLabel(row.original.type)}
+            </div>
+          )}
+        </div>
       ),
     },
     {
       id: 'accessibility',
-      header: 'Accessibility',
-      cell: ({ row }) => <AccessibilityBadge value={row.original.protocol?.accessibility} />,
+      header: 'Access',
+      cell: ({ row }) => <AccessibilityCell value={row.original.protocol?.accessibility} />,
     },
     {
       id: 'direction',
       header: 'Direction',
-      cell: ({ row }) => <DirectionBadge value={row.original.protocol?.direction} />,
+      cell: ({ row }) => <DirectionCell value={row.original.protocol?.direction} />,
+    },
+    {
+      id: 'protocol',
+      header: () => (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="flex items-center gap-1 cursor-default">
+              Protocol <Info className="h-3 w-3 text-muted-foreground/60" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            Participant &amp; offer visibility details
+          </TooltipContent>
+        </Tooltip>
+      ),
+      cell: ({ row }) => <ProtocolDetailsCell auction={row.original} />,
+    },
+    {
+      id: 'schedule',
+      header: 'Schedule',
+      cell: ({ row }) => {
+        const start = row.original.schedule?.startTime;
+        const end = row.original.schedule?.endTime;
+        if (!start && !end) return <span className="text-xs text-muted-foreground">—</span>;
+        return (
+          <div className="space-y-0.5 text-xs">
+            {start && (
+              <div className="flex items-center gap-1 text-foreground">
+                <Calendar className="h-3 w-3 text-muted-foreground shrink-0" />
+                {formatDate(start)}
+              </div>
+            )}
+            {end && <div className="text-muted-foreground pl-4">{formatDate(end)}</div>}
+          </div>
+        );
+      },
     },
     {
       id: 'currency',
       header: 'Currency',
-      cell: ({ row }) => (
-        <span className="text-sm text-foreground">
-          {resolveStr(row.original.monetaryOptions?.currencyUnit) || '—'}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const curr = resolveStr(row.original.monetaryOptions?.currencyUnit);
+        if (!curr) return <span className="text-xs text-muted-foreground">—</span>;
+        return (
+          <span className="inline-flex items-center gap-1 font-mono text-xs font-medium text-foreground">
+            <DollarSign className="h-3 w-3 text-muted-foreground" />
+            {curr}
+          </span>
+        );
+      },
     },
     {
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">{formatLabel(row.original.status)}</span>
-      ),
+      cell: ({ row }) => <StatusBadge value={row.original.status} />,
     },
     {
       id: 'actions',
-      header: 'Actions',
+      header: '',
       cell: ({ row }) => (
-        <div className="flex items-center gap-0.5">
-          <Tip label="View auction">
+        <div className="flex items-center gap-0.5 justify-end">
+          <Tip label="View">
             <Button
               variant="ghost"
               size="sm"
@@ -171,7 +360,7 @@ export default function AuctionsPage() {
               <Eye className="h-3.5 w-3.5" />
             </Button>
           </Tip>
-          <Tip label="Edit auction">
+          <Tip label="Edit">
             <Button
               variant="ghost"
               size="sm"
@@ -181,7 +370,7 @@ export default function AuctionsPage() {
               <Pencil className="h-3.5 w-3.5" />
             </Button>
           </Tip>
-          <Tip label="Delete auction">
+          <Tip label="Delete">
             <Button
               variant="ghost"
               size="sm"

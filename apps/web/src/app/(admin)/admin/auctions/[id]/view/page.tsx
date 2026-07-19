@@ -801,24 +801,6 @@ export default function AuctionViewPage() {
               {formatLabel(auction.monetaryOptions?.roundingMode) || '—'}
             </DetailRow>
           </SectionCard>
-
-          {/* Workflow */}
-          {workflow.length > 0 && (
-            <div className="rounded-xl border border-border bg-card overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-3 bg-muted/40 border-b border-border">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-semibold text-foreground">Workflow</span>
-                <span className="text-xs text-muted-foreground ml-auto">
-                  {workflow.length} steps
-                </span>
-              </div>
-              <div>
-                {workflow.map((step, i) => (
-                  <WorkflowStepRow key={step.id ?? i} step={step} index={i} />
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -838,6 +820,24 @@ export default function AuctionViewPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 divide-x divide-y divide-border/50">
             {policyEntries.map(([key, items]) => (
               <PolicyGroupSection key={key} groupKey={key} items={items} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Workflow — full width, after policies */}
+      {workflow.length > 0 && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 bg-muted/40 border-b border-border">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-semibold text-foreground">Workflow</span>
+            <span className="text-xs text-muted-foreground ml-auto">
+              {workflow.length} step{workflow.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border/50">
+            {workflow.map((step, i) => (
+              <WorkflowStepRow key={step.id ?? i} step={step} index={i} />
             ))}
           </div>
         </div>

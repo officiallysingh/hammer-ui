@@ -581,6 +581,29 @@ export default function ListingsPage() {
 
   const columns: ColumnDef<ListingVM>[] = [
     {
+      id: 'thumbnail',
+      header: '',
+      cell: ({ row }) => {
+        const thumb = (row.original.blobs ?? []).find(
+          (b) => b.metadata?.['thumbnail'] === 'true' || b.mediaType?.startsWith('image/'),
+        );
+        return (
+          <div className="w-10 h-10 rounded-lg overflow-hidden border border-border bg-muted shrink-0 flex items-center justify-center">
+            {thumb ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={blobsApi.getDownloadUrl(thumb.id)}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <Package className="h-4 w-4 text-muted-foreground/40" />
+            )}
+          </div>
+        );
+      },
+    },
+    {
       accessorKey: 'name',
       header: 'Name',
       cell: ({ row }) => (

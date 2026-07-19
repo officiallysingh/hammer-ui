@@ -80,7 +80,7 @@ function ImagePickerPopup({
         if (!o) handleClose();
       }}
     >
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Upload profile picture</DialogTitle>
         </DialogHeader>

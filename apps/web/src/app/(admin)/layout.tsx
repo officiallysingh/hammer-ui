@@ -268,73 +268,44 @@ function SidebarContent({
   onNavClick,
   onSignOut,
 }: SidebarContentProps) {
-  // One open-state per collapsible group
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
     navEntries.forEach((entry) => {
-      if (entry.kind === 'group') {
-        init[entry.label] = groupHasActive(entry, pathname);
-      }
+      if (entry.kind === 'group') init[entry.label] = groupHasActive(entry, pathname);
     });
     return init;
   });
 
-  // One open-state per expandable sub-item (e.g. "Managed Types")
-  const [openSubs, setOpenSubs] = useState<Record<string, boolean>>(() => {
-    const init: Record<string, boolean> = {};
-    navEntries.forEach((entry) => {
-      if (entry.kind !== 'group') return;
-      entry.items.forEach((item) => {
-        if (item.subItems) {
-          const active = item.subItems.some((sub) => isSubItemActive(sub.href, pathname));
-          if (active) init[item.label] = true;
-        }
-      });
-    });
-    return init;
-  });
-
-  // Auto-open group/sub when route changes
   React.useEffect(() => {
     navEntries.forEach((entry) => {
-      if (entry.kind !== 'group') return;
-      if (groupHasActive(entry, pathname)) {
+      if (entry.kind === 'group' && groupHasActive(entry, pathname))
         setOpenGroups((prev) => ({ ...prev, [entry.label]: true }));
-      }
-      entry.items.forEach((item) => {
-        if (item.subItems) {
-          const active = item.subItems.some((sub) => isSubItemActive(sub.href, pathname));
-          if (active) setOpenSubs((prev) => ({ ...prev, [item.label]: true }));
-        }
-      });
     });
   }, [pathname]);
 
   const toggleGroup = (label: string) =>
     setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
 
-  const toggleSub = (label: string) => setOpenSubs((prev) => ({ ...prev, [label]: !prev[label] }));
-
   return (
-    <>
+    <div className="flex flex-col h-full">
       {/* Brand */}
-      <div className="h-16 flex items-center justify-center px-5 border-b border-border shrink-0">
+      <div className="h-14 flex items-center px-4 border-b border-border/60 shrink-0">
         <img
           src="/oxneer_logo_light.svg"
           alt="OXNEER"
-          className="h-12 w-auto shrink-0 dark:hidden"
+          className="h-9 w-auto shrink-0 dark:hidden"
         />
         <img
           src="/oxneer_logo_dark.svg"
           alt="OXNEER"
-          className="h-12 w-auto shrink-0 hidden dark:block"
+          className="h-9 w-auto shrink-0 hidden dark:block"
         />
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
         {navEntries.map((entry) => {
-          // ── Flat item (Listings / Auctions) ───────────────────────────────
+          // ── Flat item (Listings / Auctions) ─────────────────────────────
           if (entry.kind === 'flat') {
             const active = pathname.startsWith(entry.href);
             const Icon = entry.icon;
@@ -343,141 +314,66 @@ function SidebarContent({
                 key={entry.href}
                 href={entry.href}
                 onClick={onNavClick}
-                className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${
                   active
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                    ? 'bg-primary text-primary-foreground font-medium'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                 }`}
               >
                 <Icon className="h-4 w-4 shrink-0" />
-                <span className="font-body font-medium flex-1 min-w-0">{entry.label}</span>
-                {active && <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-70" />}
+                <span className="font-body flex-1">{entry.label}</span>
+                {active && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary-foreground/70 shrink-0" />
+                )}
               </Link>
             );
           }
 
-          // ── Collapsible group ─────────────────────────────────────────────
+          // ── Collapsible group ────────────────────────────────────────────
           const isOpen = !!openGroups[entry.label];
           const hasActive = groupHasActive(entry, pathname);
 
           return (
-            <div key={entry.label} className="space-y-0.5">
-              {/* Group header */}
+            <div key={entry.label}>
               <button
                 type="button"
                 onClick={() => toggleGroup(entry.label)}
-                className="w-full flex items-center justify-between px-3 py-1.5 rounded-md outline-none group hover:bg-secondary/50 transition-colors"
+                className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-widest transition-colors outline-none ${
+                  hasActive
+                    ? 'text-primary'
+                    : 'text-muted-foreground/60 hover:text-muted-foreground'
+                }`}
               >
-                <span
-                  className={`font-body text-[10px] font-semibold uppercase tracking-widest transition-colors ${
-                    hasActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
-                  }`}
-                >
-                  {entry.label}
-                </span>
+                <span className="flex-1 text-left">{entry.label}</span>
                 <ChevronDown
-                  className={`h-3 w-3 text-muted-foreground transition-transform duration-200 ${
-                    isOpen ? '' : '-rotate-90'
-                  }`}
+                  className={`h-3 w-3 transition-transform duration-200 ${isOpen ? '' : '-rotate-90'}`}
                 />
               </button>
 
-              {/* Group items */}
               {isOpen && (
-                <div className="space-y-0.5 pl-1">
+                <div className="mt-0.5 mb-1 space-y-0.5">
                   {entry.items.map((item) => {
-                    const { href, label, icon: Icon, description, subItems } = item;
-
-                    // Item with sub-items (e.g. Managed Types → Components / Templates)
-                    if (subItems) {
-                      const subOpen = !!openSubs[label];
-                      const subHasActive = subItems.some((s) => isSubItemActive(s.href, pathname));
-
-                      return (
-                        <div key={label} className="space-y-0.5">
-                          <button
-                            type="button"
-                            onClick={() => toggleSub(label)}
-                            className={`group flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left outline-none ${
-                              subHasActive
-                                ? 'text-foreground bg-secondary/40'
-                                : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-                            }`}
-                          >
-                            <Icon
-                              className={`h-4 w-4 shrink-0 ${subHasActive ? 'text-primary' : ''}`}
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="font-body font-medium">{label}</div>
-                              <div className="font-body text-[10px] truncate text-muted-foreground">
-                                {description}
-                              </div>
-                            </div>
-                            <ChevronRight
-                              className={`h-4 w-4 shrink-0 transition-transform duration-200 opacity-70 ${subOpen ? 'rotate-90' : ''}`}
-                            />
-                          </button>
-
-                          {subOpen && (
-                            <div className="pl-4 ml-3 space-y-0.5 border-l border-border/60">
-                              {subItems.map((sub) => {
-                                const subActive = isSubItemActive(sub.href, pathname);
-                                const SubIcon = sub.icon ?? Icon;
-                                return (
-                                  <Link
-                                    key={sub.href}
-                                    href={sub.href}
-                                    onClick={onNavClick}
-                                    className={`group flex items-center gap-3 px-3 py-2 rounded-md text-xs font-medium transition-all ${
-                                      subActive
-                                        ? 'bg-primary/10 text-primary font-semibold'
-                                        : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-                                    }`}
-                                  >
-                                    <SubIcon
-                                      className={`h-3.5 w-3.5 shrink-0 ${
-                                        subActive
-                                          ? 'text-primary'
-                                          : 'text-muted-foreground/75 group-hover:text-foreground'
-                                      }`}
-                                    />
-                                    <span className="font-body flex-1 min-w-0 truncate">
-                                      {sub.label}
-                                    </span>
-                                  </Link>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    // Plain link item inside a group
-                    const active = href ? pathname.startsWith(href) : false;
+                    const { href, label, icon: Icon } = item;
+                    const active = href
+                      ? href === '/admin/metadata'
+                        ? pathname.startsWith(href) &&
+                          !pathname.startsWith('/admin/metadata/components')
+                        : pathname.startsWith(href)
+                      : false;
                     return (
                       <Link
-                        key={href}
+                        key={href ?? label}
                         href={href ?? '#'}
                         onClick={onNavClick}
-                        className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${
                           active
-                            ? 'bg-primary text-primary-foreground shadow-sm'
-                            : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                            ? 'bg-primary/10 text-primary font-medium'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                         }`}
                       >
-                        <Icon className="h-4 w-4 shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-body font-medium">{label}</div>
-                          <div
-                            className={`font-body text-[10px] truncate ${
-                              active ? 'text-primary-foreground/70' : 'text-muted-foreground'
-                            }`}
-                          >
-                            {description}
-                          </div>
-                        </div>
-                        {active && <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-70" />}
+                        <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-primary' : ''}`} />
+                        <span className="font-body flex-1">{label}</span>
+                        {active && <ChevronRight className="h-3 w-3 shrink-0 text-primary/60" />}
                       </Link>
                     );
                   })}
@@ -488,32 +384,38 @@ function SidebarContent({
         })}
       </nav>
 
-      {/* Sidebar footer — avatar + name + sign out */}
-      <div className="border-t border-border p-3 shrink-0">
-        <div className="flex items-center gap-3 px-1 mb-2">
+      {/* Footer */}
+      <div className="border-t border-border/60 p-3 shrink-0 space-y-1">
+        <Link
+          href="/profile"
+          onClick={onNavClick}
+          className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition-colors group"
+        >
           <UserAvatar
             src={userInfo?.profilePicture}
             firstName={userInfo?.firstName}
             lastName={userInfo?.lastName}
             username={username}
-            size={34}
+            size={30}
           />
           <div className="min-w-0 flex-1">
-            <p className="font-body text-sm font-medium text-foreground truncate">{username}</p>
-            <p className="font-body text-[10px] text-muted-foreground">Administrator</p>
+            <p className="font-body text-sm font-medium text-foreground truncate leading-none">
+              {username}
+            </p>
+            <p className="font-body text-[11px] text-muted-foreground mt-0.5">Administrator</p>
           </div>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 font-body"
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 group-hover:text-muted-foreground shrink-0" />
+        </Link>
+        <button
+          type="button"
           onClick={onSignOut}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors font-body"
         >
-          <LogOut className="h-4 w-4" />
-          Sign out
-        </Button>
+          <LogOut className="h-4 w-4 shrink-0" />
+          <span>Sign out</span>
+        </button>
       </div>
-    </>
+    </div>
   );
 }
 
