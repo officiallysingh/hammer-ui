@@ -13,8 +13,20 @@ import {
   KeyRound,
   Mail,
   Phone,
+  HelpCircle,
 } from 'lucide-react';
-import { Button, Input, Label, Separator, InputOTP, InputOTPGroup, InputOTPSlot } from '@repo/ui';
+import {
+  Button,
+  Input,
+  Label,
+  Separator,
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@repo/ui';
 import { authApi, usersApi } from '@repo/api';
 import { useAuthStore } from '@/store/authStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,6 +35,8 @@ import { TextCaptcha, type TextCaptchaHandle } from './TextCaptcha';
 import { AvatarUpload } from '@/components/common/admin/AvatarUpload';
 
 const OTP_RESEND_COOLDOWN_SEC = 30;
+const USERNAME_RULES =
+  '2–100 characters · lowercase letters and digits only · cannot start with a digit · at most one dot (.) and one underscore (_)';
 
 const CAPTCHA_DISABLED = process.env.NEXT_PUBLIC_CAPTCHA_DISABLED === 'true';
 
@@ -733,9 +747,24 @@ export function AuthForm({ mode }: AuthFormProps) {
               }
             />
             <div className="space-y-1.5">
-              <Label htmlFor="signup-username" className={usernameError ? 'text-destructive' : ''}>
-                Username
-              </Label>
+              <div className="flex items-center gap-1.5">
+                <Label
+                  htmlFor="signup-username"
+                  className={usernameError ? 'text-destructive' : ''}
+                >
+                  Username
+                </Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="text-muted-foreground hover:text-foreground">
+                      <HelpCircle className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs text-xs">
+                    {USERNAME_RULES}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <Input
                 id="signup-username"
                 type="text"

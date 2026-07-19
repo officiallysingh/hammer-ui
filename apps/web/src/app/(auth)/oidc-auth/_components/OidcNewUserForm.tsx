@@ -27,6 +27,8 @@ import { AuthIllustration } from '@/components/auth/AuthIllustration';
 import { AvatarUpload } from '@/components/common/admin/AvatarUpload';
 
 const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)[A-Za-z\d@$!%*?&^]{6,12}$/;
+const USERNAME_RULES =
+  '2–100 characters · lowercase letters and digits only · cannot start with a digit · at most one dot (.) and one underscore (_)';
 const OTP_COOLDOWN = 30;
 
 type Step = 'details' | 'mobile' | 'mobile_otp' | 'password';
@@ -338,9 +340,24 @@ export function OidcNewUserForm({
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="uname" className={usernameError ? 'text-destructive' : ''}>
-                      Username
-                    </Label>
+                    <div className="flex items-center gap-1.5">
+                      <Label htmlFor="uname" className={usernameError ? 'text-destructive' : ''}>
+                        Username
+                      </Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            <HelpCircle className="h-3.5 w-3.5" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs text-xs">
+                          {USERNAME_RULES}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                     <Input
                       id="uname"
                       placeholder="johndoe123"

@@ -279,6 +279,8 @@ export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partia
 export function validatePolicies(step3: Step3State): Record<string, string> {
   const errs: Record<string, string> = {};
 
+  const headNameSeen = new Map<string, { i: number; j: number }>();
+
   step3.paymentPolicies.forEach((policy, i) => {
     if (policy.heads.length === 0) {
       errs[`payment_heads_${i}`] = 'At least one fee head is required.';
@@ -291,6 +293,17 @@ export function validatePolicies(step3: Step3State): Record<string, string> {
         errs[`payment_head_basis_${i}_${j}`] = 'Please select a basis.';
       } else if (!h.value || isNaN(parseFloat(h.value)) || parseFloat(h.value) <= 0) {
         errs[`payment_head_value_${i}_${j}`] = 'A positive value is required.';
+      }
+
+      const key = h.name.trim().toLowerCase();
+      if (key) {
+        const dupe = headNameSeen.get(key);
+        if (dupe) {
+          errs[`payment_head_name_${dupe.i}_${dupe.j}`] = 'Payment head name must be unique.';
+          errs[`payment_head_name_${i}_${j}`] = 'Payment head name must be unique.';
+        } else {
+          headNameSeen.set(key, { i, j });
+        }
       }
     });
   });

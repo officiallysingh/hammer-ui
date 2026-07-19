@@ -668,9 +668,26 @@ export default function AuctionViewPage() {
 
   const format = formatLabel(auction.format);
   const auctionType = formatLabel(auction.type);
-  const policyEntries = policies
-    ? Object.entries(policies).filter(([, items]) => items.length > 0)
-    : [];
+  const policyEntries = ((): [string, PolicyItemRQ[]][] => {
+    if (!policies) return [];
+    const rawEntries = Object.entries(policies).filter(([, items]) => items.length > 0);
+    const paymentEntry = rawEntries.find(([key]) => key === 'PAYMENT');
+    if (!paymentEntry) return rawEntries;
+
+    const [, paymentItems] = paymentEntry;
+    const preItems = paymentItems.filter((item) => item.schedule?.reference !== 'AUCTION_END_TIME');
+    const postItems = paymentItems.filter(
+      (item) => item.schedule?.reference === 'AUCTION_END_TIME',
+    );
+    const others = rawEntries.filter(([key]) => key !== 'PAYMENT');
+
+    // Pre payment first, other policy groups next, post payment last
+    const ordered: [string, PolicyItemRQ[]][] = [];
+    if (preItems.length > 0) ordered.push(['PRE_PAYMENT', preItems]);
+    ordered.push(...others);
+    if (postItems.length > 0) ordered.push(['POST_PAYMENT', postItems]);
+    return ordered;
+  })();
 
   return (
     <div className="space-y-6">

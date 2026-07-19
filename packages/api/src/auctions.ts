@@ -242,7 +242,9 @@ export const auctionsApi = {
   },
 
   getAuctionWorkflow: async (id: string): Promise<AuctionWorkflowStep[]> => {
-    const response = await apiClient.get<AuctionWorkflowStep[]>(`/api/v1/auctions/${id}/workflow`);
+    const response = await apiClient.get<AuctionWorkflowStep[]>(
+      `/api/v1/auctions/${id}/participation/workflow`,
+    );
     return response.data;
   },
 

@@ -306,26 +306,26 @@ export default function AuctionsPage() {
       ),
       cell: ({ row }) => <ProtocolDetailsCell auction={row.original} />,
     },
-    {
-      id: 'schedule',
-      header: 'Schedule',
-      cell: ({ row }) => {
-        const start = row.original.schedule?.startTime;
-        const end = row.original.schedule?.endTime;
-        if (!start && !end) return <span className="text-xs text-muted-foreground">—</span>;
-        return (
-          <div className="space-y-0.5 text-xs">
-            {start && (
-              <div className="flex items-center gap-1 text-foreground">
-                <Calendar className="h-3 w-3 text-muted-foreground shrink-0" />
-                {formatDate(start)}
-              </div>
-            )}
-            {end && <div className="text-muted-foreground pl-4">{formatDate(end)}</div>}
-          </div>
-        );
-      },
-    },
+    // {
+    //   id: 'schedule',
+    //   header: 'Schedule',
+    //   cell: ({ row }) => {
+    //     const start = row.original.schedule?.startTime;
+    //     const end = row.original.schedule?.endTime;
+    //     if (!start && !end) return <span className="text-xs text-muted-foreground">—</span>;
+    //     return (
+    //       <div className="space-y-0.5 text-xs">
+    //         {start && (
+    //           <div className="flex items-center gap-1 text-foreground">
+    //             <Calendar className="h-3 w-3 text-muted-foreground shrink-0" />
+    //             {formatDate(start)}
+    //           </div>
+    //         )}
+    //         {end && <div className="text-muted-foreground pl-4">{formatDate(end)}</div>}
+    //       </div>
+    //     );
+    //   },
+    // },
     {
       id: 'currency',
       header: 'Currency',

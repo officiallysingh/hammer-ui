@@ -27,6 +27,8 @@ function initialsOf(firstName: string, lastName: string) {
 
 const PWD_RULES =
   '6–12 characters · at least 1 uppercase · 1 lowercase · 1 digit · allowed special: @$!%*?&^';
+const USERNAME_RULES =
+  '2–100 characters · lowercase letters and digits only · cannot start with a digit · at most one dot (.) and one underscore (_)';
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -40,6 +42,7 @@ function FieldInput({
   error,
   optional,
   required,
+  tip,
 }: {
   id: string;
   label: string;
@@ -50,14 +53,29 @@ function FieldInput({
   error?: string;
   optional?: boolean;
   required?: boolean;
+  tip?: string;
 }) {
   return (
     <div className="space-y-1">
-      <Label htmlFor={id} className={error ? 'text-destructive' : ''}>
-        {label}
-        {required && <span className="text-destructive ml-0.5">*</span>}
-        {optional && <span className="text-muted-foreground font-normal ml-1">(optional)</span>}
-      </Label>
+      <div className="flex items-center gap-1.5">
+        <Label htmlFor={id} className={error ? 'text-destructive' : ''}>
+          {label}
+          {required && <span className="text-destructive ml-0.5">*</span>}
+          {optional && <span className="text-muted-foreground font-normal ml-1">(optional)</span>}
+        </Label>
+        {tip && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="text-muted-foreground hover:text-foreground">
+                <HelpCircle className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs text-xs">
+              {tip}
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
       <Input
         id={id}
         type={type}
@@ -236,6 +254,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
             }}
             placeholder="rajveer.singh"
             error={fieldErrors.username}
+            tip={USERNAME_RULES}
           />
           <FieldInput
             id="cu-email"

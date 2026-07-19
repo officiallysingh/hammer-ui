@@ -235,6 +235,7 @@ export function NameDescriptionFields({
   onDescriptionChange,
   nameId,
   descId,
+  nameError,
 }: {
   name: string;
   description: string;
@@ -242,6 +243,7 @@ export function NameDescriptionFields({
   onDescriptionChange: (v: string) => void;
   nameId: string;
   descId: string;
+  nameError?: string;
 }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -254,8 +256,9 @@ export function NameDescriptionFields({
           value={name ?? ''}
           onChange={(e) => onNameChange(e.target.value)}
           placeholder="Policy name"
-          className="text-sm"
+          className={`text-sm ${nameError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
         />
+        {nameError && <p className="text-xs text-destructive">{nameError}</p>}
       </div>
       <div className="space-y-1.5">
         <Label htmlFor={descId} className="text-xs font-medium">

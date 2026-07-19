@@ -3,8 +3,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { usersApi, UserCreationReq, adminApi, RoleVM, PermissionVM } from '@repo/api';
-import { Loader2, ArrowLeft } from 'lucide-react';
-import { Button, Input, Label } from '@repo/ui';
+import { Loader2, ArrowLeft, HelpCircle } from 'lucide-react';
+import { Button, Input, Label, Tooltip, TooltipContent, TooltipTrigger } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { MultiSelect } from '@/components/common/admin/MultiSelect';
@@ -14,6 +14,9 @@ import { parseApiError } from '@/lib/api-errors';
 function initialsOf(firstName: string, lastName: string) {
   return `${firstName.trim()[0] ?? ''}${lastName.trim()[0] ?? ''}`.toUpperCase() || undefined;
 }
+
+const USERNAME_RULES =
+  '2–100 characters · lowercase letters and digits only · cannot start with a digit · at most one dot (.) and one underscore (_)';
 
 function Field({
   id,
@@ -25,6 +28,7 @@ function Field({
   error,
   optional,
   required,
+  tip,
 }: {
   id: string;
   label: string;
@@ -35,14 +39,29 @@ function Field({
   error?: string;
   optional?: boolean;
   required?: boolean;
+  tip?: string;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id} className={error ? 'text-destructive' : ''}>
-        {label}
-        {required && <span className="text-destructive ml-0.5">*</span>}
-        {optional && <span className="text-muted-foreground font-normal ml-1">(optional)</span>}
-      </Label>
+      <div className="flex items-center gap-1.5">
+        <Label htmlFor={id} className={error ? 'text-destructive' : ''}>
+          {label}
+          {required && <span className="text-destructive ml-0.5">*</span>}
+          {optional && <span className="text-muted-foreground font-normal ml-1">(optional)</span>}
+        </Label>
+        {tip && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="text-muted-foreground hover:text-foreground">
+                <HelpCircle className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs text-xs">
+              {tip}
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
       <Input
         id={id}
         type={type}
@@ -218,6 +237,7 @@ export default function NewUserPage() {
             }}
             placeholder="rajveer.singh"
             error={fieldErrors.username}
+            tip={USERNAME_RULES}
           />
           <Field
             id="email"

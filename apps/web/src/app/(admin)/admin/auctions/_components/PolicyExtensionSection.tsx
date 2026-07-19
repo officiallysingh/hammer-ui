@@ -23,7 +23,7 @@ interface Props {
 
 const REFERENCE_OPTIONS: SelectOption[] = [
   { value: 'FROM_LATEST_OFFER_TIME', label: 'From Latest Offer Time' },
-  { value: 'FROM_CLOSING_TIME', label: 'From Auction End Time' },
+  { value: 'FROM_AUCTION_END_TIME', label: 'From Auction End Time' },
 ];
 
 export function PolicyExtensionSection({
@@ -67,6 +67,11 @@ export function PolicyExtensionSection({
           </button>
         )}
       </div>
+
+      <p className="text-xs text-muted-foreground">
+        If offer (ask/bid) is placed in last minute before auction end then auction end time would
+        be extended as per this policy.
+      </p>
 
       {!extensionEnabled ? (
         <p className="text-sm text-muted-foreground">No extension policy defined.</p>

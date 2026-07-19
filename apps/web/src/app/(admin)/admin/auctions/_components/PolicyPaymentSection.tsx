@@ -271,6 +271,7 @@ export function PolicyPaymentSection({
                           descId={`payment_head_desc_${i}_${j}`}
                           onNameChange={(v) => updateHead(i, j, { name: v })}
                           onDescriptionChange={(v) => updateHead(i, j, { description: v })}
+                          nameError={fieldErrors[`payment_head_name_${i}_${j}`]}
                         />
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

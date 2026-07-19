@@ -80,6 +80,21 @@ function seedMandatoryDefaults(current: Step3State, groups: PolicyGroup[]): Part
     ];
   }
 
+  // Extension — display one by default
+  const extensionGroupName = hasGroup('EXTENSION')
+    ? 'EXTENSION'
+    : hasGroup('AUCTION_EXTENSION')
+      ? 'AUCTION_EXTENSION'
+      : '';
+  if (extensionGroupName && !current.extensionEnabled) {
+    const firstType = firstOption(extensionGroupName);
+    const defaults = firstType ? POLICY_DEFAULTS[firstType] : undefined;
+    patch.extensionEnabled = true;
+    patch.extensionType = firstType;
+    patch.extensionName = defaults?.name ?? '';
+    patch.extensionDescription = defaults?.description ?? '';
+  }
+
   // Winner Determination — mandatory
   if (hasGroup('WINNER_DETERMINATION') && !current.winnerDeterminationType) {
     const firstType = firstOption('WINNER_DETERMINATION');

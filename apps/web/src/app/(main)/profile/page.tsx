@@ -36,6 +36,7 @@ import {
 } from '@repo/ui';
 import { parseApiError } from '@/lib/api-errors';
 import { AvatarUpload } from '@/components/common/admin/AvatarUpload';
+import { CancelChequeUpload } from '@/components/common/admin/CancelChequeUpload';
 
 const PWD_RULES =
   '6–12 characters · at least 1 uppercase · 1 lowercase · 1 digit · allowed special: @$!%*?&^';
@@ -267,9 +268,16 @@ interface BankFormState {
   bankId: string;
   ifscCode: string;
   accountNo: string;
+  cancelCheck: string;
   primary: boolean;
 }
-const EMPTY_BANK_FORM: BankFormState = { bankId: '', ifscCode: '', accountNo: '', primary: false };
+const EMPTY_BANK_FORM: BankFormState = {
+  bankId: '',
+  ifscCode: '',
+  accountNo: '',
+  cancelCheck: '',
+  primary: true,
+};
 
 interface BankDetailDialogProps {
   open: boolean;
@@ -293,6 +301,7 @@ function BankDetailDialog({ open, editing, banks, onClose, onSaved }: BankDetail
               bankId: editing.bank.id,
               ifscCode: editing.ifscCode,
               accountNo: editing.accountNo,
+              cancelCheck: editing.cancelCheck ?? '',
               primary: editing.primary,
             }
           : EMPTY_BANK_FORM,
@@ -333,16 +342,18 @@ function BankDetailDialog({ open, editing, banks, onClose, onSaved }: BankDetail
     try {
       if (editing) {
         await bankDetailsApi.update(editing.id, {
-          bankId: form.bankId !== editing.bank.id ? form.bankId : undefined,
+          bank: form.bankId !== editing.bank.id ? form.bankId : undefined,
           ifscCode: form.ifscCode.toUpperCase(),
           accountNo: form.accountNo,
+          cancelCheck: form.cancelCheck || undefined,
           primary: form.primary,
         });
       } else {
         await bankDetailsApi.create({
-          bankId: form.bankId,
+          bank: form.bankId,
           ifscCode: form.ifscCode.toUpperCase(),
           accountNo: form.accountNo,
+          cancelCheck: form.cancelCheck || undefined,
           primary: form.primary,
         });
       }
@@ -416,6 +427,11 @@ function BankDetailDialog({ open, editing, banks, onClose, onSaved }: BankDetail
               }
             />
           </Field>
+          <CancelChequeUpload
+            value={form.cancelCheck}
+            onChange={(dataUrl) => setField('cancelCheck', dataUrl ?? '')}
+            error={fieldErrors.cancelCheck}
+          />
           <label className="flex items-center gap-3 cursor-pointer select-none rounded-lg border border-border bg-muted/30 px-4 py-3">
             <input
               type="checkbox"

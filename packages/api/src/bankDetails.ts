@@ -15,7 +15,7 @@ export interface BankDetailVM {
 // ── Request Models ────────────────────────────────────────────────────────────
 
 export interface BankDetailCreationRQ {
-  bankId: string;
+  bank: string;
   ifscCode: string;
   accountNo: string;
   cancelCheck?: string;
@@ -23,7 +23,7 @@ export interface BankDetailCreationRQ {
 }
 
 export interface BankDetailUpdationRQ {
-  bankId?: string;
+  bank?: string;
   ifscCode?: string;
   accountNo?: string;
   cancelCheck?: string;
