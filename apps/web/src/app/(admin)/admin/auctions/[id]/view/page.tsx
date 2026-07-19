@@ -212,6 +212,39 @@ function formatDuration(value?: unknown): string | null {
   return raw;
 }
 
+/** Parses an ISO-8601 duration (e.g. "PT1H30M") into total seconds; 0 if unparsable */
+function durationToSeconds(value?: unknown): number {
+  if (!value) return 0;
+  const raw = String(value).trim();
+  const isoMatch = raw.match(
+    /^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/,
+  );
+  if (!isoMatch) return 0;
+  const [, years, months, days, hours, minutes, seconds] = isoMatch;
+  const totalDays = Number(years || 0) * 365 + Number(months || 0) * 30 + Number(days || 0);
+  return (
+    totalDays * 86400 + Number(hours || 0) * 3600 + Number(minutes || 0) * 60 + Number(seconds || 0)
+  );
+}
+
+/** Formats a total-seconds value the same way formatDuration formats an ISO duration */
+function formatSecondsDuration(totalSeconds: number): string | null {
+  if (!totalSeconds) return null;
+  let remaining = Math.round(totalSeconds);
+  const days = Math.floor(remaining / 86400);
+  remaining -= days * 86400;
+  const hours = Math.floor(remaining / 3600);
+  remaining -= hours * 3600;
+  const minutes = Math.floor(remaining / 60);
+  remaining -= minutes * 60;
+  const parts: string[] = [];
+  if (days) parts.push(`${days}d`);
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}m`);
+  if (remaining) parts.push(`${remaining}s`);
+  return parts.join(' ');
+}
+
 /** Renders a "Schedule" badge (reference + offset) shared by the timeline and list layouts */
 function ScheduleBadge({ schedule }: { schedule: PolicyItemRQ['schedule'] }) {
   if (!schedule) return null;
@@ -255,16 +288,20 @@ function TimelineEntryCard({
   item,
   index,
   isLast,
+  cumulativeSeconds,
 }: {
   item: PolicyItemRQ;
   index: number;
   isLast: boolean;
+  cumulativeSeconds?: number;
 }) {
   const durationLabel = formatDuration(item.windowDuration ?? item.duration);
   const stepLabel = item.steps?.length ? item.steps.join(', ') : null;
+  const cumulativeLabel =
+    cumulativeSeconds != null ? formatSecondsDuration(cumulativeSeconds) : null;
   return (
     <div className="relative pl-8 pb-4 last:pb-0">
-      <div className="absolute left-[19px] top-2.5 h-3 w-3 rounded-full border-2 border-primary/50 bg-background" />
+      <div className="absolute left-[6px] top-2.5 h-3 w-3 rounded-full border-2 border-primary/50 bg-background" />
       <div className="rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -279,12 +316,26 @@ function TimelineEntryCard({
             {isLast ? 'Rest of auction' : `Window ${index + 1}`}
           </span>
         </div>
-        {durationLabel && (
-          <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
-            <Clock className="h-3 w-3" />
-            {durationLabel}
-          </div>
-        )}
+        <div className="mt-2 flex flex-wrap gap-2">
+          {durationLabel && (
+            <div className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+              <Clock className="h-3 w-3" />
+              {durationLabel}
+            </div>
+          )}
+          {cumulativeLabel && (
+            <div className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-400">
+              <Clock className="h-3 w-3" />
+              Starts at T+{cumulativeLabel}
+            </div>
+          )}
+          {cumulativeSeconds === 0 && (
+            <div className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-400">
+              <Clock className="h-3 w-3" />
+              Starts at T+0
+            </div>
+          )}
+        </div>
         {item.description && (
           <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p>
         )}
@@ -339,19 +390,37 @@ function PolicyGroupSection({ groupKey, items }: { groupKey: string; items: Poli
                       )}
                     </div>
                   )}
-                  {item.priceChangePolicies.map((nested, j) => (
-                    <TimelineEntryCard
-                      key={j}
-                      item={nested}
-                      index={j}
-                      isLast={j === item.priceChangePolicies!.length - 1}
-                    />
-                  ))}
+                  {item.priceChangePolicies.map((nested, j) => {
+                    const cumulativeSeconds = item
+                      .priceChangePolicies!.slice(0, j)
+                      .reduce(
+                        (sum, w) => sum + durationToSeconds(w.windowDuration ?? w.duration),
+                        0,
+                      );
+                    return (
+                      <TimelineEntryCard
+                        key={j}
+                        item={nested}
+                        index={j}
+                        isLast={j === item.priceChangePolicies!.length - 1}
+                        cumulativeSeconds={cumulativeSeconds}
+                      />
+                    );
+                  })}
                 </div>
               );
             }
+            const cumulativeSeconds = items
+              .slice(0, i)
+              .reduce((sum, w) => sum + durationToSeconds(w.windowDuration ?? w.duration), 0);
             return (
-              <TimelineEntryCard key={i} item={item} index={i} isLast={i === items.length - 1} />
+              <TimelineEntryCard
+                key={i}
+                item={item}
+                index={i}
+                isLast={i === items.length - 1}
+                cumulativeSeconds={cumulativeSeconds}
+              />
             );
           })}
         </div>

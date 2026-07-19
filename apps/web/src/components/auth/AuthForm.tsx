@@ -682,7 +682,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             <Button
               type="submit"
               className="w-full h-11 text-base font-medium"
-              disabled={isLoading}
+              disabled={isLoading || !smsConsent}
             >
               {isLoading ? (
                 <>
