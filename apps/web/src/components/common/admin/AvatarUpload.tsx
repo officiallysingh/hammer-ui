@@ -197,41 +197,26 @@ export function AvatarUpload({ value, onChange, fallbackText, error, label }: Av
         </Label>
       )}
 
-      <div className="flex items-center gap-4">
-        {/* Clickable avatar with pencil overlay */}
-        <button
-          type="button"
-          onClick={() => setPopupOpen(true)}
-          className="relative group w-16 h-16 rounded-full overflow-hidden border border-border bg-muted flex items-center justify-center shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label="Change profile picture"
-        >
-          {value ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={value} alt="Profile" className="h-full w-full object-cover" />
-          ) : (
-            <span className="text-lg font-medium text-muted-foreground select-none">
-              {fallbackText}
-            </span>
-          )}
-          {/* Pencil overlay */}
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-            <Pencil className="h-4 w-4 text-white" />
-          </div>
-        </button>
-
-        <div className="flex flex-col gap-1">
-          <p className="text-sm text-foreground font-medium">
-            {value ? 'Profile picture set' : 'No picture selected'}
-          </p>
-          <button
-            type="button"
-            onClick={() => setPopupOpen(true)}
-            className="text-xs text-primary hover:underline text-left"
-          >
-            {value ? 'Change photo' : 'Upload a photo'}
-          </button>
+      {/* Clickable avatar with pencil overlay — click anywhere on the circle to open picker */}
+      <button
+        type="button"
+        onClick={() => setPopupOpen(true)}
+        className="relative group w-16 h-16 rounded-full overflow-hidden border border-border bg-muted flex items-center justify-center shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label="Change profile picture"
+      >
+        {value ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={value} alt="Profile" className="h-full w-full object-cover" />
+        ) : (
+          <span className="text-lg font-medium text-muted-foreground select-none">
+            {fallbackText}
+          </span>
+        )}
+        {/* Pencil overlay */}
+        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          <Pencil className="h-4 w-4 text-white" />
         </div>
-      </div>
+      </button>
 
       {error && <p className="text-xs text-destructive">{error}</p>}
 

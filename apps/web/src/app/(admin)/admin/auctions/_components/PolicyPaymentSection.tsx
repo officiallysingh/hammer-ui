@@ -337,13 +337,10 @@ export function PolicyPaymentSection({
                               <FieldError message={fieldErrors[`payment_head_value_${i}_${j}`]} />
                             </div>
                             <div className="flex items-end pb-1.5">
-                              <label
-                                className={`flex items-center gap-2 text-sm text-foreground ${head.type === 'EMD' ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
-                              >
+                              <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
                                 <input
                                   type="checkbox"
-                                  checked={head.type === 'EMD' ? true : head.refundable}
-                                  disabled={head.type === 'EMD'}
+                                  checked={head.refundable}
                                   onChange={(e) =>
                                     updateHead(i, j, { refundable: e.target.checked })
                                   }

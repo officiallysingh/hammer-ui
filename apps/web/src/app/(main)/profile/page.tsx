@@ -19,16 +19,12 @@ import {
   Trash2,
   Star,
   Building2,
-  X,
+  CreditCard,
 } from 'lucide-react';
 import {
   Button,
   Input,
   Label,
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -40,12 +36,11 @@ import {
 } from '@repo/ui';
 import { parseApiError } from '@/lib/api-errors';
 import { AvatarUpload } from '@/components/common/admin/AvatarUpload';
-import { UserAvatar } from '@/components/common/admin/UserAvatar';
 
 const PWD_RULES =
   '6–12 characters · at least 1 uppercase · 1 lowercase · 1 digit · allowed special: @$!%*?&^';
 
-// ── Shared helpers ────────────────────────────────────────────────────────────
+// ── Field wrapper ─────────────────────────────────────────────────────────────
 
 function Field({
   label,
@@ -83,6 +78,8 @@ function Field({
     </div>
   );
 }
+
+// ── Password input ────────────────────────────────────────────────────────────
 
 function PasswordInput({
   id,
@@ -146,7 +143,6 @@ function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () =>
     setError(null);
     setSuccess(false);
   };
-
   const handleClose = () => {
     reset();
     onClose();
@@ -265,151 +261,7 @@ function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () =>
   );
 }
 
-// ── Update Profile Tab ────────────────────────────────────────────────────────
-
-function UpdateProfileTab({
-  userInfo,
-  setUserInfo,
-}: {
-  userInfo: UserInfo | null;
-  setUserInfo: (info: UserInfo | null) => void;
-}) {
-  const [email, setEmail] = useState(userInfo?.emailId ?? '');
-  const [firstName, setFirstName] = useState(userInfo?.firstName ?? '');
-  const [lastName, setLastName] = useState(userInfo?.lastName ?? '');
-  const [mobileNo, setMobileNo] = useState(userInfo?.mobileNo ?? '');
-  const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string | null>(null);
-
-  const clearErr = (f: string) =>
-    setFieldErrors((p) => {
-      const n = { ...p };
-      delete n[f];
-      return n;
-    });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setFieldErrors({});
-    setSuccess(false);
-    setSaving(true);
-    try {
-      await usersApi.updateSelf({
-        emailId: email.trim() || undefined,
-        firstName: firstName.trim() || undefined,
-        lastName: lastName.trim() || undefined,
-        mobileNo: mobileNo.trim() || undefined,
-      });
-      if (userInfo) {
-        setUserInfo({
-          ...userInfo,
-          emailId: email.trim() || userInfo.emailId,
-          firstName: firstName.trim() || undefined,
-          lastName: lastName.trim() || undefined,
-          mobileNo: mobileNo.trim() || undefined,
-        });
-      }
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (err) {
-      const parsed = parseApiError(err);
-      if (Object.keys(parsed.fieldErrors).length > 0) setFieldErrors(parsed.fieldErrors);
-      else setError(parsed.general ?? 'Failed to update profile.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      <Field label="Email" error={fieldErrors.emailId}>
-        <Input
-          value={email}
-          onChange={(e) => {
-            setEmail(e.target.value);
-            clearErr('emailId');
-          }}
-          placeholder="abc@xyz.com"
-          type="email"
-          autoComplete="email"
-          className={fieldErrors.emailId ? 'border-destructive focus-visible:ring-destructive' : ''}
-        />
-      </Field>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="First name" error={fieldErrors.firstName}>
-          <Input
-            value={firstName}
-            onChange={(e) => {
-              setFirstName(e.target.value);
-              clearErr('firstName');
-            }}
-            placeholder="John"
-            autoComplete="given-name"
-            className={
-              fieldErrors.firstName ? 'border-destructive focus-visible:ring-destructive' : ''
-            }
-          />
-        </Field>
-        <Field label="Last name" error={fieldErrors.lastName}>
-          <Input
-            value={lastName}
-            onChange={(e) => {
-              setLastName(e.target.value);
-              clearErr('lastName');
-            }}
-            placeholder="Doe"
-            autoComplete="family-name"
-            className={
-              fieldErrors.lastName ? 'border-destructive focus-visible:ring-destructive' : ''
-            }
-          />
-        </Field>
-      </div>
-      <Field label="Mobile number" error={fieldErrors.mobileNo}>
-        <Input
-          value={mobileNo}
-          onChange={(e) => {
-            setMobileNo(e.target.value);
-            clearErr('mobileNo');
-          }}
-          placeholder="+91 98765 43210"
-          autoComplete="tel"
-          type="tel"
-          className={
-            fieldErrors.mobileNo ? 'border-destructive focus-visible:ring-destructive' : ''
-          }
-        />
-      </Field>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <div className="flex items-center gap-3 pt-1">
-        <Button type="submit" disabled={saving} className="gap-2">
-          {saving ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <User className="h-4 w-4" />
-              Save changes
-            </>
-          )}
-        </Button>
-        {success && (
-          <span className="flex items-center gap-1.5 text-sm text-emerald-500 font-medium">
-            <CheckCircle2 className="h-4 w-4" />
-            Saved
-          </span>
-        )}
-      </div>
-    </form>
-  );
-}
-
-// ── Bank Detail Form Dialog ───────────────────────────────────────────────────
+// ── Bank Detail Dialog ────────────────────────────────────────────────────────
 
 interface BankFormState {
   bankId: string;
@@ -417,12 +269,11 @@ interface BankFormState {
   accountNo: string;
   primary: boolean;
 }
-
 const EMPTY_BANK_FORM: BankFormState = { bankId: '', ifscCode: '', accountNo: '', primary: false };
 
 interface BankDetailDialogProps {
   open: boolean;
-  editing: BankDetailVM | null; // null = create
+  editing: BankDetailVM | null;
   banks: BankVM[];
   onClose: () => void;
   onSaved: () => void;
@@ -436,16 +287,16 @@ function BankDetailDialog({ open, editing, banks, onClose, onSaved }: BankDetail
 
   useEffect(() => {
     if (open) {
-      if (editing) {
-        setForm({
-          bankId: editing.bank.id,
-          ifscCode: editing.ifscCode,
-          accountNo: editing.accountNo,
-          primary: editing.primary,
-        });
-      } else {
-        setForm(EMPTY_BANK_FORM);
-      }
+      setForm(
+        editing
+          ? {
+              bankId: editing.bank.id,
+              ifscCode: editing.ifscCode,
+              accountNo: editing.accountNo,
+              primary: editing.primary,
+            }
+          : EMPTY_BANK_FORM,
+      );
       setFieldErrors({});
       setError(null);
     }
@@ -453,7 +304,6 @@ function BankDetailDialog({ open, editing, banks, onClose, onSaved }: BankDetail
 
   const setField = <K extends keyof BankFormState>(k: K, v: BankFormState[K]) =>
     setForm((p) => ({ ...p, [k]: v }));
-
   const clearErr = (f: string) =>
     setFieldErrors((p) => {
       const n = { ...p };
@@ -519,7 +369,6 @@ function BankDetailDialog({ open, editing, banks, onClose, onSaved }: BankDetail
           <DialogTitle>{editing ? 'Edit bank account' : 'Add bank account'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Bank select */}
           <div className="space-y-1.5">
             <Label className={fieldErrors.bankId ? 'text-destructive' : ''}>Bank</Label>
             <select
@@ -528,9 +377,7 @@ function BankDetailDialog({ open, editing, banks, onClose, onSaved }: BankDetail
                 setField('bankId', e.target.value);
                 clearErr('bankId');
               }}
-              className={`w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring ${
-                fieldErrors.bankId ? 'border-destructive' : 'border-input'
-              }`}
+              className={`w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring ${fieldErrors.bankId ? 'border-destructive' : 'border-input'}`}
             >
               <option value="">Select a bank…</option>
               {banks.map((b) => (
@@ -541,8 +388,6 @@ function BankDetailDialog({ open, editing, banks, onClose, onSaved }: BankDetail
             </select>
             {fieldErrors.bankId && <p className="text-xs text-destructive">{fieldErrors.bankId}</p>}
           </div>
-
-          {/* IFSC */}
           <Field label="IFSC code" error={fieldErrors.ifscCode}>
             <Input
               value={form.ifscCode}
@@ -557,8 +402,6 @@ function BankDetailDialog({ open, editing, banks, onClose, onSaved }: BankDetail
               }
             />
           </Field>
-
-          {/* Account No */}
           <Field label="Account number" error={fieldErrors.accountNo}>
             <Input
               value={form.accountNo}
@@ -573,8 +416,6 @@ function BankDetailDialog({ open, editing, banks, onClose, onSaved }: BankDetail
               }
             />
           </Field>
-
-          {/* Primary toggle */}
           <label className="flex items-center gap-3 cursor-pointer select-none rounded-lg border border-border bg-muted/30 px-4 py-3">
             <input
               type="checkbox"
@@ -587,9 +428,7 @@ function BankDetailDialog({ open, editing, banks, onClose, onSaved }: BankDetail
               <p className="text-xs text-muted-foreground">Used as default for payouts</p>
             </div>
           </label>
-
           {error && <p className="text-sm text-destructive">{error}</p>}
-
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
               Cancel
@@ -611,9 +450,9 @@ function BankDetailDialog({ open, editing, banks, onClose, onSaved }: BankDetail
   );
 }
 
-// ── Bank Details Tab ──────────────────────────────────────────────────────────
+// ── Bank Details Section ──────────────────────────────────────────────────────
 
-function BankDetailsTab() {
+function BankDetailsSection() {
   const [details, setDetails] = useState<BankDetailVM[]>([]);
   const [banks, setBanks] = useState<BankVM[]>([]);
   const [loading, setLoading] = useState(true);
@@ -640,6 +479,16 @@ function BankDetailsTab() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Auto-set primary when only one record
+  useEffect(() => {
+    if (details.length === 1 && !details[0].primary) {
+      bankDetailsApi
+        .update(details[0].id, { primary: true })
+        .then(load)
+        .catch(() => {});
+    }
+  }, [details, load]);
 
   const openAdd = () => {
     setEditing(null);
@@ -675,33 +524,18 @@ function BankDetailsTab() {
     }
   };
 
-  // Auto-set primary when only one record and it's not primary
-  useEffect(() => {
-    if (details.length === 1 && !details[0].primary) {
-      bankDetailsApi
-        .update(details[0].id, { primary: true })
-        .then(load)
-        .catch(() => {});
-    }
-  }, [details, load]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
-        <Loader2 className="h-5 w-5 animate-spin" />
-        <span className="text-sm">Loading bank details…</span>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-foreground">Bank accounts</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Manage your linked bank accounts for payouts.
-          </p>
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      {/* Section header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/30">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <CreditCard className="h-4 w-4 text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground">Bank Accounts</p>
+            <p className="text-xs text-muted-foreground">Linked accounts for payouts</p>
+          </div>
         </div>
         <Button type="button" size="sm" onClick={openAdd} className="gap-1.5">
           <Plus className="h-4 w-4" />
@@ -709,124 +543,155 @@ function BankDetailsTab() {
         </Button>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      {details.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-muted/20 py-12 flex flex-col items-center gap-3 text-muted-foreground">
-          <Building2 className="h-8 w-8 opacity-40" />
-          <p className="text-sm">No bank accounts linked yet.</p>
-          <Button type="button" variant="outline" size="sm" onClick={openAdd} className="gap-1.5">
+      {/* Body */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span className="text-sm">Loading…</span>
+        </div>
+      ) : error ? (
+        <p className="text-sm text-destructive px-6 py-4">{error}</p>
+      ) : details.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 py-14 text-muted-foreground">
+          <Building2 className="h-9 w-9 opacity-30" />
+          <div className="text-center">
+            <p className="text-sm font-medium">No bank accounts linked yet</p>
+            <p className="text-xs mt-0.5">Add an account to receive payouts</p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={openAdd}
+            className="gap-1.5 mt-1"
+          >
             <Plus className="h-4 w-4" />
             Add your first account
           </Button>
         </div>
       ) : (
-        <div className="rounded-xl border border-border overflow-hidden">
-          {/* Table header */}
-          <div className="hidden sm:grid grid-cols-[1fr_1fr_1fr_auto] gap-4 px-4 py-2.5 bg-muted/40 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            <span>Bank</span>
-            <span>Account No</span>
-            <span>IFSC</span>
-            <span className="text-right">Actions</span>
-          </div>
+        <div className="w-full overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/20">
+                <th className="text-left px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Bank
+                </th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Account No
+                </th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  IFSC Code
+                </th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Status
+                </th>
+                <th className="px-4 py-3 w-28" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {details.map((d) => (
+                <tr
+                  key={d.id}
+                  className={`group transition-colors ${d.primary ? 'bg-primary/[0.03]' : 'hover:bg-muted/30'}`}
+                >
+                  {/* Bank */}
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                        <Building2 className="h-4 w-4 text-primary" />
+                      </div>
+                      <span className="font-medium text-foreground">{d.bank.name}</span>
+                    </div>
+                  </td>
 
-          {details.map((d, idx) => (
-            <div
-              key={d.id}
-              className={`flex flex-col sm:grid sm:grid-cols-[1fr_1fr_1fr_auto] gap-3 sm:gap-4 px-4 py-3.5 items-start sm:items-center transition-colors ${
-                idx !== 0 ? 'border-t border-border' : ''
-              } ${d.primary ? 'bg-primary/5' : 'hover:bg-muted/30'}`}
-            >
-              {/* Bank name + primary badge */}
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <Building2 className="h-3.5 w-3.5 text-primary" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{d.bank.name}</p>
-                  {d.primary && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary">
-                      <Star className="h-2.5 w-2.5 fill-primary" />
-                      Primary
+                  {/* Account No — masked */}
+                  <td className="px-4 py-4">
+                    <span className="font-mono text-sm text-foreground tracking-widest">
+                      ••••&nbsp;{d.accountNo.slice(-4)}
                     </span>
-                  )}
-                </div>
-              </div>
+                  </td>
 
-              {/* Account No */}
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground sm:hidden mb-0.5">Account No</p>
-                <p className="text-sm font-mono text-foreground tracking-wide">
-                  {'•'.repeat(Math.max(0, d.accountNo.length - 4))}
-                  {d.accountNo.slice(-4)}
-                </p>
-              </div>
+                  {/* IFSC */}
+                  <td className="px-4 py-4">
+                    <span className="font-mono text-sm text-foreground">{d.ifscCode}</span>
+                  </td>
 
-              {/* IFSC */}
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground sm:hidden mb-0.5">IFSC</p>
-                <p className="text-sm font-mono text-foreground">{d.ifscCode}</p>
-              </div>
+                  {/* Primary badge */}
+                  <td className="px-4 py-4 text-center">
+                    {d.primary ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 rounded-full px-2.5 py-1">
+                        <Star className="h-3 w-3 fill-primary" />
+                        Primary
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </td>
 
-              {/* Actions */}
-              <div className="flex items-center gap-1 sm:justify-end">
-                {!d.primary && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={() => handleSetPrimary(d)}
-                        disabled={settingPrimary === d.id}
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
-                      >
-                        {settingPrimary === d.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Star className="h-3.5 w-3.5" />
-                        )}
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="text-xs">
-                      Set as primary
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={() => openEdit(d)}
-                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="text-xs">
-                    Edit
-                  </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(d.id)}
-                      disabled={deleting === d.id}
-                      className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
-                    >
-                      {deleting === d.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-3.5 w-3.5" />
+                  {/* Actions */}
+                  <td className="px-4 py-4">
+                    <div className="flex items-center justify-end gap-1">
+                      {!d.primary && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              onClick={() => handleSetPrimary(d)}
+                              disabled={settingPrimary === d.id}
+                              className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+                            >
+                              {settingPrimary === d.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Star className="h-4 w-4" />
+                              )}
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs">
+                            Set as primary
+                          </TooltipContent>
+                        </Tooltip>
                       )}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="text-xs">
-                    Delete
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-            </div>
-          ))}
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={() => openEdit(d)}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs">
+                          Edit
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(d.id)}
+                            disabled={deleting === d.id}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                          >
+                            {deleting === d.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs">
+                          Delete
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -841,7 +706,7 @@ function BankDetailsTab() {
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Profile Page ──────────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -849,6 +714,26 @@ export default function ProfilePage() {
   const [pwdOpen, setPwdOpen] = useState(false);
   const [savingPic, setSavingPic] = useState(false);
   const [picError, setPicError] = useState<string | null>(null);
+
+  // Profile form state
+  const [email, setEmail] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [mobileNo, setMobileNo] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Initialise form from userInfo
+  useEffect(() => {
+    if (userInfo) {
+      setEmail(userInfo.emailId ?? '');
+      setFirstName(userInfo.firstName ?? '');
+      setLastName(userInfo.lastName ?? '');
+      setMobileNo(userInfo.mobileNo ?? '');
+    }
+  }, [userInfo]);
 
   if (!user?.authenticated) {
     router.replace('/login');
@@ -858,6 +743,13 @@ export default function ProfilePage() {
   const displayName = userInfo?.firstName
     ? `${userInfo.firstName}${userInfo.lastName ? ` ${userInfo.lastName}` : ''}`
     : user.username;
+
+  const clearErr = (f: string) =>
+    setFieldErrors((p) => {
+      const n = { ...p };
+      delete n[f];
+      return n;
+    });
 
   const handleAvatarChange = async (dataUrl: string | undefined) => {
     setPicError(null);
@@ -872,74 +764,183 @@ export default function ProfilePage() {
     }
   };
 
+  const handleProfileSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+    setFieldErrors({});
+    setSuccess(false);
+    setSaving(true);
+    try {
+      await usersApi.updateSelf({
+        emailId: email.trim() || undefined,
+        firstName: firstName.trim() || undefined,
+        lastName: lastName.trim() || undefined,
+        mobileNo: mobileNo.trim() || undefined,
+      });
+      if (userInfo) {
+        setUserInfo({
+          ...userInfo,
+          emailId: email.trim() || userInfo.emailId,
+          firstName: firstName.trim() || undefined,
+          lastName: lastName.trim() || undefined,
+          mobileNo: mobileNo.trim() || undefined,
+        });
+      }
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) {
+      const parsed = parseApiError(err);
+      if (Object.keys(parsed.fieldErrors).length > 0) setFieldErrors(parsed.fieldErrors);
+      else setFormError(parsed.general ?? 'Failed to update profile.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="w-full px-4 sm:px-6 py-10">
-      <div className="max-w-2xl mx-auto space-y-8">
-        {/* ── Avatar + name header ── */}
-        <div className="flex items-center gap-5">
-          <div className="relative shrink-0">
-            <AvatarUpload
-              value={userInfo?.profilePicture}
-              onChange={handleAvatarChange}
-              fallbackText={displayName.charAt(0).toUpperCase()}
-              label=""
-            />
-            {savingPic && (
-              <div className="absolute inset-0 rounded-full bg-background/60 flex items-center justify-center">
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-              </div>
-            )}
+      <div className="max-w-3xl mx-auto space-y-8">
+        {/* ── Hero card: avatar + name + change password ── */}
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-6 py-6 flex items-center gap-5">
+            {/* Avatar — pencil icon overlay, no text link */}
+            <div className="relative shrink-0">
+              <AvatarUpload
+                value={userInfo?.profilePicture}
+                onChange={handleAvatarChange}
+                fallbackText={displayName.charAt(0).toUpperCase()}
+                label=""
+              />
+              {savingPic && (
+                <div className="absolute inset-0 rounded-full bg-background/60 flex items-center justify-center pointer-events-none">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                </div>
+              )}
+            </div>
+
+            {/* Name / email */}
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg font-semibold text-foreground truncate">{displayName}</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {userInfo?.emailId ?? user.username}
+              </p>
+              {picError && <p className="text-xs text-destructive mt-1">{picError}</p>}
+            </div>
+
+            {/* Change password */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPwdOpen(true)}
+              className="gap-2 shrink-0"
+            >
+              <Lock className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Change password</span>
+              <span className="sm:hidden">Password</span>
+            </Button>
           </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-semibold text-foreground truncate">{displayName}</h1>
-            <p className="text-sm text-muted-foreground">{userInfo?.emailId ?? user.username}</p>
-            {picError && <p className="text-xs text-destructive mt-1">{picError}</p>}
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setPwdOpen(true)}
-            className="gap-2 shrink-0 hidden sm:flex"
-          >
-            <Lock className="h-3.5 w-3.5" />
-            Change password
-          </Button>
         </div>
 
-        {/* Mobile change password button */}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setPwdOpen(true)}
-          className="gap-2 w-full sm:hidden"
-        >
-          <Lock className="h-3.5 w-3.5" />
-          Change password
-        </Button>
+        {/* ── Profile details form ── */}
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="flex items-center gap-2.5 px-6 py-4 border-b border-border bg-muted/30">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <User className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Personal Information</p>
+              <p className="text-xs text-muted-foreground">Update your name, email and mobile</p>
+            </div>
+          </div>
+          <form onSubmit={handleProfileSubmit} className="px-6 py-6 space-y-5">
+            <Field label="Email" error={fieldErrors.emailId}>
+              <Input
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  clearErr('emailId');
+                }}
+                placeholder="abc@xyz.com"
+                type="email"
+                autoComplete="email"
+                className={
+                  fieldErrors.emailId ? 'border-destructive focus-visible:ring-destructive' : ''
+                }
+              />
+            </Field>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="First name" error={fieldErrors.firstName}>
+                <Input
+                  value={firstName}
+                  onChange={(e) => {
+                    setFirstName(e.target.value);
+                    clearErr('firstName');
+                  }}
+                  placeholder="John"
+                  autoComplete="given-name"
+                  className={
+                    fieldErrors.firstName ? 'border-destructive focus-visible:ring-destructive' : ''
+                  }
+                />
+              </Field>
+              <Field label="Last name" error={fieldErrors.lastName}>
+                <Input
+                  value={lastName}
+                  onChange={(e) => {
+                    setLastName(e.target.value);
+                    clearErr('lastName');
+                  }}
+                  placeholder="Doe"
+                  autoComplete="family-name"
+                  className={
+                    fieldErrors.lastName ? 'border-destructive focus-visible:ring-destructive' : ''
+                  }
+                />
+              </Field>
+            </div>
+            <Field label="Mobile number" error={fieldErrors.mobileNo}>
+              <Input
+                value={mobileNo}
+                onChange={(e) => {
+                  setMobileNo(e.target.value);
+                  clearErr('mobileNo');
+                }}
+                placeholder="+91 98765 43210"
+                autoComplete="tel"
+                type="tel"
+                className={
+                  fieldErrors.mobileNo ? 'border-destructive focus-visible:ring-destructive' : ''
+                }
+              />
+            </Field>
+            {formError && <p className="text-sm text-destructive">{formError}</p>}
+            <div className="flex items-center gap-3 pt-1">
+              <Button type="submit" disabled={saving} className="gap-2">
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  <>
+                    <User className="h-4 w-4" />
+                    Save changes
+                  </>
+                )}
+              </Button>
+              {success && (
+                <span className="flex items-center gap-1.5 text-sm text-emerald-500 font-medium">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Saved
+                </span>
+              )}
+            </div>
+          </form>
+        </div>
 
-        {/* ── Tabs ── */}
-        <Tabs defaultValue="profile">
-          <TabsList className="mb-6 w-full">
-            <TabsTrigger value="profile" className="flex-1 gap-2">
-              <User className="h-4 w-4" />
-              Profile
-            </TabsTrigger>
-            <TabsTrigger value="banks" className="flex-1 gap-2">
-              <Building2 className="h-4 w-4" />
-              Bank Accounts
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="profile">
-            <UpdateProfileTab userInfo={userInfo} setUserInfo={setUserInfo} />
-          </TabsContent>
-
-          <TabsContent value="banks">
-            <BankDetailsTab />
-          </TabsContent>
-        </Tabs>
+        {/* ── Bank accounts — full width table ── */}
+        <BankDetailsSection />
       </div>
 
       <ChangePasswordDialog open={pwdOpen} onClose={() => setPwdOpen(false)} />

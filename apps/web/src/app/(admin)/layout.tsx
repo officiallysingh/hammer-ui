@@ -116,23 +116,16 @@ const navEntries: NavEntry[] = [
     label: 'Managed Types',
     items: [
       {
-        label: 'Managed Types',
+        href: '/admin/metadata/components',
+        label: 'Components',
+        icon: Puzzle,
+        description: 'Reusable property groups',
+      },
+      {
+        href: '/admin/metadata',
+        label: 'Templates',
         icon: Database,
-        description: 'Types & components',
-        subItems: [
-          {
-            href: '/admin/metadata/components',
-            label: 'Components',
-            description: 'Reusable property groups',
-            icon: Puzzle,
-          },
-          {
-            href: '/admin/metadata',
-            label: 'Templates',
-            description: 'Type definitions',
-            icon: Database,
-          },
-        ],
+        description: 'Type definitions',
       },
     ],
   },
