@@ -374,9 +374,13 @@ export function AuctionStep5Workflow({
         if (!mounted) return;
         setWorkflow(wf);
         setParticipation(part);
-        // Extract post-payment (AUCTION_END_TIME) policies
-        const postPolicies =
-          pol?.['PAYMENT']?.filter((item) => item.schedule?.reference === 'AUCTION_END_TIME') ?? [];
+        // Extract post-payment (AUCTION_END_TIME) policies — reference may be a string or { KEY: "Label" }
+        const paymentItems = pol?.['PAYMENT'] ?? [];
+        const postPolicies = paymentItems.filter((item) => {
+          const ref = item.schedule?.reference;
+          const refKey = typeof ref === 'string' ? ref : ref ? Object.keys(ref as object)[0] : '';
+          return refKey === 'AUCTION_END_TIME';
+        });
         setPostPaymentPolicies(postPolicies);
       })
       .finally(() => {
@@ -562,8 +566,8 @@ export function AuctionStep5Workflow({
             )}
           </div>
 
-          {/* Post-payment block pinned at end */}
-          {!loading && postPayment && (
+          {/* Post-payment block — shown when participation.postPayment === true */}
+          {!loading && participation?.postPayment === true && (
             <div className="border-t border-border px-4 pb-4 pt-3">
               <PostPaymentBlock policies={postPaymentPolicies} />
             </div>
