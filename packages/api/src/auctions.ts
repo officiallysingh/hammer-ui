@@ -33,6 +33,12 @@ export interface AuctionWorkflowStep {
   };
 }
 
+export interface AuctionParticipation {
+  id?: string;
+  postPayment?: boolean;
+  [key: string]: unknown;
+}
+
 export type AuctionUnitType = 'SINGLE_UNIT' | 'BUNDLE' | 'MULTI_UNIT' | 'LOT';
 
 export interface AuctionUnitItemBody {
@@ -246,6 +252,19 @@ export const auctionsApi = {
       `/api/v1/auctions/${id}/participation/workflow`,
     );
     return response.data;
+  },
+
+  getAuctionParticipation: async (id: string): Promise<AuctionParticipation> => {
+    const response = await apiClient.get<AuctionParticipation>(
+      `/api/v1/auctions/${id}/participation`,
+    );
+    return response.data;
+  },
+
+  reorderWorkflowSteps: async (id: string, stepIds: string[]): Promise<void> => {
+    await apiClient.post(`/api/v1/auctions/${id}/participation/workflow/steps/reorder`, {
+      stepIds,
+    });
   },
 
   setAuctionPolicies: async (id: string, data: AuctionPoliciesCreationRQ): Promise<void> => {

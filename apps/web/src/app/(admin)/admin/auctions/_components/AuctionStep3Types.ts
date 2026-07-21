@@ -64,7 +64,7 @@ export const initialStep3: Step3State = {
   extensionType: '',
   extensionName: '',
   extensionDescription: '',
-  extensionReference: 'FROM_LATEST_OFFER_TIME',
+  extensionReference: 'FROM_AUCTION_END_TIME',
   extensionDurationMinutes: '10',
   extensionLimit: '0',
   winnerDeterminationType: '',

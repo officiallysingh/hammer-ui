@@ -81,8 +81,8 @@ export const PAYMENT_POLICY_NAME_DEFAULTS: Record<
     description: 'Payment required to participate in auction',
   },
   AUCTION_END_TIME: {
-    name: 'Post Payment',
-    description: 'Payment collected from participants or the auction winner',
+    name: 'Winning payment',
+    description: 'Winning amount payment',
   },
 };
 

@@ -8,7 +8,6 @@ import {
   blobsApi,
   AuctionVM,
   AuctionUnitVM,
-  AuctionWorkflowStep,
   PolicyItemRQ,
   AuctionPoliciesGroupRQ,
 } from '@repo/api';
@@ -20,7 +19,6 @@ import {
   DollarSign,
   Settings2,
   Layers,
-  CheckCircle2,
   Clock,
   AlertCircle,
   Eye,
@@ -122,67 +120,6 @@ function SectionCard({
         <span className="text-sm font-semibold text-foreground">{title}</span>
       </div>
       <div className="divide-y divide-border/50">{children}</div>
-    </div>
-  );
-}
-
-// ── Workflow step ─────────────────────────────────────────────────────────────
-
-function WorkflowStepRow({ step, index }: { step: AuctionWorkflowStep; index: number }) {
-  const statusType = resolveStr(step.status?.type);
-  const isCompleted = statusType === 'COMPLETED';
-  const isRunning = statusType === 'IN_PROGRESS' || statusType === 'RUNNING';
-
-  return (
-    <div className="flex items-start gap-3 px-4 py-3 hover:bg-muted/20 transition-colors">
-      <div className="flex flex-col items-center gap-1 shrink-0 pt-0.5">
-        <div
-          className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold border-2 ${
-            isCompleted
-              ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600'
-              : isRunning
-                ? 'border-blue-500 bg-blue-500/10 text-blue-600'
-                : 'border-border bg-muted text-muted-foreground'
-          }`}
-        >
-          {isCompleted ? (
-            <CheckCircle2 className="h-3.5 w-3.5" />
-          ) : isRunning ? (
-            <Clock className="h-3.5 w-3.5" />
-          ) : (
-            index + 1
-          )}
-        </div>
-        {index < 9 && <div className="w-px h-3 bg-border/50" />}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-foreground">
-            {step.name ?? formatLabel(step.type)}
-          </span>
-          {statusType && (
-            <span
-              className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${
-                isCompleted
-                  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30'
-                  : isRunning
-                    ? 'bg-blue-500/10 text-blue-600 border-blue-500/30'
-                    : 'bg-muted text-muted-foreground border-border'
-              }`}
-            >
-              {formatLabel(statusType)}
-            </span>
-          )}
-        </div>
-        {step.description && (
-          <p className="text-xs text-muted-foreground mt-0.5">{step.description}</p>
-        )}
-        {step.status?.updatedAt && (
-          <p className="text-[10px] text-muted-foreground/60 mt-0.5">
-            {formatDateTime(step.status.updatedAt)}
-          </p>
-        )}
-      </div>
     </div>
   );
 }
@@ -696,18 +633,15 @@ export default function AuctionViewPage() {
 
   const [loading, setLoading] = useState(true);
   const [auction, setAuction] = useState<AuctionVM | null>(null);
-  const [workflow, setWorkflow] = useState<AuctionWorkflowStep[]>([]);
   const [policies, setPolicies] = useState<AuctionPoliciesGroupRQ | null>(null);
 
   useEffect(() => {
     Promise.all([
       auctionsApi.getAuctionById(id),
-      auctionsApi.getAuctionWorkflow(id).catch(() => [] as AuctionWorkflowStep[]),
       auctionsApi.getAuctionPolicies(id).catch(() => null),
     ])
-      .then(([a, wf, pol]) => {
+      .then(([a, pol]) => {
         setAuction(a);
-        setWorkflow(wf);
         setPolicies(pol);
       })
       .catch(() => {})
@@ -737,24 +671,34 @@ export default function AuctionViewPage() {
 
   const format = formatLabel(auction.format);
   const auctionType = formatLabel(auction.type);
+
+  // Split PAYMENT group into pre (START_TIME) and post (END_TIME) blocks
+  // Pre-payment first, other policy groups in the middle, post-payment last
   const policyEntries = ((): [string, PolicyItemRQ[]][] => {
     if (!policies) return [];
     const rawEntries = Object.entries(policies).filter(([, items]) => items.length > 0);
-    const paymentEntry = rawEntries.find(([key]) => key === 'PAYMENT');
-    if (!paymentEntry) return rawEntries;
 
-    const [, paymentItems] = paymentEntry;
-    const preItems = paymentItems.filter((item) => item.schedule?.reference !== 'AUCTION_END_TIME');
-    const postItems = paymentItems.filter(
-      (item) => item.schedule?.reference === 'AUCTION_END_TIME',
-    );
-    const others = rawEntries.filter(([key]) => key !== 'PAYMENT');
+    // Find the PAYMENT group (key may vary in casing)
+    const paymentKey = Object.keys(policies).find((k) => k.toUpperCase() === 'PAYMENT');
+    if (!paymentKey) return rawEntries;
 
-    // Pre payment first, other policy groups next, post payment last
+    const paymentItems = policies[paymentKey] ?? [];
+    const preItems = paymentItems.filter((item) => {
+      const ref = item.schedule?.reference;
+      const refStr = typeof ref === 'string' ? ref : ref ? Object.keys(ref as object)[0] : '';
+      return refStr !== 'AUCTION_END_TIME';
+    });
+    const postItems = paymentItems.filter((item) => {
+      const ref = item.schedule?.reference;
+      const refStr = typeof ref === 'string' ? ref : ref ? Object.keys(ref as object)[0] : '';
+      return refStr === 'AUCTION_END_TIME';
+    });
+    const others = rawEntries.filter(([key]) => key.toUpperCase() !== 'PAYMENT');
+
     const ordered: [string, PolicyItemRQ[]][] = [];
-    if (preItems.length > 0) ordered.push(['PRE_PAYMENT', preItems]);
+    if (preItems.length > 0) ordered.push(['Pre Payment', preItems]);
     ordered.push(...others);
-    if (postItems.length > 0) ordered.push(['POST_PAYMENT', postItems]);
+    if (postItems.length > 0) ordered.push(['Post Payment', postItems]);
     return ordered;
   })();
 
@@ -777,7 +721,7 @@ export default function AuctionViewPage() {
         }
       />
 
-      {/* Title block */}
+      {/* Schedule bar */}
       {auction.schedule?.startTime && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Calendar className="h-3.5 w-3.5" />
@@ -791,11 +735,10 @@ export default function AuctionViewPage() {
         </div>
       )}
 
-      {/* Main grid */}
+      {/* Main 2-col grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left column */}
+        {/* Left */}
         <div className="space-y-4">
-          {/* Basic Information */}
           <SectionCard title="Basic Information" icon={Info}>
             <DetailRow label="Title">{auction.title || '—'}</DetailRow>
             <DetailRow label="Description">{auction.description || '—'}</DetailRow>
@@ -829,7 +772,6 @@ export default function AuctionViewPage() {
             </DetailRow>
           </SectionCard>
 
-          {/* Schedule */}
           {(auction.schedule?.startTime || auction.schedule?.endTime) && (
             <SectionCard title="Schedule" icon={Calendar}>
               <DetailRow label="Start Time">
@@ -840,9 +782,8 @@ export default function AuctionViewPage() {
           )}
         </div>
 
-        {/* Right column */}
+        {/* Right */}
         <div className="space-y-4">
-          {/* Protocol */}
           <SectionCard title="Protocol" icon={Settings2}>
             <DetailRow label="Accessibility">
               <Badge
@@ -871,7 +812,6 @@ export default function AuctionViewPage() {
             </DetailRow>
           </SectionCard>
 
-          {/* Monetary */}
           <SectionCard title="Monetary Options" icon={DollarSign}>
             <DetailRow label="Currency">
               <span className="font-mono font-medium">
@@ -906,24 +846,6 @@ export default function AuctionViewPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 divide-x divide-y divide-border/50">
             {policyEntries.map(([key, items]) => (
               <PolicyGroupSection key={key} groupKey={key} items={items} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Workflow — full width, after policies */}
-      {workflow.length > 0 && (
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 bg-muted/40 border-b border-border">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-semibold text-foreground">Workflow</span>
-            <span className="text-xs text-muted-foreground ml-auto">
-              {workflow.length} step{workflow.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border/50">
-            {workflow.map((step, i) => (
-              <WorkflowStepRow key={step.id ?? i} step={step} index={i} />
             ))}
           </div>
         </div>
