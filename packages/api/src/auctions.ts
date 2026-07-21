@@ -30,6 +30,7 @@ export interface AuctionWorkflowStep {
   status?: {
     type?: string | Record<string, string>;
     updatedAt?: string | null;
+    details?: Record<string, string>;
   };
 }
 
@@ -200,7 +201,36 @@ export interface PolicyItemRQ {
   steps?: number[];
   kth?: number;
   priceChangePolicies?: PolicyItemRQ[];
+  postPayment?: boolean;
+  prePayment?: boolean;
 }
+
+// ── Workflow step creation ──────────────────────────────────────────────────
+
+export type WorkflowStepType =
+  | 'FORM_STEP'
+  | 'TNC_FORM_STEP'
+  | 'PAYMENT_STEP'
+  | 'BANK_DETAIL_FORM_STEP';
+
+export interface AddFormStepRQ {
+  type: 'FORM_STEP';
+  name?: string;
+  description?: string;
+  order?: number;
+  embedded: { typeId: string; pathWiseState: Record<string, unknown> };
+}
+
+export interface AddTnCFormStepRQ {
+  type: 'TNC_FORM_STEP';
+  name?: string;
+  description?: string;
+  order?: number;
+  tncText?: string;
+  tncBlobId?: string;
+}
+
+export type AddWorkflowStepRQ = AddFormStepRQ | AddTnCFormStepRQ;
 
 export type AuctionPoliciesGroupRQ = Record<string, PolicyItemRQ[]>;
 
@@ -265,6 +295,10 @@ export const auctionsApi = {
     await apiClient.post(`/api/v1/auctions/${id}/participation/workflow/steps/reorder`, {
       stepIds,
     });
+  },
+
+  addWorkflowStep: async (id: string, data: AddWorkflowStepRQ): Promise<void> => {
+    await apiClient.post(`/api/v1/auctions/${id}/participation/workflow/steps`, data);
   },
 
   setAuctionPolicies: async (id: string, data: AuctionPoliciesCreationRQ): Promise<void> => {

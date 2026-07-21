@@ -13,11 +13,15 @@ import {
   CreditCard,
   CheckCircle2,
   Clock,
+  Landmark,
+  FileText,
+  ShieldCheck,
 } from 'lucide-react';
 import { Button, Label, DateTimePicker, Badge } from '@repo/ui';
-import { auctionsApi, AuctionWorkflowStep, AuctionParticipation, PolicyItemRQ } from '@repo/api';
+import { auctionsApi, AuctionWorkflowStep, PolicyItemRQ } from '@repo/api';
 import { DismissibleError, FieldError } from './AuctionShared';
 import { SELECT_CLS } from './PolicyShared';
+import { AddStepDialog } from './AddStepDialog';
 import { parseApiError } from '@/lib/api-errors';
 
 interface Props {
@@ -122,6 +126,67 @@ function validateSchedule(finalStart: string, finalEnd: string): Record<string, 
   return errs;
 }
 
+function StepTypeIcon({ type, className }: { type?: unknown; className?: string }) {
+  switch (resolveStr(type)) {
+    case 'PAYMENT_STEP':
+      return <CreditCard className={className} />;
+    case 'BANK_DETAIL_FORM_STEP':
+      return <Landmark className={className} />;
+    case 'TNC_FORM_STEP':
+      return <ShieldCheck className={className} />;
+    default:
+      return <FileText className={className} />;
+  }
+}
+
+// ── Policy detail card (shared by step cards + post-payment block) ─────────────
+
+function PolicyDetailCard({ item }: { item: PolicyItemRQ }) {
+  return (
+    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-1.5 text-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium text-foreground">{item.name || fmtLabel(item.type)}</span>
+        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+          {fmtLabel(item.type)}
+        </Badge>
+        {item.currency && <span className="text-muted-foreground">{item.currency}</span>}
+      </div>
+      {item.description && <p className="text-muted-foreground">{item.description}</p>}
+      {item.schedule && (
+        <p className="text-muted-foreground">
+          Due: <span className="text-foreground">{fmtLabel(item.schedule.reference)}</span>
+          {item.schedule.offset && <> · offset {item.schedule.offset}</>}
+        </p>
+      )}
+      {item.heads && item.heads.length > 0 ? (
+        <div className="space-y-1 pt-1">
+          {item.heads.map((h, hi) => (
+            <div
+              key={hi}
+              className="flex flex-wrap items-center gap-2 rounded bg-muted/40 px-2 py-1 text-[11px]"
+            >
+              <span className="font-medium">{h.name || fmtLabel(h.type)}</span>
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                {fmtLabel(h.type)}
+              </Badge>
+              <span className="text-muted-foreground">
+                {fmtLabel(h.basis)}: <span className="text-foreground">{h.value}</span>
+              </span>
+              {h.refundable && <span className="text-emerald-600">Refundable</span>}
+            </div>
+          ))}
+        </div>
+      ) : (
+        item.value != null && (
+          <span className="text-muted-foreground">
+            Value: <span className="text-foreground">{item.value}</span>
+          </span>
+        )
+      )}
+    </div>
+  );
+}
+
 // ── Workflow step accordion card ──────────────────────────────────────────────
 
 function WorkflowStepCard({
@@ -180,6 +245,9 @@ function WorkflowStepCard({
           )}
         </div>
 
+        {/* Type icon */}
+        <StepTypeIcon type={step.type} className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+
         {/* Name */}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-foreground truncate">
@@ -233,6 +301,26 @@ function WorkflowStepCard({
             )}
           </div>
 
+          {/* Step status details — e.g. transaction ref, bank verification status */}
+          {step.status?.details && Object.keys(step.status.details).length > 0 && (
+            <div className="mt-1.5 space-y-1">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                Details
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {Object.entries(step.status.details).map(([key, value]) => (
+                  <div
+                    key={key}
+                    className="flex items-center justify-between gap-2 rounded-md border border-border/50 bg-background px-2 py-1.5 text-xs"
+                  >
+                    <span className="text-muted-foreground">{fmtLabel(key)}</span>
+                    <span className="text-foreground font-medium truncate">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Step-level policies */}
           {step.policies && step.policies.length > 0 && (
             <div className="mt-1.5 space-y-1">
@@ -240,20 +328,7 @@ function WorkflowStepCard({
                 Policies
               </p>
               {step.policies.map((p, pi) => (
-                <div
-                  key={pi}
-                  className="flex flex-wrap items-center gap-2 rounded-md border border-border/50 bg-background px-2 py-1.5 text-xs"
-                >
-                  <span className="font-medium text-foreground">{p.name || fmtLabel(p.type)}</span>
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                    {fmtLabel(p.type)}
-                  </Badge>
-                  {p.value != null && (
-                    <span className="text-muted-foreground">
-                      Value: <span className="text-foreground">{p.value}</span>
-                    </span>
-                  )}
-                </div>
+                <PolicyDetailCard key={pi} item={p} />
               ))}
             </div>
           )}
@@ -281,41 +356,7 @@ function PostPaymentBlock({ policies }: { policies: PolicyItemRQ[] }) {
         {policies.length === 0 ? (
           <p className="text-xs text-muted-foreground">No post-payment policies configured.</p>
         ) : (
-          policies.map((item, i) => (
-            <div
-              key={i}
-              className="rounded-lg border border-border/60 bg-card p-3 space-y-1.5 text-xs"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium text-foreground">
-                  {item.name || fmtLabel(item.type)}
-                </span>
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                  {fmtLabel(item.type)}
-                </Badge>
-              </div>
-              {item.description && <p className="text-muted-foreground">{item.description}</p>}
-              {item.heads && item.heads.length > 0 && (
-                <div className="space-y-1 pt-1">
-                  {item.heads.map((h, hi) => (
-                    <div
-                      key={hi}
-                      className="flex flex-wrap items-center gap-2 rounded bg-muted/40 px-2 py-1 text-[11px]"
-                    >
-                      <span className="font-medium">{h.name || fmtLabel(h.type)}</span>
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                        {fmtLabel(h.type)}
-                      </Badge>
-                      <span className="text-muted-foreground">
-                        {fmtLabel(h.basis)}: <span className="text-foreground">{h.value}</span>
-                      </span>
-                      {h.refundable && <span className="text-emerald-600">Refundable</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))
+          policies.map((item, i) => <PolicyDetailCard key={i} item={item} />)
         )}
       </div>
     </div>
@@ -334,10 +375,10 @@ export function AuctionStep5Workflow({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<'schedule' | 'publish' | null>(null);
   const [workflow, setWorkflow] = useState<AuctionWorkflowStep[]>([]);
-  const [participation, setParticipation] = useState<AuctionParticipation | null>(null);
   const [postPaymentPolicies, setPostPaymentPolicies] = useState<PolicyItemRQ[]>([]);
   const [reordering, setReordering] = useState(false);
   const [reorderError, setReorderError] = useState<string | null>(null);
+  const [addStepOpen, setAddStepOpen] = useState(false);
 
   // Schedule state
   const [startTime, setStartTime] = useState('');
@@ -367,21 +408,15 @@ export function AuctionStep5Workflow({
     setLoading(true);
     Promise.all([
       auctionsApi.getAuctionWorkflow(auctionId).catch(() => [] as AuctionWorkflowStep[]),
-      auctionsApi.getAuctionParticipation(auctionId).catch(() => null),
       auctionsApi.getAuctionPolicies(auctionId).catch(() => null),
     ])
-      .then(([wf, part, pol]) => {
+      .then(([wf, pol]) => {
         if (!mounted) return;
         setWorkflow(wf);
-        setParticipation(part);
-        // Extract post-payment (AUCTION_END_TIME) policies — reference may be a string or { KEY: "Label" }
-        const paymentItems = pol?.['PAYMENT'] ?? [];
-        const postPolicies = paymentItems.filter((item) => {
-          const ref = item.schedule?.reference;
-          const refKey = typeof ref === 'string' ? ref : ref ? Object.keys(ref as object)[0] : '';
-          return refKey === 'AUCTION_END_TIME';
-        });
-        setPostPaymentPolicies(postPolicies);
+        // Policies flagged postPayment: true are collected after the auction ends —
+        // shown in a trailing block regardless of which group they belong to.
+        const allItems = Object.values(pol ?? {}).flat();
+        setPostPaymentPolicies(allItems.filter((item) => item.postPayment === true));
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -390,6 +425,15 @@ export function AuctionStep5Workflow({
       mounted = false;
     };
   }, [auctionId]);
+
+  const reloadWorkflow = useCallback(() => {
+    auctionsApi
+      .getAuctionWorkflow(auctionId)
+      .then(setWorkflow)
+      .catch(() => {});
+  }, [auctionId]);
+
+  const hasTnCStep = workflow.some((s) => resolveStr(s.type) === 'TNC_FORM_STEP');
 
   // Reorder handler
   const handleReorder = useCallback(
@@ -463,8 +507,6 @@ export function AuctionStep5Workflow({
     }
   };
 
-  const postPayment = participation?.postPayment ?? false;
-
   return (
     <div className="space-y-6">
       {/* ── Workflow section ────────────────────────────────────────────── */}
@@ -491,9 +533,7 @@ export function AuctionStep5Workflow({
                 size="sm"
                 className="h-7 gap-1.5 text-xs"
                 disabled={loading}
-                onClick={() => {
-                  // TODO: open add-step dialog
-                }}
+                onClick={() => setAddStepOpen(true)}
               >
                 <Plus className="h-3.5 w-3.5" />
                 Add Step
@@ -566,8 +606,8 @@ export function AuctionStep5Workflow({
             )}
           </div>
 
-          {/* Post-payment block — shown when participation.postPayment === true */}
-          {!loading && participation?.postPayment === true && (
+          {/* Post-payment block — shown whenever policies are flagged postPayment: true */}
+          {!loading && postPaymentPolicies.length > 0 && (
             <div className="border-t border-border px-4 pb-4 pt-3">
               <PostPaymentBlock policies={postPaymentPolicies} />
             </div>
@@ -735,6 +775,15 @@ export function AuctionStep5Workflow({
           </Button>
         )}
       </div>
+
+      <AddStepDialog
+        auctionId={auctionId}
+        open={addStepOpen}
+        onOpenChange={setAddStepOpen}
+        nextOrder={workflow.length}
+        hasTnCStep={hasTnCStep}
+        onAdded={reloadWorkflow}
+      />
     </div>
   );
 }
