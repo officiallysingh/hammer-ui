@@ -141,7 +141,15 @@ function StepTypeIcon({ type, className }: { type?: unknown; className?: string 
 
 // ── Policy detail card (shared by step cards + post-payment block) ─────────────
 
-function PolicyDetailCard({ item }: { item: PolicyItemRQ }) {
+function PolicyDetailCard({
+  item,
+  openingPrice,
+  precision,
+}: {
+  item: PolicyItemRQ;
+  openingPrice?: number;
+  precision?: number;
+}) {
   return (
     <div className="rounded-lg border border-border/60 bg-card p-3 space-y-1.5 text-xs">
       <div className="flex flex-wrap items-center gap-2">
@@ -159,22 +167,43 @@ function PolicyDetailCard({ item }: { item: PolicyItemRQ }) {
         </p>
       )}
       {item.heads && item.heads.length > 0 ? (
-        <div className="space-y-1 pt-1">
-          {item.heads.map((h, hi) => (
-            <div
-              key={hi}
-              className="flex flex-wrap items-center gap-2 rounded bg-muted/40 px-2 py-1 text-[11px]"
-            >
-              <span className="font-medium">{h.name || fmtLabel(h.type)}</span>
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                {fmtLabel(h.type)}
-              </Badge>
-              <span className="text-muted-foreground">
-                {fmtLabel(h.basis)}: <span className="text-foreground">{h.value}</span>
-              </span>
-              {h.refundable && <span className="text-emerald-600">Refundable</span>}
-            </div>
-          ))}
+        <div className="space-y-1.5 pt-1">
+          {item.heads.map((h, hi) => {
+            const isPercentage = resolveStr(h.basis).startsWith('PERCENTAGE');
+            const calculated =
+              isPercentage && h.value != null && openingPrice
+                ? (openingPrice * h.value) / 100
+                : null;
+            return (
+              <div key={hi} className="rounded bg-muted/40 px-2 py-1.5 text-[11px] space-y-0.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">{h.name || fmtLabel(h.type)}</span>
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                    {fmtLabel(h.type)}
+                  </Badge>
+                  {h.refundable && <span className="text-emerald-600">Refundable</span>}
+                </div>
+                {h.description && <p className="text-muted-foreground">{h.description}</p>}
+                <p className="text-muted-foreground">
+                  {fmtLabel(h.basis)}:{' '}
+                  <span className="text-foreground">
+                    {h.value}
+                    {isPercentage ? '%' : ''}
+                  </span>
+                  {calculated !== null && (
+                    <>
+                      {' '}
+                      · ≈{' '}
+                      <span className="text-foreground">
+                        {item.currency ? `${item.currency} ` : ''}
+                        {calculated.toFixed(precision ?? 2)}
+                      </span>
+                    </>
+                  )}
+                </p>
+              </div>
+            );
+          })}
         </div>
       ) : (
         item.value != null && (
@@ -194,13 +223,19 @@ function WorkflowStepCard({
   index,
   dragHandleProps,
   isDragTarget,
+  openingPrice,
+  precision,
+  prePaymentPolicies,
 }: {
   step: AuctionWorkflowStep;
   index: number;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
   isDragTarget?: boolean;
+  openingPrice?: number;
+  precision?: number;
+  prePaymentPolicies?: PolicyItemRQ[];
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const statusType = resolveStr(step.status?.type);
   const isCompleted = statusType === 'COMPLETED';
   const isRunning = statusType === 'IN_PROGRESS' || statusType === 'RUNNING';
@@ -321,17 +356,33 @@ function WorkflowStepCard({
             </div>
           )}
 
-          {/* Step-level policies */}
-          {step.policies && step.policies.length > 0 && (
-            <div className="mt-1.5 space-y-1">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-                Policies
-              </p>
-              {step.policies.map((p, pi) => (
-                <PolicyDetailCard key={pi} item={p} />
-              ))}
-            </div>
-          )}
+          {/* Step-level policies — payment steps fall back to the auction's pre-payment
+              policies when the step itself doesn't carry an embedded policies list. */}
+          {(() => {
+            const isPaymentStep = resolveStr(step.type) === 'PAYMENT_STEP';
+            const policiesToShow =
+              step.policies && step.policies.length > 0
+                ? step.policies
+                : isPaymentStep
+                  ? (prePaymentPolicies ?? [])
+                  : [];
+            if (policiesToShow.length === 0) return null;
+            return (
+              <div className="mt-1.5 space-y-1">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                  Policies
+                </p>
+                {policiesToShow.map((p, pi) => (
+                  <PolicyDetailCard
+                    key={pi}
+                    item={p}
+                    openingPrice={openingPrice}
+                    precision={precision}
+                  />
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
@@ -340,7 +391,15 @@ function WorkflowStepCard({
 
 // ── Post-payment block ────────────────────────────────────────────────────────
 
-function PostPaymentBlock({ policies }: { policies: PolicyItemRQ[] }) {
+function PostPaymentBlock({
+  policies,
+  openingPrice,
+  precision,
+}: {
+  policies: PolicyItemRQ[];
+  openingPrice?: number;
+  precision?: number;
+}) {
   return (
     <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-emerald-500/20">
@@ -356,7 +415,14 @@ function PostPaymentBlock({ policies }: { policies: PolicyItemRQ[] }) {
         {policies.length === 0 ? (
           <p className="text-xs text-muted-foreground">No post-payment policies configured.</p>
         ) : (
-          policies.map((item, i) => <PolicyDetailCard key={i} item={item} />)
+          policies.map((item, i) => (
+            <PolicyDetailCard
+              key={i}
+              item={item}
+              openingPrice={openingPrice}
+              precision={precision}
+            />
+          ))
         )}
       </div>
     </div>
@@ -376,6 +442,9 @@ export function AuctionStep5Workflow({
   const [saving, setSaving] = useState<'schedule' | 'publish' | null>(null);
   const [workflow, setWorkflow] = useState<AuctionWorkflowStep[]>([]);
   const [postPaymentPolicies, setPostPaymentPolicies] = useState<PolicyItemRQ[]>([]);
+  const [prePaymentPolicies, setPrePaymentPolicies] = useState<PolicyItemRQ[]>([]);
+  const [openingPrice, setOpeningPrice] = useState<number | undefined>(undefined);
+  const [precision, setPrecision] = useState<number | undefined>(undefined);
   const [reordering, setReordering] = useState(false);
   const [reorderError, setReorderError] = useState<string | null>(null);
   const [addStepOpen, setAddStepOpen] = useState(false);
@@ -409,14 +478,18 @@ export function AuctionStep5Workflow({
     Promise.all([
       auctionsApi.getAuctionWorkflow(auctionId).catch(() => [] as AuctionWorkflowStep[]),
       auctionsApi.getAuctionPolicies(auctionId).catch(() => null),
+      auctionsApi.getAuctionById(auctionId).catch(() => null),
     ])
-      .then(([wf, pol]) => {
+      .then(([wf, pol, auction]) => {
         if (!mounted) return;
         setWorkflow(wf);
         // Policies flagged postPayment: true are collected after the auction ends —
         // shown in a trailing block regardless of which group they belong to.
         const allItems = Object.values(pol ?? {}).flat();
         setPostPaymentPolicies(allItems.filter((item) => item.postPayment === true));
+        setPrePaymentPolicies(allItems.filter((item) => item.prePayment === true));
+        setOpeningPrice(auction?.unit?.openingPrice);
+        setPrecision(auction?.monetaryOptions?.precision);
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -595,6 +668,9 @@ export function AuctionStep5Workflow({
                     step={step}
                     index={i}
                     isDragTarget={dragOverIdx === i}
+                    openingPrice={openingPrice}
+                    precision={precision}
+                    prePaymentPolicies={prePaymentPolicies}
                     dragHandleProps={{
                       onPointerDown: () => {
                         dragHandleActiveRef.current = true;
@@ -609,7 +685,11 @@ export function AuctionStep5Workflow({
           {/* Post-payment block — shown whenever policies are flagged postPayment: true */}
           {!loading && postPaymentPolicies.length > 0 && (
             <div className="border-t border-border px-4 pb-4 pt-3">
-              <PostPaymentBlock policies={postPaymentPolicies} />
+              <PostPaymentBlock
+                policies={postPaymentPolicies}
+                openingPrice={openingPrice}
+                precision={precision}
+              />
             </div>
           )}
         </div>
