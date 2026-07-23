@@ -2,13 +2,34 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, CheckCircle2, Search, Upload } from 'lucide-react';
-import { Button, Label, Input, Dialog, DialogContent, DialogHeader, DialogTitle } from '@repo/ui';
-import { auctionsApi, metadataApi, blobsApi, ManagedTypeListItemFull } from '@repo/api';
+import {
+  Button,
+  Label,
+  Input,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  RichTextEditor,
+} from '@repo/ui';
+import {
+  auctionsApi,
+  metadataApi,
+  blobsApi,
+  ManagedTypeListItemFull,
+  ManagedTypeVM,
+} from '@repo/api';
 import { DismissibleError } from './AuctionShared';
 import { PhrasesInput } from '@/components/common/admin/PhrasesInput';
+import { PropertyFormPreview } from '../../metadata/_components/PropertyFormPreview';
 import { parseApiError } from '@/lib/api-errors';
 
 type AddStepMode = 'choose' | 'FORM_STEP' | 'TNC_FORM_STEP';
+
+/** Tiptap emits "<p></p>" for an empty doc — strip tags to check for real content. */
+function isRichTextEmpty(html: string): boolean {
+  return !html.replace(/<[^>]*>/g, '').trim();
+}
 
 export function AddStepDialog({
   auctionId,
@@ -34,6 +55,8 @@ export function AddStepDialog({
   const [formSearching, setFormSearching] = useState(false);
   const [formResults, setFormResults] = useState<ManagedTypeListItemFull[]>([]);
   const [selectedType, setSelectedType] = useState<ManagedTypeListItemFull | null>(null);
+  const [selectedTypeDetail, setSelectedTypeDetail] = useState<ManagedTypeVM | null>(null);
+  const [loadingTypeDetail, setLoadingTypeDetail] = useState(false);
 
   // TNC_FORM_STEP state
   const [tncName, setTncName] = useState('');
@@ -48,6 +71,7 @@ export function AddStepDialog({
     setFormSearchPhrases([]);
     setFormResults([]);
     setSelectedType(null);
+    setSelectedTypeDetail(null);
     setTncName('');
     setTncDescription('');
     setTncText('');
@@ -79,6 +103,17 @@ export function AddStepDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, mode]);
 
+  const selectType = (t: ManagedTypeListItemFull) => {
+    setSelectedType(t);
+    setSelectedTypeDetail(null);
+    setLoadingTypeDetail(true);
+    metadataApi
+      .getManagedTypeById(t.id)
+      .then(setSelectedTypeDetail)
+      .catch(() => {})
+      .finally(() => setLoadingTypeDetail(false));
+  };
+
   const submitFormStep = async () => {
     if (!selectedType) {
       setError('Please select a form template.');
@@ -105,8 +140,8 @@ export function AddStepDialog({
   };
 
   const submitTncStep = async () => {
-    if (!tncText.trim() && !tncFile) {
-      setError('Provide either T&C text or upload a document.');
+    if (isRichTextEmpty(tncText) && !tncFile) {
+      setError('Provide either Terms and Conditions text or upload a document.');
       return;
     }
     setSubmitting(true);
@@ -127,7 +162,7 @@ export function AddStepDialog({
         name: tncName.trim() || undefined,
         description: tncDescription.trim() || undefined,
         order: nextOrder,
-        tncText: tncText.trim() || undefined,
+        tncText: isRichTextEmpty(tncText) ? undefined : tncText,
         tncBlobId,
       });
       onAdded();
@@ -143,14 +178,14 @@ export function AddStepDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : close())}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {mode === 'choose'
               ? 'Add Step'
               : mode === 'FORM_STEP'
                 ? 'Add Custom Form Step'
-                : 'Add TnC Form Step'}
+                : 'Add Terms and Conditions Form Step'}
           </DialogTitle>
         </DialogHeader>
 
@@ -178,11 +213,13 @@ export function AddStepDialog({
                   : 'border-border hover:border-primary/50 hover:bg-muted/30'
               }`}
             >
-              <p className="text-sm font-semibold text-foreground">TnC Form Step</p>
+              <p className="text-sm font-semibold text-foreground">
+                Terms and Conditions Form Step
+              </p>
               <p className="text-xs text-muted-foreground">
                 {hasTnCStep
                   ? 'Already added — only one is allowed per workflow.'
-                  : 'Terms & Conditions step. Only one allowed.'}
+                  : 'Terms and Conditions step. Only one allowed.'}
               </p>
             </button>
           </div>
@@ -231,7 +268,7 @@ export function AddStepDialog({
                   <button
                     key={t.id}
                     type="button"
-                    onClick={() => setSelectedType(t)}
+                    onClick={() => selectType(t)}
                     className={`w-full text-left px-3 py-2.5 transition-colors ${
                       selectedType?.id === t.id ? 'bg-primary/10' : 'hover:bg-muted/40'
                     }`}
@@ -251,6 +288,20 @@ export function AddStepDialog({
                 ))
               )}
             </div>
+
+            {selectedType && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Form preview</Label>
+                {loadingTypeDetail ? (
+                  <div className="flex items-center justify-center py-8 text-muted-foreground gap-2 rounded-md border border-border">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-xs">Loading form...</span>
+                  </div>
+                ) : (
+                  <PropertyFormPreview properties={selectedTypeDetail?.properties ?? []} />
+                )}
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="ghost" size="sm" onClick={() => setMode('choose')}>
@@ -272,13 +323,17 @@ export function AddStepDialog({
 
         {mode === 'TNC_FORM_STEP' && (
           <div className="space-y-3 py-1">
+            <p className="text-xs text-muted-foreground">
+              Participant would only be able to join the auction after accepting terms and
+              conditions.
+            </p>
             <div className="space-y-1.5">
               <Label htmlFor="tncName">Name</Label>
               <Input
                 id="tncName"
                 value={tncName}
                 onChange={(e) => setTncName(e.target.value)}
-                placeholder="Terms & Conditions"
+                placeholder="Terms and Conditions"
               />
             </div>
             <div className="space-y-1.5">
@@ -291,14 +346,11 @@ export function AddStepDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="tncText">T&C text</Label>
-              <textarea
-                id="tncText"
+              <Label htmlFor="tncText">Terms and Conditions text</Label>
+              <RichTextEditor
                 value={tncText}
-                onChange={(e) => setTncText(e.target.value)}
-                rows={5}
-                placeholder="Enter terms & conditions text, or upload a document below..."
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                onChange={setTncText}
+                placeholder="Enter terms and conditions text, or upload a document below..."
               />
             </div>
             <div className="space-y-1.5">

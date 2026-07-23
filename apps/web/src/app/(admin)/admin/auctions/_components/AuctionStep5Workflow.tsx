@@ -16,6 +16,7 @@ import {
   Landmark,
   FileText,
   ShieldCheck,
+  Upload,
 } from 'lucide-react';
 import { Button, Label, DateTimePicker, Badge } from '@repo/ui';
 import { auctionsApi, AuctionWorkflowStep, PolicyItemRQ, PolicyEvaluationMap } from '@repo/api';
@@ -204,6 +205,41 @@ function PolicyDetailCard({
   );
 }
 
+// ── Bank details (view-only) — fixed schema collected by BANK_DETAIL_FORM_STEP ─
+
+const BANK_DETAIL_FIELDS = [
+  { label: 'Bank Name', placeholder: 'e.g. State Bank of India' },
+  { label: 'Bank IFSC Code', placeholder: 'ICIC0000733' },
+  { label: 'Bank Account Number', placeholder: '003210513654' },
+];
+
+function BankDetailsPreview() {
+  return (
+    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3 text-xs">
+      <p className="text-muted-foreground">
+        Participant provides these bank details to receive winning-amount refunds/payouts.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {BANK_DETAIL_FIELDS.map((f) => (
+          <div key={f.label} className="space-y-1">
+            <span className="text-[11px] font-medium text-muted-foreground">{f.label}</span>
+            <div className="rounded-md border border-dashed border-border bg-muted/30 px-2.5 py-1.5 text-muted-foreground/70">
+              {f.placeholder}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="space-y-1">
+        <span className="text-[11px] font-medium text-muted-foreground">Cancel Check</span>
+        <div className="flex items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 px-2.5 py-2 text-muted-foreground/70">
+          <Upload className="h-3.5 w-3.5" />
+          Cancelled cheque image upload
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Workflow step accordion card ──────────────────────────────────────────────
 
 function WorkflowStepCard({
@@ -343,6 +379,16 @@ function WorkflowStepCard({
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Bank details — fixed schema, view-only */}
+          {resolveStr(step.type) === 'BANK_DETAIL_FORM_STEP' && (
+            <div className="mt-1.5 space-y-1">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                Bank Details
+              </p>
+              <BankDetailsPreview />
             </div>
           )}
 

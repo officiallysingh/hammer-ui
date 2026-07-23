@@ -66,5 +66,6 @@ export {
   type OffsetDateTimePickerProps,
 } from './components/date-picker';
 export { Badge, type BadgeProps } from './components/badge';
+export { RichTextEditor, type RichTextEditorProps } from './components/rich-text-editor';
 export * from './hooks';
 export { ThemeProvider } from './components/theme-provider';
