@@ -5,8 +5,10 @@ import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
 import ReactSelect from 'react-select';
 import { makeReactSelectStyles } from '@/components/common/admin/GroupedSubcategorySelect';
+import type { PolicyEvaluationMap } from '@repo/api';
 import { FieldError, SelectField, SelectOption } from './AuctionShared';
 import { PriceChangeItem } from './AuctionStep3Types';
+import { EvaluationList } from './PolicyEvaluationDisplay';
 import {
   NameDescriptionFields,
   POLICY_DEFAULTS,
@@ -21,6 +23,7 @@ interface Props {
   options: SelectOption[];
   fieldErrors: Record<string, string>;
   groupDescription?: string;
+  evaluationsByIndex?: Record<number, PolicyEvaluationMap>;
 }
 
 const STEP_OPTIONS = Array.from({ length: 10 }, (_, i) => ({
@@ -44,6 +47,7 @@ export function PolicyPriceProgressionSection({
   options,
   fieldErrors,
   groupDescription,
+  evaluationsByIndex,
 }: Props) {
   const dragIndexRef = useRef<number | null>(null);
   const dragHandleActiveRef = useRef(false);
@@ -271,6 +275,8 @@ export function PolicyPriceProgressionSection({
                     </div>
                   </div>
                 )}
+
+                {evaluationsByIndex?.[i] && <EvaluationList evaluations={evaluationsByIndex[i]} />}
               </div>
             );
           })}

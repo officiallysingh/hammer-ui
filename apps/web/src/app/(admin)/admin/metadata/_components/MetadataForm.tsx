@@ -35,6 +35,10 @@ interface MetadataFormProps {
   description: string;
   submitLabel: string;
   onSubmit: (values: MetadataFormValues, original?: MetadataFormValues) => Promise<void>;
+  /** Where Back/Cancel/Skip and post-submit navigation should return to. */
+  backHref: string;
+  /** When set, the Type field is locked to this value and rendered read-only. */
+  fixedType?: string;
 }
 
 // ── Step indicator ────────────────────────────────────────────────────────────
@@ -142,6 +146,8 @@ export function MetadataForm({
   description,
   submitLabel,
   onSubmit,
+  backHref,
+  fixedType,
 }: MetadataFormProps) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2>(1);
@@ -160,7 +166,9 @@ export function MetadataForm({
       .getManagedTypeTypes()
       .then((types) => {
         setTypeOptions(types);
-        setForm((prev) => ({ ...prev, type: prev.type || types[0]?.key || '' }));
+        if (!fixedType) {
+          setForm((prev) => ({ ...prev, type: prev.type || types[0]?.key || '' }));
+        }
       })
       .catch(() => {});
 
@@ -169,7 +177,7 @@ export function MetadataForm({
       .then(setMetaTypeOptions)
       .catch(() => {})
       .finally(() => setLoadingOptions(false));
-  }, []);
+  }, [fixedType]);
 
   useEffect(() => {
     if (initialValues && !appliedRef.current) {
@@ -177,6 +185,12 @@ export function MetadataForm({
       setForm((prev) => ({ ...prev, ...initialValues }));
     }
   }, [initialValues]);
+
+  // Keep the type locked when this form is scoped to a single managed-type type.
+  useEffect(() => {
+    if (fixedType)
+      setForm((prev) => (prev.type === fixedType ? prev : { ...prev, type: fixedType }));
+  }, [fixedType]);
 
   const set = <K extends keyof MetadataFormValues>(key: K, value: MetadataFormValues[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -218,7 +232,7 @@ export function MetadataForm({
     setSaving(true);
     try {
       await onSubmit(form, original);
-      router.push('/admin/metadata');
+      router.push(backHref);
     } catch (err) {
       const parsed = parseApiError(err);
       if (Object.keys(parsed.fieldErrors).length > 0) {
@@ -254,7 +268,7 @@ export function MetadataForm({
         title={title}
         description={description}
         actions={
-          <Button variant="outline" size="sm" onClick={() => router.push('/admin/metadata')}>
+          <Button variant="outline" size="sm" onClick={() => router.push(backHref)}>
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back
           </Button>
@@ -315,17 +329,23 @@ export function MetadataForm({
 
             <div className="space-y-1.5">
               <Label>Type</Label>
-              <select
-                value={form.type}
-                onChange={(e) => set('type', e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                {typeOptions.map((t) => (
-                  <option key={t.key} value={t.key}>
-                    {t.value}
-                  </option>
-                ))}
-              </select>
+              {fixedType ? (
+                <div className="w-full rounded-md border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                  {typeOptions.find((t) => t.key === fixedType)?.value ?? fixedType}
+                </div>
+              ) : (
+                <select
+                  value={form.type}
+                  onChange={(e) => set('type', e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {typeOptions.map((t) => (
+                    <option key={t.key} value={t.key}>
+                      {t.value}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -345,11 +365,7 @@ export function MetadataForm({
               JSON.stringify(form.tags) !== JSON.stringify(original.tags);
             return (
               <div className="flex justify-between gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => router.push('/admin/metadata')}
-                >
+                <Button type="button" variant="outline" onClick={() => router.push(backHref)}>
                   Cancel
                 </Button>
                 {original && !hasStep1Changes ? (
@@ -468,7 +484,7 @@ export function MetadataForm({
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() => router.push('/admin/metadata')}
+                    onClick={() => router.push(backHref)}
                     disabled={saving}
                     className="gap-2"
                   >

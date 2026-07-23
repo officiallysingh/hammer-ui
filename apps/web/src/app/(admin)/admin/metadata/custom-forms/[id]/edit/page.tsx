@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { metadataApi, ManagedTypeVM } from '@repo/api';
-import { sanitizeProperties, normalizeProperties } from '../../_components/types';
+import { sanitizeProperties, normalizeProperties } from '../../../_components/types';
 import { Loader2 } from 'lucide-react';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
-import { MetadataForm, MetadataFormValues } from '../../_components/MetadataForm';
+import { MetadataForm, MetadataFormValues } from '../../../_components/MetadataForm';
 
-export default function EditMetadataPage() {
+const TYPE = 'WORKFLOW_STEP_FORM';
+
+export default function EditCustomFormPage() {
   const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -28,7 +30,7 @@ export default function EditMetadataPage() {
           tags: mt.tags ?? [],
         });
       })
-      .catch(() => setLoadError('Failed to load managed type.'))
+      .catch(() => setLoadError('Failed to load custom form.'))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -36,9 +38,7 @@ export default function EditMetadataPage() {
     const orig = origRef.current;
     if (!orig) return;
 
-    const patch: Parameters<typeof metadataApi.updateManagedType>[1] = {
-      type: values.type as Parameters<typeof metadataApi.updateManagedType>[1]['type'],
-    };
+    const patch: Parameters<typeof metadataApi.updateManagedType>[1] = { type: TYPE };
     if (values.name.trim() !== orig.name) patch.name = values.name.trim();
     if ((values.description.trim() || '') !== (orig.description ?? ''))
       patch.description = values.description.trim() || undefined;
@@ -75,9 +75,11 @@ export default function EditMetadataPage() {
     <MetadataForm
       initialValues={initialValues}
       original={initialValues}
-      title="Edit type"
+      title="Edit custom form"
       description={`Editing: ${initialValues.name}`}
       submitLabel="Save changes"
+      backHref="/admin/metadata/custom-forms"
+      fixedType={TYPE}
       onSubmit={handleSubmit}
     />
   );

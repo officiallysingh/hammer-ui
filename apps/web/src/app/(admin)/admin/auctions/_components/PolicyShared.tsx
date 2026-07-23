@@ -4,6 +4,26 @@ import { useState } from 'react';
 import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
 
+export function resolveStr(value?: unknown): string {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length > 0) return String(entries[0]![0]);
+  }
+  return String(value);
+}
+
+export function fmtLabel(value?: unknown): string {
+  const str = resolveStr(value);
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
 export const POLICY_DEFAULTS: Record<string, { name: string; description: string }> = {
   MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY: {
     name: 'Minimum required participants',

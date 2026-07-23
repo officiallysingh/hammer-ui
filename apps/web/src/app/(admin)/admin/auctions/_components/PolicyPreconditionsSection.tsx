@@ -3,8 +3,10 @@
 import { useRef, useState } from 'react';
 import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
+import type { PolicyEvaluationMap } from '@repo/api';
 import { FieldError, SelectOption } from './AuctionShared';
 import { PreconditionItem } from './AuctionStep3Types';
+import { EvaluationList } from './PolicyEvaluationDisplay';
 import {
   DayHourDropdowns,
   NameDescriptionFields,
@@ -21,6 +23,7 @@ interface Props {
   options: SelectOption[];
   fieldErrors: Record<string, string>;
   groupDescription?: string;
+  evaluationsByIndex?: Record<number, PolicyEvaluationMap>;
 }
 
 const EMPTY_ITEM: PreconditionItem = {
@@ -38,6 +41,7 @@ export function PolicyPreconditionsSection({
   options,
   fieldErrors,
   groupDescription,
+  evaluationsByIndex,
 }: Props) {
   const usedTypes = preconditions.map((p) => p.type).filter(Boolean);
 
@@ -220,6 +224,8 @@ export function PolicyPreconditionsSection({
                   />
                 </div>
               )}
+
+              {evaluationsByIndex?.[i] && <EvaluationList evaluations={evaluationsByIndex[i]} />}
             </div>
           ))}
         </div>

@@ -2,7 +2,9 @@
 
 import { Plus, Trash2 } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
+import type { PolicyEvaluationMap } from '@repo/api';
 import { FieldError, SelectField, SelectOption } from './AuctionShared';
+import { EvaluationList } from './PolicyEvaluationDisplay';
 import { POLICY_DEFAULTS, PolicyInfoButton, ordinalLabel } from './PolicyShared';
 
 const KTH_OPTIONS = [1, 2, 3];
@@ -23,6 +25,7 @@ interface WinnerBlockProps {
   kthMode: 'rank' | 'pays';
   fieldErrors: Record<string, string>;
   groupDescription?: string;
+  evaluations?: PolicyEvaluationMap;
 }
 
 function WinnerBlock({
@@ -40,6 +43,7 @@ function WinnerBlock({
   kthMode,
   fieldErrors,
   groupDescription,
+  evaluations,
 }: WinnerBlockProps) {
   const added = type !== '';
 
@@ -135,6 +139,8 @@ function WinnerBlock({
             )}
             <FieldError message={fieldErrors[`${fieldPrefix}Kth`]} />
           </div>
+
+          {evaluations && <EvaluationList evaluations={evaluations} />}
         </div>
       )}
     </div>
@@ -161,6 +167,8 @@ interface PolicyWinnerSectionProps {
   fieldErrors: Record<string, string>;
   winnerGroupInfo?: string;
   winnerPriceGroupInfo?: string;
+  winnerDeterminationEvaluations?: PolicyEvaluationMap;
+  winnerPriceDeterminationEvaluations?: PolicyEvaluationMap;
 }
 
 export function PolicyWinnerSection({
@@ -183,6 +191,8 @@ export function PolicyWinnerSection({
   fieldErrors,
   winnerGroupInfo,
   winnerPriceGroupInfo,
+  winnerDeterminationEvaluations,
+  winnerPriceDeterminationEvaluations,
 }: PolicyWinnerSectionProps) {
   return (
     <div className="space-y-4">
@@ -202,6 +212,7 @@ export function PolicyWinnerSection({
           kthMode="rank"
           fieldErrors={fieldErrors}
           groupDescription={winnerGroupInfo}
+          evaluations={winnerDeterminationEvaluations}
         />
       </div>
       <div className="rounded-xl border border-border bg-card p-6">
@@ -220,6 +231,7 @@ export function PolicyWinnerSection({
           kthMode="pays"
           fieldErrors={fieldErrors}
           groupDescription={winnerPriceGroupInfo}
+          evaluations={winnerPriceDeterminationEvaluations}
         />
       </div>
     </div>

@@ -3,8 +3,10 @@
 import { useRef, useState } from 'react';
 import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
+import type { PolicyEvaluationMap } from '@repo/api';
 import { FieldError, SelectField } from './AuctionShared';
 import { PaymentPolicyItem, PolicyHeadItem } from './AuctionStep3Types';
+import { EvaluationList } from './PolicyEvaluationDisplay';
 import {
   DayHourDropdowns,
   NameDescriptionFields,
@@ -31,6 +33,8 @@ interface Props {
   groupDescription?: string;
   title: string;
   fixedScheduleReference: ScheduleReference;
+  /** Keyed by the item's original index in `policies` (not the filtered/visible index). */
+  evaluationsByIndex?: Record<number, PolicyEvaluationMap>;
 }
 
 const EMPTY_HEAD: PolicyHeadItem = {
@@ -64,6 +68,7 @@ export function PolicyPaymentSection({
   groupDescription,
   title,
   fixedScheduleReference,
+  evaluationsByIndex,
 }: Props) {
   const dragIndexRef = useRef<number | null>(null);
   const dragHandleActiveRef = useRef(false);
@@ -357,6 +362,8 @@ export function PolicyPaymentSection({
                   })}
                 </div>
               </div>
+
+              {evaluationsByIndex?.[i] && <EvaluationList evaluations={evaluationsByIndex[i]} />}
             </div>
           ))}
         </div>

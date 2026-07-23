@@ -2,6 +2,7 @@ import { PolicyItemRQ } from '@repo/api';
 import type {
   PaymentPolicyItem,
   PolicyHeadItem,
+  PreconditionItem,
   PriceChangeItem,
   Step3State,
 } from './AuctionStep3Types';
@@ -50,6 +51,118 @@ export function resolveType(value: unknown): string {
 }
 
 // ─── build (form state → API payload) ─────────────────────────────────────────
+// Each `build*Item` below builds a single leaf policy — reused both to assemble the
+// full submission payload (buildPolicies) and to preview one item at a time.
+
+export function buildPaymentPolicyItem(
+  p: PaymentPolicyItem,
+  priority: number,
+  currencyUnit: string,
+): PolicyItemRQ | null {
+  const heads = p.heads.filter((h) => h.type && h.basis && h.value);
+  if (heads.length === 0) return null;
+  return {
+    type: 'PAYMENT_POLICY',
+    name: p.name || undefined,
+    description: p.description || undefined,
+    priority,
+    currency: currencyUnit,
+    schedule: {
+      reference: (p.scheduleReference || 'AUCTION_START_TIME') as
+        | 'AUCTION_START_TIME'
+        | 'AUCTION_END_TIME',
+      offset: buildDurationFromDaysHours(p.offsetDays, p.offsetHours),
+    },
+    heads: heads.map((h) => ({
+      name: h.name || undefined,
+      description: h.description || undefined,
+      type: h.type,
+      basis: h.basis,
+      value: parseFloat(h.value),
+      refundable: h.refundable,
+    })),
+  };
+}
+
+export function buildPreconditionItem(p: PreconditionItem): PolicyItemRQ | null {
+  if (!p.type) return null;
+  const item: PolicyItemRQ = {
+    type: p.type,
+    name: p.name || undefined,
+    description: p.description || undefined,
+  };
+  if (p.type === 'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY') {
+    item.count = parseInt(p.count, 10);
+  }
+  if (p.validationDays || p.validationHours) {
+    item.preStartValidationDuration = buildDurationFromDaysHours(
+      p.validationDays,
+      p.validationHours,
+    );
+  }
+  return item;
+}
+
+/** Wraps every price-progression window into the single PRICE_PROGRESSION_POLICY the API expects. */
+export function buildPriceProgressionWrapper(items: PriceChangeItem[]): PolicyItemRQ | null {
+  const priceItems = items.filter((p) => p.type);
+  if (priceItems.length === 0) return null;
+  const wrapperDefaults = POLICY_DEFAULTS['PRICE_PROGRESSION_POLICY'];
+  return {
+    type: 'PRICE_PROGRESSION_POLICY',
+    name: wrapperDefaults?.name,
+    description: wrapperDefaults?.description,
+    priceChangePolicies: priceItems.map((p, i, arr) => {
+      const isLast = i === arr.length - 1;
+      const item: PolicyItemRQ = {
+        type: p.type,
+        name: p.name || undefined,
+        description: p.description || undefined,
+        priority: i + 1,
+        windowDuration: isLast ? 'PT0S' : buildWindowDuration(p.windowHours, p.windowMinutes),
+      };
+      if (p.value) item.value = parseFloat(p.value);
+      if (p.type === 'STEP_BASED_OFFER_PRICE_POLICY' && p.steps.length > 0) {
+        item.steps = p.steps;
+      }
+      return item;
+    }),
+  };
+}
+
+export function buildExtensionItem(step3: Step3State): PolicyItemRQ | null {
+  if (!step3.extensionEnabled || !step3.extensionType) return null;
+  return {
+    type: step3.extensionType,
+    name: step3.extensionName || undefined,
+    description: step3.extensionDescription || undefined,
+    reference: step3.extensionReference,
+    duration: `PT${parseInt(step3.extensionDurationMinutes, 10) || 10}M`,
+    limit: parseInt(step3.extensionLimit, 10) || 0,
+  };
+}
+
+export function buildWinnerDeterminationItem(step3: Step3State): PolicyItemRQ | null {
+  if (!step3.winnerDeterminationType) return null;
+  const item: PolicyItemRQ = {
+    type: step3.winnerDeterminationType,
+    name: step3.winnerDeterminationName || undefined,
+    description: step3.winnerDeterminationDescription || undefined,
+  };
+  if (step3.winnerDeterminationKth) item.kth = parseInt(step3.winnerDeterminationKth, 10);
+  return item;
+}
+
+export function buildWinnerPriceDeterminationItem(step3: Step3State): PolicyItemRQ | null {
+  if (!step3.winnerPriceDeterminationType) return null;
+  const item: PolicyItemRQ = {
+    type: step3.winnerPriceDeterminationType,
+    name: step3.winnerPriceDeterminationName || undefined,
+    description: step3.winnerPriceDeterminationDescription || undefined,
+  };
+  if (step3.winnerPriceDeterminationKth) item.kth = parseInt(step3.winnerPriceDeterminationKth, 10);
+  return item;
+}
 
 export function buildPolicies(
   step3: Step3State,
@@ -57,122 +170,31 @@ export function buildPolicies(
 ): Record<string, PolicyItemRQ[]> {
   const policies: Record<string, PolicyItemRQ[]> = {};
 
-  // PAYMENT
-  const paymentItems = step3.paymentPolicies.filter((p) =>
+  const validPayments = step3.paymentPolicies.filter((p) =>
     p.heads.some((h) => h.type && h.basis && h.value),
   );
-  if (paymentItems.length > 0) {
-    policies['PAYMENT'] = paymentItems.map((p, i) => ({
-      type: 'PAYMENT_POLICY',
-      name: p.name || undefined,
-      description: p.description || undefined,
-      priority: i + 1,
-      currency: currencyUnit,
-      schedule: {
-        reference: (p.scheduleReference || 'AUCTION_START_TIME') as
-          | 'AUCTION_START_TIME'
-          | 'AUCTION_END_TIME',
-        offset: buildDurationFromDaysHours(p.offsetDays, p.offsetHours),
-      },
-      heads: p.heads
-        .filter((h) => h.type && h.basis && h.value)
-        .map((h) => ({
-          name: h.name || undefined,
-          description: h.description || undefined,
-          type: h.type,
-          basis: h.basis,
-          value: parseFloat(h.value),
-          refundable: h.refundable,
-        })),
-    }));
+  if (validPayments.length > 0) {
+    policies['PAYMENT'] = validPayments.map(
+      (p, i) => buildPaymentPolicyItem(p, i + 1, currencyUnit)!,
+    );
   }
 
-  // PRECONDITION
-  const preconditionItems = step3.preconditions.filter((p) => p.type);
-  if (preconditionItems.length > 0) {
-    policies['PRECONDITION'] = preconditionItems.map((p) => {
-      const item: PolicyItemRQ = {
-        type: p.type,
-        name: p.name || undefined,
-        description: p.description || undefined,
-      };
-      if (p.type === 'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY') {
-        item.count = parseInt(p.count, 10);
-      }
-      if (p.validationDays || p.validationHours) {
-        item.preStartValidationDuration = buildDurationFromDaysHours(
-          p.validationDays,
-          p.validationHours,
-        );
-      }
-      return item;
-    });
-  }
+  const preconditionItems = step3.preconditions
+    .map(buildPreconditionItem)
+    .filter((item): item is PolicyItemRQ => item !== null);
+  if (preconditionItems.length > 0) policies['PRECONDITION'] = preconditionItems;
 
-  // PRICE_PROGRESSION
-  const priceItems = step3.priceChangePolicies.filter((p) => p.type);
-  if (priceItems.length > 0) {
-    const wrapperDefaults = POLICY_DEFAULTS['PRICE_PROGRESSION_POLICY'];
-    policies['PRICE_PROGRESSION'] = [
-      {
-        type: 'PRICE_PROGRESSION_POLICY',
-        name: wrapperDefaults?.name,
-        description: wrapperDefaults?.description,
-        priceChangePolicies: priceItems.map((p, i, arr) => {
-          const isLast = i === arr.length - 1;
-          const item: PolicyItemRQ = {
-            type: p.type,
-            name: p.name || undefined,
-            description: p.description || undefined,
-            priority: i + 1,
-            windowDuration: isLast ? 'PT0S' : buildWindowDuration(p.windowHours, p.windowMinutes),
-          };
-          if (p.value) item.value = parseFloat(p.value);
-          if (p.type === 'STEP_BASED_OFFER_PRICE_POLICY' && p.steps.length > 0) {
-            item.steps = p.steps;
-          }
-          return item;
-        }),
-      },
-    ];
-  }
+  const priceWrapper = buildPriceProgressionWrapper(step3.priceChangePolicies);
+  if (priceWrapper) policies['PRICE_PROGRESSION'] = [priceWrapper];
 
-  // EXTENSION
-  if (step3.extensionEnabled && step3.extensionType) {
-    policies['EXTENSION'] = [
-      {
-        type: step3.extensionType,
-        name: step3.extensionName || undefined,
-        description: step3.extensionDescription || undefined,
-        reference: step3.extensionReference,
-        duration: `PT${parseInt(step3.extensionDurationMinutes, 10) || 10}M`,
-        limit: parseInt(step3.extensionLimit, 10) || 0,
-      },
-    ];
-  }
+  const extension = buildExtensionItem(step3);
+  if (extension) policies['EXTENSION'] = [extension];
 
-  // WINNER_DETERMINATION
-  if (step3.winnerDeterminationType) {
-    const item: PolicyItemRQ = {
-      type: step3.winnerDeterminationType,
-      name: step3.winnerDeterminationName || undefined,
-      description: step3.winnerDeterminationDescription || undefined,
-    };
-    if (step3.winnerDeterminationKth) item.kth = parseInt(step3.winnerDeterminationKth, 10);
-    policies['WINNER_DETERMINATION'] = [item];
-  }
+  const winnerDetermination = buildWinnerDeterminationItem(step3);
+  if (winnerDetermination) policies['WINNER_DETERMINATION'] = [winnerDetermination];
 
-  // WINNER_PRICE_DETERMINATION
-  if (step3.winnerPriceDeterminationType) {
-    const item: PolicyItemRQ = {
-      type: step3.winnerPriceDeterminationType,
-      name: step3.winnerPriceDeterminationName || undefined,
-      description: step3.winnerPriceDeterminationDescription || undefined,
-    };
-    if (step3.winnerPriceDeterminationKth)
-      item.kth = parseInt(step3.winnerPriceDeterminationKth, 10);
-    policies['WINNER_PRICE_DETERMINATION'] = [item];
-  }
+  const winnerPriceDetermination = buildWinnerPriceDeterminationItem(step3);
+  if (winnerPriceDetermination) policies['WINNER_PRICE_DETERMINATION'] = [winnerPriceDetermination];
 
   return policies;
 }

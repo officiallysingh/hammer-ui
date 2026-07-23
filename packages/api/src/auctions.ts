@@ -183,6 +183,7 @@ export interface PolicySchedule {
 }
 
 export interface PolicyItemRQ {
+  id?: string;
   type: string;
   name?: string;
   description?: string;
@@ -204,6 +205,24 @@ export interface PolicyItemRQ {
   postPayment?: boolean;
   prePayment?: boolean;
 }
+
+/** Mirrors the backend's `Evaluation<E>` — result of running a policy's rule engine. */
+export interface PolicyEvaluationStatus {
+  type?: string | Record<string, string>;
+  details?: Record<string, unknown>;
+  updatedAt?: string | null;
+}
+
+export interface PolicyEvaluation<E = unknown> {
+  result?: E;
+  description?: string;
+  condition?: boolean;
+  status?: PolicyEvaluationStatus;
+  details?: Record<string, unknown>;
+}
+
+/** Keyed by policy (or rule) name, as returned by the preview/evaluate endpoints. */
+export type PolicyEvaluationMap = Record<string, PolicyEvaluation>;
 
 // ── Workflow step creation ──────────────────────────────────────────────────
 
@@ -362,6 +381,23 @@ export const auctionsApi = {
 
   setAuctionPolicyGroups: async (id: string, data: AuctionPoliciesGroupRQ): Promise<void> => {
     await apiClient.put(`/api/v1/auctions/${id}/policies`, data);
+  },
+
+  /** Evaluates a draft policy that hasn't been saved yet (e.g. while editing in a form). */
+  previewAuctionPolicy: async (id: string, policy: PolicyItemRQ): Promise<PolicyEvaluationMap> => {
+    const response = await apiClient.post<PolicyEvaluationMap>(
+      `/api/v1/auctions/${id}/policies/preview`,
+      policy,
+    );
+    return response.data;
+  },
+
+  /** Evaluates an already-saved policy by id. */
+  evaluateAuctionPolicy: async (id: string, policyId: string): Promise<PolicyEvaluationMap> => {
+    const response = await apiClient.post<PolicyEvaluationMap>(
+      `/api/v1/auctions/${id}/policies/${policyId}/evaluate`,
+    );
+    return response.data;
   },
 
   getRoundingModeTypes: async (): Promise<{ value: string; label: string }[]> => {

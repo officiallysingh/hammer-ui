@@ -2,7 +2,9 @@
 
 import { Plus, Trash2 } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
+import type { PolicyEvaluationMap } from '@repo/api';
 import { FieldError, SelectField, SelectOption } from './AuctionShared';
+import { EvaluationList } from './PolicyEvaluationDisplay';
 import { POLICY_DEFAULTS, PolicyInfoButton, SELECT_CLS } from './PolicyShared';
 
 interface Props {
@@ -19,6 +21,7 @@ interface Props {
   options: SelectOption[];
   fieldErrors: Record<string, string>;
   groupDescription?: string;
+  evaluations?: PolicyEvaluationMap;
 }
 
 const REFERENCE_OPTIONS: SelectOption[] = [
@@ -40,6 +43,7 @@ export function PolicyExtensionSection({
   options,
   fieldErrors,
   groupDescription,
+  evaluations,
 }: Props) {
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
@@ -161,6 +165,8 @@ export function PolicyExtensionSection({
               <FieldError message={fieldErrors['extensionLimit']} />
             </div>
           </div>
+
+          {evaluations && <EvaluationList evaluations={evaluations} />}
         </div>
       )}
     </div>

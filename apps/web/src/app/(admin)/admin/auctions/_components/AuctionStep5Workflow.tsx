@@ -18,9 +18,10 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { Button, Label, DateTimePicker, Badge } from '@repo/ui';
-import { auctionsApi, AuctionWorkflowStep, PolicyItemRQ } from '@repo/api';
+import { auctionsApi, AuctionWorkflowStep, PolicyItemRQ, PolicyEvaluationMap } from '@repo/api';
 import { DismissibleError, FieldError } from './AuctionShared';
-import { SELECT_CLS } from './PolicyShared';
+import { SELECT_CLS, resolveStr, fmtLabel } from './PolicyShared';
+import { EvaluationList } from './PolicyEvaluationDisplay';
 import { AddStepDialog } from './AddStepDialog';
 import { parseApiError } from '@/lib/api-errors';
 
@@ -43,26 +44,6 @@ function toLocalInputValue(dateValue?: string) {
 
 function formatDuration(days: number, hours: number, minutes: number) {
   return `${days}d ${hours}h ${minutes}m`;
-}
-
-function resolveStr(value?: unknown): string {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>);
-    if (entries.length > 0) return String(entries[0]![0]);
-  }
-  return String(value);
-}
-
-function fmtLabel(value?: unknown): string {
-  const str = resolveStr(value);
-  if (!str) return '';
-  return str
-    .toLowerCase()
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
 }
 
 function fmtDateTime(iso?: string | null): string {
@@ -145,10 +126,12 @@ function PolicyDetailCard({
   item,
   openingPrice,
   precision,
+  evaluations,
 }: {
   item: PolicyItemRQ;
   openingPrice?: number;
   precision?: number;
+  evaluations?: PolicyEvaluationMap;
 }) {
   return (
     <div className="rounded-lg border border-border/60 bg-card p-3 space-y-1.5 text-xs">
@@ -212,6 +195,11 @@ function PolicyDetailCard({
           </span>
         )
       )}
+      {evaluations && (
+        <div className="pt-1">
+          <EvaluationList evaluations={evaluations} />
+        </div>
+      )}
     </div>
   );
 }
@@ -226,6 +214,7 @@ function WorkflowStepCard({
   openingPrice,
   precision,
   prePaymentPolicies,
+  evaluationsByPolicyId,
 }: {
   step: AuctionWorkflowStep;
   index: number;
@@ -234,6 +223,7 @@ function WorkflowStepCard({
   openingPrice?: number;
   precision?: number;
   prePaymentPolicies?: PolicyItemRQ[];
+  evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
 }) {
   const [open, setOpen] = useState(true);
   const statusType = resolveStr(step.status?.type);
@@ -378,6 +368,7 @@ function WorkflowStepCard({
                     item={p}
                     openingPrice={openingPrice}
                     precision={precision}
+                    evaluations={p.id ? evaluationsByPolicyId?.[p.id] : undefined}
                   />
                 ))}
               </div>
@@ -395,10 +386,12 @@ function PostPaymentBlock({
   policies,
   openingPrice,
   precision,
+  evaluationsByPolicyId,
 }: {
   policies: PolicyItemRQ[];
   openingPrice?: number;
   precision?: number;
+  evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
 }) {
   return (
     <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 overflow-hidden">
@@ -421,6 +414,7 @@ function PostPaymentBlock({
               item={item}
               openingPrice={openingPrice}
               precision={precision}
+              evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
             />
           ))
         )}
@@ -445,6 +439,9 @@ export function AuctionStep5Workflow({
   const [prePaymentPolicies, setPrePaymentPolicies] = useState<PolicyItemRQ[]>([]);
   const [openingPrice, setOpeningPrice] = useState<number | undefined>(undefined);
   const [precision, setPrecision] = useState<number | undefined>(undefined);
+  const [evaluationsByPolicyId, setEvaluationsByPolicyId] = useState<
+    Record<string, PolicyEvaluationMap>
+  >({});
   const [reordering, setReordering] = useState(false);
   const [reorderError, setReorderError] = useState<string | null>(null);
   const [addStepOpen, setAddStepOpen] = useState(false);
@@ -490,6 +487,30 @@ export function AuctionStep5Workflow({
         setPrePaymentPolicies(allItems.filter((item) => item.prePayment === true));
         setOpeningPrice(auction?.unit?.openingPrice);
         setPrecision(auction?.monetaryOptions?.precision);
+
+        // Evaluate every saved policy (workflow-embedded + pre/post payment) by id.
+        const policyIds = Array.from(
+          new Set(
+            [...wf.flatMap((s) => s.policies ?? []), ...allItems]
+              .map((p) => p.id)
+              .filter((id): id is string => Boolean(id)),
+          ),
+        );
+        Promise.all(
+          policyIds.map((policyId) =>
+            auctionsApi
+              .evaluateAuctionPolicy(auctionId, policyId)
+              .then((res) => [policyId, res] as const)
+              .catch(() => [policyId, null] as const),
+          ),
+        ).then((results) => {
+          if (!mounted) return;
+          const map: Record<string, PolicyEvaluationMap> = {};
+          for (const [policyId, res] of results) {
+            if (res) map[policyId] = res;
+          }
+          setEvaluationsByPolicyId(map);
+        });
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -671,6 +692,7 @@ export function AuctionStep5Workflow({
                     openingPrice={openingPrice}
                     precision={precision}
                     prePaymentPolicies={prePaymentPolicies}
+                    evaluationsByPolicyId={evaluationsByPolicyId}
                     dragHandleProps={{
                       onPointerDown: () => {
                         dragHandleActiveRef.current = true;
@@ -689,6 +711,7 @@ export function AuctionStep5Workflow({
                 policies={postPaymentPolicies}
                 openingPrice={openingPrice}
                 precision={precision}
+                evaluationsByPolicyId={evaluationsByPolicyId}
               />
             </div>
           )}

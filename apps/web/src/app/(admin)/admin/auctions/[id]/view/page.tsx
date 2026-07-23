@@ -10,7 +10,9 @@ import {
   AuctionUnitVM,
   PolicyItemRQ,
   AuctionPoliciesGroupRQ,
+  PolicyEvaluationMap,
 } from '@repo/api';
+import { EvaluationList } from '../../_components/PolicyEvaluationDisplay';
 import {
   ArrowLeft,
   Loader2,
@@ -226,11 +228,13 @@ function TimelineEntryCard({
   index,
   isLast,
   cumulativeSeconds,
+  evaluations,
 }: {
   item: PolicyItemRQ;
   index: number;
   isLast: boolean;
   cumulativeSeconds?: number;
+  evaluations?: PolicyEvaluationMap;
 }) {
   const durationLabel = formatDuration(item.windowDuration ?? item.duration);
   const stepLabel = item.steps?.length ? item.steps.join(', ') : null;
@@ -293,12 +297,25 @@ function TimelineEntryCard({
             </span>
           )}
         </div>
+        {evaluations && (
+          <div className="mt-2">
+            <EvaluationList evaluations={evaluations} />
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function PolicyGroupSection({ groupKey, items }: { groupKey: string; items: PolicyItemRQ[] }) {
+function PolicyGroupSection({
+  groupKey,
+  items,
+  evaluationsByPolicyId,
+}: {
+  groupKey: string;
+  items: PolicyItemRQ[];
+  evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
+}) {
   const isTimelineGroup =
     (groupKey.toLowerCase().includes('price') && groupKey.toLowerCase().includes('progress')) ||
     items.some((item) => Boolean(item.windowDuration) || (item.steps?.length ?? 0) > 0);
@@ -341,6 +358,7 @@ function PolicyGroupSection({ groupKey, items }: { groupKey: string; items: Poli
                         index={j}
                         isLast={j === item.priceChangePolicies!.length - 1}
                         cumulativeSeconds={cumulativeSeconds}
+                        evaluations={nested.id ? evaluationsByPolicyId?.[nested.id] : undefined}
                       />
                     );
                   })}
@@ -357,6 +375,7 @@ function PolicyGroupSection({ groupKey, items }: { groupKey: string; items: Poli
                 index={i}
                 isLast={i === items.length - 1}
                 cumulativeSeconds={cumulativeSeconds}
+                evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
               />
             );
           })}
@@ -421,6 +440,11 @@ function PolicyGroupSection({ groupKey, items }: { groupKey: string; items: Poli
                   )}
                 </div>
                 <HeadsList heads={item.heads} />
+                {item.id && evaluationsByPolicyId?.[item.id] && (
+                  <div className="mt-2">
+                    <EvaluationList evaluations={evaluationsByPolicyId[item.id]} />
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -634,6 +658,9 @@ export default function AuctionViewPage() {
   const [loading, setLoading] = useState(true);
   const [auction, setAuction] = useState<AuctionVM | null>(null);
   const [policies, setPolicies] = useState<AuctionPoliciesGroupRQ | null>(null);
+  const [evaluationsByPolicyId, setEvaluationsByPolicyId] = useState<
+    Record<string, PolicyEvaluationMap>
+  >({});
 
   useEffect(() => {
     Promise.all([
@@ -643,6 +670,29 @@ export default function AuctionViewPage() {
       .then(([a, pol]) => {
         setAuction(a);
         setPolicies(pol);
+
+        const policyIds = Array.from(
+          new Set(
+            Object.values(pol ?? {})
+              .flat()
+              .map((p) => p.id)
+              .filter((policyId): policyId is string => Boolean(policyId)),
+          ),
+        );
+        Promise.all(
+          policyIds.map((policyId) =>
+            auctionsApi
+              .evaluateAuctionPolicy(id, policyId)
+              .then((res) => [policyId, res] as const)
+              .catch(() => [policyId, null] as const),
+          ),
+        ).then((results) => {
+          const map: Record<string, PolicyEvaluationMap> = {};
+          for (const [policyId, res] of results) {
+            if (res) map[policyId] = res;
+          }
+          setEvaluationsByPolicyId(map);
+        });
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -845,7 +895,12 @@ export default function AuctionViewPage() {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 divide-x divide-y divide-border/50">
             {policyEntries.map(([key, items]) => (
-              <PolicyGroupSection key={key} groupKey={key} items={items} />
+              <PolicyGroupSection
+                key={key}
+                groupKey={key}
+                items={items}
+                evaluationsByPolicyId={evaluationsByPolicyId}
+              />
             ))}
           </div>
         </div>

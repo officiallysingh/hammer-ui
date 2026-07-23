@@ -18,6 +18,7 @@ import {
   ChevronDown,
   List,
   Database,
+  FileText,
   Gavel,
   Puzzle,
   Building2,
@@ -113,7 +114,7 @@ const navEntries: NavEntry[] = [
   },
   {
     kind: 'group',
-    label: 'Managed Types',
+    label: 'Templates',
     items: [
       {
         href: '/admin/metadata/components',
@@ -122,10 +123,16 @@ const navEntries: NavEntry[] = [
         description: 'Reusable property groups',
       },
       {
-        href: '/admin/metadata',
-        label: 'Templates',
+        href: '/admin/metadata/listing-catalogs',
+        label: 'Listing Catalogs',
         icon: Database,
-        description: 'Type definitions',
+        description: 'Listing property templates',
+      },
+      {
+        href: '/admin/metadata/custom-forms',
+        label: 'Custom Forms',
+        icon: FileText,
+        description: 'Auction workflow step form templates',
       },
     ],
   },
@@ -210,11 +217,25 @@ const subRouteTitles: { match: RegExp; label: string; description: string }[] = 
     label: 'Edit listing',
     description: 'Update listing details',
   },
-  { match: /\/admin\/metadata\/new$/, label: 'New type', description: 'Create a type definition' },
   {
-    match: /\/admin\/metadata\/.+\/edit$/,
-    label: 'Edit type',
-    description: 'Update type definition',
+    match: /\/admin\/metadata\/listing-catalogs\/new$/,
+    label: 'New listing catalog',
+    description: 'Create a listing catalog template',
+  },
+  {
+    match: /\/admin\/metadata\/listing-catalogs\/.+\/edit$/,
+    label: 'Edit listing catalog',
+    description: 'Update listing catalog template',
+  },
+  {
+    match: /\/admin\/metadata\/custom-forms\/new$/,
+    label: 'New custom form',
+    description: 'Create a custom form template',
+  },
+  {
+    match: /\/admin\/metadata\/custom-forms\/.+\/edit$/,
+    label: 'Edit custom form',
+    description: 'Update custom form template',
   },
   {
     match: /\/admin\/metadata\/components\/new$/,
@@ -247,9 +268,7 @@ function groupHasActive(group: NavGroup, pathname: string): boolean {
 }
 
 function isSubItemActive(href: string, pathname: string): boolean {
-  return href === '/admin/metadata'
-    ? pathname.startsWith(href) && !pathname.startsWith('/admin/metadata/components')
-    : pathname.startsWith(href);
+  return pathname.startsWith(href);
 }
 
 // ── SidebarContent ────────────────────────────────────────────────────────────
@@ -354,12 +373,7 @@ function SidebarContent({
                 <div className="mt-0.5 mb-1 space-y-0.5">
                   {entry.items.map((item) => {
                     const { href, label, icon: Icon } = item;
-                    const active = href
-                      ? href === '/admin/metadata'
-                        ? pathname.startsWith(href) &&
-                          !pathname.startsWith('/admin/metadata/components')
-                        : pathname.startsWith(href)
-                      : false;
+                    const active = href ? pathname.startsWith(href) : false;
                     return (
                       <Link
                         key={href ?? label}
