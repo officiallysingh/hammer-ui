@@ -79,3 +79,4 @@ test-results/
 # =========================
 *.pem
 *.key
+hammer/
