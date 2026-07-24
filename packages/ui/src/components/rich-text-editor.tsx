@@ -23,6 +23,8 @@ export interface RichTextEditorProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  /** CSS min-height of the editable area, e.g. "160px". Defaults to "260px". */
+  minHeight?: string;
 }
 
 function ToolbarButton({
@@ -133,6 +135,7 @@ export function RichTextEditor({
   placeholder,
   className,
   disabled,
+  minHeight = '260px',
 }: RichTextEditorProps) {
   const editor = useEditor({
     extensions: [StarterKit, Placeholder.configure({ placeholder })],
@@ -142,8 +145,9 @@ export function RichTextEditor({
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     editorProps: {
       attributes: {
+        style: `min-height: ${minHeight}`,
         class: cn(
-          'max-w-none min-h-[160px] px-3 py-2.5 text-sm text-foreground focus:outline-none',
+          'max-w-none px-3 py-2.5 text-sm text-foreground focus:outline-none',
           '[&_p]:mb-2 [&_p:last-child]:mb-0',
           '[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-2',
           '[&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mb-1.5 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mb-1',

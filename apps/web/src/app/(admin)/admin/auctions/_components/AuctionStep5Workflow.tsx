@@ -469,6 +469,27 @@ function PostPaymentBlock({
   );
 }
 
+// ── Reorder constraint ─────────────────────────────────────────────────────────
+// The pre-payment step and the bank-details step must stay next to each other —
+// bank details are collected for refunding that payment, so the two shouldn't drift
+// apart in the list. Either can lead (bank-before-payment or bank-after-payment);
+// only their adjacency is enforced.
+
+function enforcePaymentBankAdjacency(list: AuctionWorkflowStep[]): AuctionWorkflowStep[] {
+  const paymentIdx = list.findIndex((s) => resolveStr(s.type) === 'PAYMENT_STEP');
+  const bankIdx = list.findIndex((s) => resolveStr(s.type) === 'BANK_DETAIL_FORM_STEP');
+  if (paymentIdx === -1 || bankIdx === -1 || Math.abs(paymentIdx - bankIdx) === 1) {
+    return list;
+  }
+  const bankWasBefore = bankIdx < paymentIdx;
+  const next = [...list];
+  const [bankStep] = next.splice(bankIdx, 1);
+  const newPaymentIdx = next.findIndex((s) => resolveStr(s.type) === 'PAYMENT_STEP');
+  const insertAt = bankWasBefore ? newPaymentIdx : newPaymentIdx + 1;
+  next.splice(insertAt, 0, bankStep!);
+  return next;
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function AuctionStep5Workflow({
@@ -600,7 +621,7 @@ export function AuctionStep5Workflow({
     const next = [...workflow];
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved!);
-    handleReorder(next);
+    handleReorder(enforcePaymentBankAdjacency(next));
   };
 
   // Schedule compute
