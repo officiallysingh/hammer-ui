@@ -227,7 +227,7 @@ export function PropertyRow({
             </div>
             {!HAS_CHILDREN.includes(prop.type) && (
               <div className="space-y-1">
-                <Label className="text-xs">Meta type</Label>
+                <Label className="text-xs">Data type</Label>
                 <select
                   value={extractDataTypeKey(prop.dataType)}
                   onChange={(e) => handleDataTypeChange(e.target.value)}

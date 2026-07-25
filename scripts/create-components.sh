@@ -50,7 +50,7 @@ create_component() {
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Component 1  —  Address Block
-# Metatypes:  STRING (×4)
+# Datatypes:  STRING (×4)
 # Attributes: placeholder, html:type, textarea, options
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -114,7 +114,7 @@ create_component \
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Component 2  —  Contact Info
-# Metatypes:  STRING, STRING (email), STRING (tel)
+# Datatypes:  STRING, STRING (email), STRING (tel)
 # Attributes: html:type, html:placeholder, html:pattern, tag-input
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -167,7 +167,7 @@ create_component \
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Component 3  —  Product Dimensions
-# Metatypes:  FLOAT (×3)  —  COMPOSITE_PROPERTY
+# Datatypes:  FLOAT (×3)  —  COMPOSITE_PROPERTY
 # Attributes: html:min, html:max, html:step, html:placeholder
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -231,7 +231,7 @@ create_component \
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Component 4  —  Pricing & Stock
-# Metatypes:  INTEGER (price), INTEGER (stock), BOOLEAN (in stock), INTEGER (rating)
+# Datatypes:  INTEGER (price), INTEGER (stock), BOOLEAN (in stock), INTEGER (rating)
 # Attributes: slider, stepper, toggle, rating, style:options
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -300,13 +300,13 @@ create_component \
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Component 5  —  Date Range
-# Metatypes:  LOCAL_DATE (start), LOCAL_DATE (end), INTEGER (duration)
+# Datatypes:  LOCAL_DATE (start), LOCAL_DATE (end), INTEGER (duration)
 # Attributes: html:placeholder, html:min, html:max
 # ═════════════════════════════════════════════════════════════════════════════
 
 create_component \
   "Date Range" \
-  "Start/end date pickers + duration — LOCAL_DATE + INTEGER meta types" \
+  "Start/end date pickers + duration — LOCAL_DATE + INTEGER data types" \
   '{
     "name": "Date Range",
     "description": "Date range block with start, end, and duration fields",
@@ -347,7 +347,7 @@ create_component \
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Component 6  —  Color & Variant Selection
-# Metatypes:  STRING (color swatches), STRING (size pills), FILE (image)
+# Datatypes:  STRING (color swatches), STRING (size pills), FILE (image)
 # Attributes: style:color-options, style:options, ui:component, html:accept
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -393,7 +393,7 @@ create_component \
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Component 7  —  Text Content Block
-# Metatypes:  STRING (title), STRING (body — multiline), STRING (tags), STRING (url)
+# Datatypes:  STRING (title), STRING (body — multiline), STRING (tags), STRING (url)
 # Attributes: textarea, tag-input, html:type=url, placeholder
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -452,7 +452,7 @@ create_component \
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Component 8  —  Auction Settings
-# Metatypes:  LOCAL_DATE_TIME (start), LOCAL_DATE_TIME (end), LONG (reserve),
+# Datatypes:  LOCAL_DATE_TIME (start), LOCAL_DATE_TIME (end), LONG (reserve),
 #             BOOLEAN (auto-extend), INTEGER (increment)
 # Attributes: datetime pickers, stepper, toggle
 # ═════════════════════════════════════════════════════════════════════════════
@@ -521,13 +521,13 @@ create_component \
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Component 9  —  Location Picker
-# Metatypes:  COORDINATES (lat/lng), STRING (place name), STRING (notes)
+# Datatypes:  COORDINATES (lat/lng), STRING (place name), STRING (notes)
 # Attributes: placeholder, html:pattern, multiline
 # ═════════════════════════════════════════════════════════════════════════════
 
 create_component \
   "Location Picker" \
-  "Geographic location: COORDINATES meta type, place name, and notes" \
+  "Geographic location: COORDINATES data type, place name, and notes" \
   '{
     "name": "Location Picker",
     "description": "GPS coordinates, place name, and location notes",
@@ -567,7 +567,7 @@ create_component \
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Component 10  —  Warranty & Policy
-# Metatypes:  STRING (warranty period — pills), STRING (policy — textarea),
+# Datatypes:  STRING (warranty period — pills), STRING (policy — textarea),
 #             BOOLEAN (returnable), STRING (return window — pills)
 # Attributes: option-pills, textarea, toggle, style:options
 # ═════════════════════════════════════════════════════════════════════════════
@@ -625,8 +625,8 @@ create_component \
   }'
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Component 11  —  Vehicle Specs (advanced metatypes)
-# Metatypes:  YEAR, YEAR_MONTH, INTEGER (mileage), STRING (fuel — pills),
+# Component 11  —  Vehicle Specs (advanced data types)
+# Datatypes:  YEAR, YEAR_MONTH, INTEGER (mileage), STRING (fuel — pills),
 #             STRING (transmission — pills), DOUBLE (engine)
 # Attributes: html:min/max for year, option-pills, stepper
 # ═════════════════════════════════════════════════════════════════════════════
@@ -711,7 +711,7 @@ create_component \
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Component 12  —  Job Posting Details
-# Metatypes:  STRING (job type — pills), INTEGER (salary), STRING (skills — tag),
+# Datatypes:  STRING (job type — pills), INTEGER (salary), STRING (skills — tag),
 #             BOOLEAN (remote), LOCAL_DATE (deadline), STRING (description — textarea)
 # Attributes: option-pills, slider, tag-input, toggle, date picker, textarea
 # ═════════════════════════════════════════════════════════════════════════════
