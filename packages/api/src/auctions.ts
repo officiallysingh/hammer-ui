@@ -249,7 +249,14 @@ export interface AddTnCFormStepRQ {
   tncBlobId?: string;
 }
 
-export type AddWorkflowStepRQ = AddFormStepRQ | AddTnCFormStepRQ;
+export interface AddBankDetailFormStepRQ {
+  type: 'BANK_DETAIL_FORM_STEP';
+  name?: string;
+  description?: string;
+  order?: number;
+}
+
+export type AddWorkflowStepRQ = AddFormStepRQ | AddTnCFormStepRQ | AddBankDetailFormStepRQ;
 
 export type AuctionPoliciesGroupRQ = Record<string, PolicyItemRQ[]>;
 

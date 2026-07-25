@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, CheckCircle2, Search, Upload } from 'lucide-react';
+import { Loader2, CheckCircle2, Search, Upload, Landmark } from 'lucide-react';
 import {
   Button,
   Label,
@@ -23,7 +23,7 @@ import { DismissibleError } from './AuctionShared';
 import { PropertyFormPreview } from '../../metadata/_components/PropertyFormPreview';
 import { parseApiError } from '@/lib/api-errors';
 
-type AddStepMode = 'choose' | 'FORM_STEP' | 'TNC_FORM_STEP';
+type AddStepMode = 'choose' | 'FORM_STEP' | 'TNC_FORM_STEP' | 'BANK_DETAIL_FORM_STEP';
 
 /** Tiptap emits "<p></p>" for an empty doc — strip tags to check for real content. */
 function isRichTextEmpty(html: string): boolean {
@@ -36,6 +36,7 @@ export function AddStepDialog({
   onOpenChange,
   nextOrder,
   hasTnCStep,
+  hasBankDetailStep,
   onAdded,
 }: {
   auctionId: string;
@@ -43,11 +44,15 @@ export function AddStepDialog({
   onOpenChange: (open: boolean) => void;
   nextOrder: number;
   hasTnCStep: boolean;
+  hasBankDetailStep: boolean;
   onAdded: () => void;
 }) {
   const [mode, setMode] = useState<AddStepMode>('choose');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Shared order field (used by FORM_STEP, TNC_FORM_STEP and BANK_DETAIL_FORM_STEP)
+  const [selectedOrder, setSelectedOrder] = useState(nextOrder);
 
   // FORM_STEP state
   const [formQuery, setFormQuery] = useState('');
@@ -64,6 +69,11 @@ export function AddStepDialog({
   const [tncText, setTncText] = useState('');
   const [tncFile, setTncFile] = useState<File | null>(null);
   const [uploadingTnc, setUploadingTnc] = useState(false);
+
+  // Keep selectedOrder in sync when dialog opens or nextOrder changes
+  useEffect(() => {
+    setSelectedOrder(nextOrder);
+  }, [nextOrder, open]);
 
   const reset = () => {
     setMode('choose');
@@ -122,6 +132,33 @@ export function AddStepDialog({
       .finally(() => setLoadingTypeDetail(false));
   };
 
+  // Order dropdown — positions 1..nextOrder (insert at any position)
+  const orderOptions = Array.from({ length: nextOrder }, (_, i) => i + 1);
+
+  const OrderField = () => (
+    <div className="space-y-1.5">
+      <Label htmlFor="stepOrder" className="text-xs font-medium">
+        Position in workflow
+      </Label>
+      <select
+        id="stepOrder"
+        value={selectedOrder}
+        onChange={(e) => setSelectedOrder(Number(e.target.value))}
+        className="w-full rounded-md border border-input bg-background px-3 py-[7px] text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        {orderOptions.map((o) => (
+          <option key={o} value={o}>
+            Step {o}
+          </option>
+        ))}
+        {/* Always include nextOrder as the "add at end" option */}
+        {!orderOptions.includes(nextOrder) && (
+          <option value={nextOrder}>Step {nextOrder} (end)</option>
+        )}
+      </select>
+    </div>
+  );
+
   const submitFormStep = async () => {
     if (!selectedType) {
       setError('Please select a form template.');
@@ -130,12 +167,23 @@ export function AddStepDialog({
     setSubmitting(true);
     setError(null);
     try {
+      // Build properties map from the selected type's property definitions
+      const properties: Record<string, unknown> = {};
+      if (selectedTypeDetail?.properties) {
+        for (const prop of selectedTypeDetail.properties) {
+          if (prop.name) properties[prop.name] = prop.defaultValue ?? null;
+        }
+      }
       await auctionsApi.addWorkflowStep(auctionId, {
         type: 'FORM_STEP',
         name: selectedType.name,
         description: selectedType.description,
-        order: nextOrder,
-        embedded: { typeId: selectedType.id, pathWiseState: {} },
+        order: selectedOrder,
+        embedded: {
+          typeId: selectedType.id,
+          pathWiseState: {},
+          properties,
+        },
       });
       onAdded();
       close();
@@ -169,7 +217,7 @@ export function AddStepDialog({
         type: 'TNC_FORM_STEP',
         name: tncName.trim() || undefined,
         description: tncDescription.trim() || undefined,
-        order: nextOrder,
+        order: selectedOrder,
         tncText: isRichTextEmpty(tncText) ? undefined : tncText,
         tncBlobId,
       });
@@ -184,6 +232,26 @@ export function AddStepDialog({
     }
   };
 
+  const submitBankDetailStep = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await auctionsApi.addWorkflowStep(auctionId, {
+        type: 'BANK_DETAIL_FORM_STEP',
+        name: 'Bank Details',
+        description: 'Participant provides bank details for payouts',
+        order: selectedOrder,
+      } as Parameters<typeof auctionsApi.addWorkflowStep>[1]);
+      onAdded();
+      close();
+    } catch (err) {
+      const parsed = parseApiError(err);
+      setError(parsed.general ?? 'Failed to add step.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : close())}>
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
@@ -193,7 +261,9 @@ export function AddStepDialog({
               ? 'Add Step'
               : mode === 'FORM_STEP'
                 ? 'Add Custom Form Step'
-                : 'Add Terms and Conditions Form Step'}
+                : mode === 'BANK_DETAIL_FORM_STEP'
+                  ? 'Add Bank Detail Form Step'
+                  : 'Add Terms and Conditions Form Step'}
           </DialogTitle>
         </DialogHeader>
 
@@ -228,6 +298,26 @@ export function AddStepDialog({
                 {hasTnCStep
                   ? 'Already added — only one is allowed per workflow.'
                   : 'Terms and Conditions step. Only one allowed.'}
+              </p>
+            </button>
+            <button
+              type="button"
+              disabled={hasBankDetailStep}
+              onClick={() => !hasBankDetailStep && setMode('BANK_DETAIL_FORM_STEP')}
+              className={`text-left rounded-lg border p-4 transition-colors space-y-1 ${
+                hasBankDetailStep
+                  ? 'border-border/50 opacity-50 cursor-not-allowed'
+                  : 'border-border hover:border-primary/50 hover:bg-muted/30'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Landmark className="h-4 w-4 text-muted-foreground shrink-0" />
+                <p className="text-sm font-semibold text-foreground">Bank Detail Form Step</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {hasBankDetailStep
+                  ? 'Already added — only one is allowed per workflow.'
+                  : 'Collect participant bank details for payouts. Only one allowed.'}
               </p>
             </button>
           </div>
@@ -305,6 +395,8 @@ export function AddStepDialog({
               </div>
             )}
 
+            <OrderField />
+
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="ghost" size="sm" onClick={() => setMode('choose')}>
                 Back
@@ -380,6 +472,8 @@ export function AddStepDialog({
               )}
             </div>
 
+            <OrderField />
+
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="ghost" size="sm" onClick={() => setMode('choose')}>
                 Back
@@ -393,6 +487,54 @@ export function AddStepDialog({
               >
                 {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {uploadingTnc ? 'Uploading...' : 'Add'}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {mode === 'BANK_DETAIL_FORM_STEP' && (
+          <div className="space-y-3 py-1">
+            <p className="text-xs text-muted-foreground">
+              Participant provides their bank details (bank name, IFSC code, account number and a
+              cancelled cheque) to receive winning-amount refunds or payouts.
+            </p>
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-3">
+              {[
+                { label: 'Bank Name', placeholder: 'e.g. State Bank of India' },
+                { label: 'Bank IFSC Code', placeholder: 'ICIC0000733' },
+                { label: 'Bank Account Number', placeholder: '003210513654' },
+              ].map((f) => (
+                <div key={f.label} className="space-y-1">
+                  <span className="text-xs font-medium text-muted-foreground">{f.label}</span>
+                  <div className="rounded-md border border-dashed border-border bg-background px-3 py-2 text-xs text-muted-foreground/60">
+                    {f.placeholder}
+                  </div>
+                </div>
+              ))}
+              <div className="space-y-1">
+                <span className="text-xs font-medium text-muted-foreground">Cancel Check</span>
+                <div className="flex items-center gap-2 rounded-md border border-dashed border-border bg-background px-3 py-2 text-xs text-muted-foreground/60">
+                  <Upload className="h-3.5 w-3.5" />
+                  Cancelled cheque image upload
+                </div>
+              </div>
+            </div>
+
+            <OrderField />
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="ghost" size="sm" onClick={() => setMode('choose')}>
+                Back
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={submitBankDetailStep}
+                disabled={submitting}
+                className="gap-2"
+              >
+                {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Add Bank Detail Step
               </Button>
             </div>
           </div>

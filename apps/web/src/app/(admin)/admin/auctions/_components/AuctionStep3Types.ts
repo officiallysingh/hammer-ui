@@ -35,7 +35,15 @@ export interface PriceChangeItem {
   value: string;
 }
 
+export interface ParticipationItem {
+  name: string;
+  description: string;
+}
+
 export interface Step3State {
+  participationEnabled: boolean;
+  participationName: string;
+  participationDescription: string;
   paymentPolicies: PaymentPolicyItem[];
   preconditions: PreconditionItem[];
   priceChangePolicies: PriceChangeItem[];
@@ -57,6 +65,9 @@ export interface Step3State {
 }
 
 export const initialStep3: Step3State = {
+  participationEnabled: false,
+  participationName: '',
+  participationDescription: '',
   paymentPolicies: [],
   preconditions: [],
   priceChangePolicies: [],

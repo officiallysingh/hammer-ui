@@ -73,7 +73,11 @@ export default function NewAuctionPage() {
       auctionsApi.getOfferVisibilityTypes(),
       auctionsApi.getRoundingModeTypes(),
     ]).then(([fmts, access, dirs, dims, partVis, offerVis, rounding]) => {
-      if (fmts.status === 'fulfilled') setFormats(fmts.value);
+      if (fmts.status === 'fulfilled') {
+        setFormats(fmts.value);
+        const simpleFmt = fmts.value.find((f) => f.label === 'Simple');
+        if (simpleFmt) setStep1((prev) => ({ ...prev, format: simpleFmt.value }));
+      }
       if (access.status === 'fulfilled') setAccessibilityTypes(access.value);
       if (dirs.status === 'fulfilled') setDirectionTypes(dirs.value);
       if (dims.status === 'fulfilled') setDimensionTypes(dims.value);

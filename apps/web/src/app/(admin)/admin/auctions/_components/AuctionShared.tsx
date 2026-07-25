@@ -67,6 +67,7 @@ export function SelectField({
   placeholder = 'Select...',
   loading,
   required,
+  disabledValues,
 }: {
   id: string;
   label: string;
@@ -77,6 +78,7 @@ export function SelectField({
   placeholder?: string;
   loading?: boolean;
   required?: boolean;
+  disabledValues?: string[];
 }) {
   return (
     <div className="space-y-1.5">
@@ -93,7 +95,7 @@ export function SelectField({
       >
         <option value="">{loading ? 'Loading...' : placeholder}</option>
         {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
+          <option key={opt.value} value={opt.value} disabled={disabledValues?.includes(opt.value)}>
             {opt.label}
           </option>
         ))}

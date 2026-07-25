@@ -164,11 +164,23 @@ export function buildWinnerPriceDeterminationItem(step3: Step3State): PolicyItem
   return item;
 }
 
+export function buildParticipationItem(step3: Step3State): PolicyItemRQ | null {
+  if (!step3.participationEnabled) return null;
+  return {
+    type: 'PARTICIPATION_POLICY',
+    name: step3.participationName || undefined,
+    description: step3.participationDescription || undefined,
+  };
+}
+
 export function buildPolicies(
   step3: Step3State,
   currencyUnit: string,
 ): Record<string, PolicyItemRQ[]> {
   const policies: Record<string, PolicyItemRQ[]> = {};
+
+  const participation = buildParticipationItem(step3);
+  if (participation) policies['PARTICIPATION'] = [participation];
 
   const validPayments = step3.paymentPolicies.filter((p) =>
     p.heads.some((h) => h.type && h.basis && h.value),
@@ -203,6 +215,14 @@ export function buildPolicies(
 
 export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partial<Step3State> {
   const out: Partial<Step3State> = {};
+
+  const participation = groups['PARTICIPATION'];
+  if (participation?.length) {
+    const p = participation[0]!;
+    out.participationEnabled = true;
+    out.participationName = p.name ?? '';
+    out.participationDescription = p.description ?? '';
+  }
 
   const payment = groups['PAYMENT'];
   if (payment?.length) {
