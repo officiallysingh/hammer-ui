@@ -595,6 +595,7 @@ export function AuctionStep5Workflow({
   }, [auctionId]);
 
   const hasTnCStep = workflow.some((s) => resolveStr(s.type) === 'TNC_FORM_STEP');
+  const hasBankDetailStep = workflow.some((s) => resolveStr(s.type) === 'BANK_DETAIL_FORM_STEP');
 
   // Reorder handler
   const handleReorder = useCallback(
@@ -950,8 +951,9 @@ export function AuctionStep5Workflow({
         auctionId={auctionId}
         open={addStepOpen}
         onOpenChange={setAddStepOpen}
-        nextOrder={workflow.length}
+        nextOrder={workflow.length + 1}
         hasTnCStep={hasTnCStep}
+        hasBankDetailStep={hasBankDetailStep}
         onAdded={reloadWorkflow}
       />
     </div>
