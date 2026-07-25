@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, CheckCircle2, Search, Upload } from 'lucide-react';
 import {
   Button,
@@ -20,7 +20,6 @@ import {
   ManagedTypeVM,
 } from '@repo/api';
 import { DismissibleError } from './AuctionShared';
-import { PhrasesInput } from '@/components/common/admin/PhrasesInput';
 import { PropertyFormPreview } from '../../metadata/_components/PropertyFormPreview';
 import { parseApiError } from '@/lib/api-errors';
 
@@ -51,12 +50,13 @@ export function AddStepDialog({
   const [error, setError] = useState<string | null>(null);
 
   // FORM_STEP state
-  const [formSearchPhrases, setFormSearchPhrases] = useState<string[]>([]);
+  const [formQuery, setFormQuery] = useState('');
   const [formSearching, setFormSearching] = useState(false);
   const [formResults, setFormResults] = useState<ManagedTypeListItemFull[]>([]);
   const [selectedType, setSelectedType] = useState<ManagedTypeListItemFull | null>(null);
   const [selectedTypeDetail, setSelectedTypeDetail] = useState<ManagedTypeVM | null>(null);
   const [loadingTypeDetail, setLoadingTypeDetail] = useState(false);
+  const formDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // TNC_FORM_STEP state
   const [tncName, setTncName] = useState('');
@@ -68,7 +68,7 @@ export function AddStepDialog({
   const reset = () => {
     setMode('choose');
     setError(null);
-    setFormSearchPhrases([]);
+    setFormQuery('');
     setFormResults([]);
     setSelectedType(null);
     setSelectedTypeDetail(null);
@@ -83,23 +83,31 @@ export function AddStepDialog({
     reset();
   };
 
-  const searchFormTypes = useCallback(async (phrases: string[]) => {
-    setFormSearching(true);
-    try {
-      const results = await metadataApi.searchManagedTypeListItems({
-        phrases,
-        type: 'WORKFLOW_STEP_FORM',
-      });
-      setFormResults(results);
-    } catch {
-      // silently ignore search errors
-    } finally {
-      setFormSearching(false);
-    }
+  const searchFormTypes = useCallback((q: string) => {
+    if (formDebounceRef.current) clearTimeout(formDebounceRef.current);
+    formDebounceRef.current = setTimeout(async () => {
+      setFormSearching(true);
+      try {
+        const results = await metadataApi.searchManagedTypeListItems({
+          phrases: q.trim() ? [q.trim()] : [],
+          type: 'WORKFLOW_STEP_FORM',
+        });
+        setFormResults(results);
+      } catch {
+        // silently ignore search errors
+      } finally {
+        setFormSearching(false);
+      }
+    }, 300);
   }, []);
 
+  const handleFormQueryChange = (q: string) => {
+    setFormQuery(q);
+    searchFormTypes(q);
+  };
+
   useEffect(() => {
-    if (open && mode === 'FORM_STEP') searchFormTypes(formSearchPhrases);
+    if (open && mode === 'FORM_STEP') searchFormTypes(formQuery);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, mode]);
 
@@ -227,65 +235,59 @@ export function AddStepDialog({
 
         {mode === 'FORM_STEP' && (
           <div className="space-y-3 py-1">
-            <div className="flex gap-2 items-end">
-              <div className="flex-1 space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Search managed types</Label>
-                <PhrasesInput
-                  value={formSearchPhrases}
-                  onChange={setFormSearchPhrases}
-                  placeholder="Type a name or tag and press Enter..."
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-muted-foreground">
+                Search form templates
+              </Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={formQuery}
+                  onChange={(e) => handleFormQueryChange(e.target.value)}
+                  placeholder="Search form template by name..."
+                  className="pl-8 text-sm"
                 />
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1.5 h-9"
-                onClick={() => searchFormTypes(formSearchPhrases)}
-                disabled={formSearching}
-              >
-                {formSearching ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Search className="h-3.5 w-3.5" />
+                {formSearching && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground animate-spin" />
                 )}
-                Search
-              </Button>
+              </div>
             </div>
 
-            <div className="max-h-64 overflow-y-auto rounded-md border border-border divide-y divide-border">
-              {formSearching ? (
-                <div className="flex items-center justify-center py-8 text-muted-foreground gap-2">
+            <div className="rounded-lg border border-border bg-card shadow-lg overflow-hidden">
+              {formSearching && !formResults.length ? (
+                <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground text-sm">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-xs">Searching...</span>
+                  Searching...
                 </div>
               ) : formResults.length === 0 ? (
-                <div className="py-8 text-center text-xs text-muted-foreground">
-                  No managed types found.
-                </div>
+                <p className="text-center py-8 text-xs text-muted-foreground">
+                  No managed types found
+                </p>
               ) : (
-                formResults.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => selectType(t)}
-                    className={`w-full text-left px-3 py-2.5 transition-colors ${
-                      selectedType?.id === t.id ? 'bg-primary/10' : 'hover:bg-muted/40'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-foreground">{t.name}</span>
-                      {selectedType?.id === t.id && (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+                <div className="max-h-64 overflow-y-auto divide-y divide-border/50">
+                  {formResults.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => selectType(t)}
+                      className={`w-full text-left px-3 py-2.5 transition-colors ${
+                        selectedType?.id === t.id ? 'bg-primary/10' : 'hover:bg-muted/30'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-foreground">{t.name}</span>
+                        {selectedType?.id === t.id && (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+                        )}
+                      </div>
+                      {t.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                          {t.description}
+                        </p>
                       )}
-                    </div>
-                    {t.description && (
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                        {t.description}
-                      </p>
-                    )}
-                  </button>
-                ))
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
 

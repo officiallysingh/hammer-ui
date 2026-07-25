@@ -420,6 +420,26 @@ function WorkflowStepCard({
               </div>
             );
           })()}
+
+          {(() => {
+            const isTnCStep = resolveStr(step.type) === 'TNC_FORM_STEP';
+            if (!isTnCStep) return null;
+            const tncText = (step as AuctionWorkflowStep & { tncText?: string }).tncText;
+
+            return (
+              <div className="mt-2 space-y-2">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                  Terms & Conditions
+                </p>
+
+                <div
+                  className="prose prose-sm dark:prose-invert max-w-none rounded-lg border border-border bg-background p-4
+                          [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+                  dangerouslySetInnerHTML={{ __html: tncText ?? '' }}
+                />
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
@@ -950,7 +970,7 @@ export function AuctionStep5Workflow({
         auctionId={auctionId}
         open={addStepOpen}
         onOpenChange={setAddStepOpen}
-        nextOrder={workflow.length}
+        nextOrder={workflow.length + 1}
         hasTnCStep={hasTnCStep}
         onAdded={reloadWorkflow}
       />
