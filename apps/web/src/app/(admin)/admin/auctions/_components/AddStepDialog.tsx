@@ -21,6 +21,7 @@ import {
 } from '@repo/api';
 import { DismissibleError } from './AuctionShared';
 import { PropertyFormPreview } from '../../metadata/_components/PropertyFormPreview';
+import { sanitizeProperties } from '../../metadata/_components/types';
 import { parseApiError } from '@/lib/api-errors';
 
 type AddStepMode = 'choose' | 'FORM_STEP' | 'TNC_FORM_STEP' | 'BANK_DETAIL_FORM_STEP';
@@ -167,13 +168,6 @@ export function AddStepDialog({
     setSubmitting(true);
     setError(null);
     try {
-      // Build properties map from the selected type's property definitions
-      const properties: Record<string, unknown> = {};
-      if (selectedTypeDetail?.properties) {
-        for (const prop of selectedTypeDetail.properties) {
-          if (prop.name) properties[prop.name] = prop.defaultValue ?? null;
-        }
-      }
       await auctionsApi.addWorkflowStep(auctionId, {
         type: 'FORM_STEP',
         name: selectedType.name,
@@ -182,7 +176,9 @@ export function AddStepDialog({
         embedded: {
           typeId: selectedType.id,
           pathWiseState: {},
-          properties,
+          properties: selectedTypeDetail?.properties
+            ? sanitizeProperties(selectedTypeDetail.properties)
+            : [],
         },
       });
       onAdded();

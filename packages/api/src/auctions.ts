@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import type { PropertyDef } from './metadata';
 
 export interface AuctionProtocol {
   accessibility: string;
@@ -239,7 +240,11 @@ export interface AddFormStepRQ {
   name?: string;
   description?: string;
   order?: number;
-  embedded: { typeId: string; pathWiseState: Record<string, unknown> };
+  embedded: {
+    typeId: string;
+    pathWiseState: Record<string, unknown>;
+    properties?: PropertyDef[];
+  };
 }
 
 export interface AddTnCFormStepRQ {
