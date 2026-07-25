@@ -15,11 +15,13 @@ import {
   buildPaymentPolicyItem,
   buildPreconditionItem,
   buildPriceProgressionWrapper,
+  buildParticipationItem,
   buildExtensionItem,
   buildWinnerDeterminationItem,
   buildWinnerPriceDeterminationItem,
 } from './AuctionStep3PolicyMapping';
 import { PolicyPaymentSection } from './PolicyPaymentSection';
+import { PolicyParticipationSection } from './PolicyParticipationSection';
 import { PolicyPreconditionsSection } from './PolicyPreconditionsSection';
 import { PolicyPriceProgressionSection } from './PolicyPriceProgressionSection';
 import { PolicyExtensionSection } from './PolicyExtensionSection';
@@ -46,6 +48,14 @@ function seedMandatoryDefaults(current: Step3State, groups: PolicyGroup[]): Part
     if (!g?.types.length) return '';
     return Object.keys(g.types[0]!)[0] ?? '';
   };
+
+  // Participation — auto-enable
+  if (hasGroup('PARTICIPATION') && !current.participationEnabled) {
+    const defaults = POLICY_DEFAULTS['PARTICIPATION_POLICY'];
+    patch.participationEnabled = true;
+    patch.participationName = defaults?.name ?? '';
+    patch.participationDescription = defaults?.description ?? '';
+  }
 
   // Payment — mandatory
   if (hasGroup('PAYMENT') && current.paymentPolicies.length === 0) {
@@ -132,6 +142,7 @@ interface PolicyPreviewState {
   paymentByIndex: Record<number, PolicyEvaluationMap>;
   preconditionByIndex: Record<number, PolicyEvaluationMap>;
   priceProgressionByIndex: Record<number, PolicyEvaluationMap>;
+  participation?: PolicyEvaluationMap;
   extension?: PolicyEvaluationMap;
   winnerDetermination?: PolicyEvaluationMap;
   winnerPriceDetermination?: PolicyEvaluationMap;
@@ -185,6 +196,7 @@ function usePolicyPreview(
           ),
         ),
         preview(priceWrapper),
+        preview(buildParticipationItem(form)),
         preview(buildExtensionItem(form)),
         preview(buildWinnerDeterminationItem(form)),
         preview(buildWinnerPriceDeterminationItem(form)),
@@ -193,6 +205,7 @@ function usePolicyPreview(
           paymentResults,
           preconditionResults,
           priceResult,
+          participationResult,
           extensionResult,
           winnerDetResult,
           winnerPriceResult,
@@ -216,6 +229,7 @@ function usePolicyPreview(
             paymentByIndex,
             preconditionByIndex,
             priceProgressionByIndex,
+            participation: participationResult ?? undefined,
             extension: extensionResult ?? undefined,
             winnerDetermination: winnerDetResult ?? undefined,
             winnerPriceDetermination: winnerPriceResult ?? undefined,
@@ -335,6 +349,19 @@ export function AuctionStep3Policies({
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       <DismissibleError message={generalError} />
+
+      {/* Participation */}
+      {hasGroup('PARTICIPATION') && (
+        <PolicyParticipationSection
+          enabled={form.participationEnabled}
+          name={form.participationName}
+          description={form.participationDescription}
+          onToggle={(enabled) => onChange({ participationEnabled: enabled })}
+          onNameChange={(v) => onChange({ participationName: v })}
+          onDescriptionChange={(v) => onChange({ participationDescription: v })}
+          groupDescription={getGroupDescription('PARTICIPATION')}
+        />
+      )}
 
       {/* Payment */}
       {hasGroup('PAYMENT') && (

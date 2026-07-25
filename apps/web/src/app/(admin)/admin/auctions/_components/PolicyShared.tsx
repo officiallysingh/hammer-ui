@@ -25,6 +25,10 @@ export function fmtLabel(value?: unknown): string {
 }
 
 export const POLICY_DEFAULTS: Record<string, { name: string; description: string }> = {
+  PARTICIPATION_POLICY: {
+    name: 'Auction Participation Policy',
+    description: 'Policy governing participation eligibility in the auction',
+  },
   MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY: {
     name: 'Minimum required participants',
     description: 'Minimum required participants, if not met then the Auction will be cancelled',

@@ -205,6 +205,7 @@ export function AuctionStep1Details({
             error={fieldErrors.format}
             placeholder="Select format..."
             loading={loadingOptions}
+            disabledValues={formats.filter((f) => f.label !== 'Simple').map((f) => f.value)}
           />
 
           <div className="md:col-span-2 space-y-1.5">
