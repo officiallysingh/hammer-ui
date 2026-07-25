@@ -204,6 +204,8 @@ export interface PolicyItemRQ {
   priceChangePolicies?: PolicyItemRQ[];
   postPayment?: boolean;
   prePayment?: boolean;
+  typeId?: string;
+  manualApproval?: boolean;
 }
 
 /** Mirrors the backend's `Evaluation<E>` — result of running a policy's rule engine. */

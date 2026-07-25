@@ -16,6 +16,7 @@ import {
   PAYMENT_HEAD_TYPE_OPTIONS_POST,
   PAYMENT_POLICY_NAME_DEFAULTS,
   PAYMENT_HEAD_DEFAULT,
+  PAYMENT_HEAD_DEFAULT_POST,
   PolicyInfoButton,
   SortButtons,
   moveItem,
@@ -37,14 +38,18 @@ interface Props {
   evaluationsByIndex?: Record<number, PolicyEvaluationMap>;
 }
 
-const EMPTY_HEAD: PolicyHeadItem = {
-  name: PAYMENT_HEAD_DEFAULT.name,
-  description: PAYMENT_HEAD_DEFAULT.description,
-  type: '',
-  basis: '',
-  value: '',
-  refundable: false,
-};
+function makeEmptyHead(scheduleReference: ScheduleReference): PolicyHeadItem {
+  const defaults =
+    scheduleReference === 'AUCTION_END_TIME' ? PAYMENT_HEAD_DEFAULT_POST : PAYMENT_HEAD_DEFAULT;
+  return {
+    name: defaults.name,
+    description: defaults.description,
+    type: '',
+    basis: '',
+    value: '',
+    refundable: false,
+  };
+}
 
 function makeEmptyPolicy(scheduleReference: ScheduleReference): PaymentPolicyItem {
   const defaults = PAYMENT_POLICY_NAME_DEFAULTS[scheduleReference];
@@ -54,7 +59,7 @@ function makeEmptyPolicy(scheduleReference: ScheduleReference): PaymentPolicyIte
     scheduleReference,
     offsetDays: '',
     offsetHours: '0',
-    heads: [{ ...EMPTY_HEAD }],
+    heads: [makeEmptyHead(scheduleReference)],
   };
 }
 
@@ -108,7 +113,8 @@ export function PolicyPaymentSection({
       ? PAYMENT_HEAD_BASIS_OPTIONS_POST
       : PAYMENT_HEAD_BASIS_OPTIONS_PRE;
 
-  const addHead = (i: number) => update(i, { heads: [...policies[i]!.heads, { ...EMPTY_HEAD }] });
+  const addHead = (i: number) =>
+    update(i, { heads: [...policies[i]!.heads, makeEmptyHead(fixedScheduleReference)] });
   const removeHead = (i: number, j: number) =>
     update(i, { heads: policies[i]!.heads.filter((_, idx) => idx !== j) });
   const updateHead = (i: number, j: number, patch: Partial<PolicyHeadItem>) =>

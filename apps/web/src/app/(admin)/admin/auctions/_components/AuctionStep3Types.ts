@@ -44,6 +44,8 @@ export interface Step3State {
   participationEnabled: boolean;
   participationName: string;
   participationDescription: string;
+  participationTypeId: string;
+  participationManualApproval: boolean;
   paymentPolicies: PaymentPolicyItem[];
   preconditions: PreconditionItem[];
   priceChangePolicies: PriceChangeItem[];
@@ -68,6 +70,8 @@ export const initialStep3: Step3State = {
   participationEnabled: false,
   participationName: '',
   participationDescription: '',
+  participationTypeId: '',
+  participationManualApproval: false,
   paymentPolicies: [],
   preconditions: [],
   priceChangePolicies: [],

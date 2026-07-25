@@ -170,6 +170,8 @@ export function buildParticipationItem(step3: Step3State): PolicyItemRQ | null {
     type: 'PARTICIPATION_POLICY',
     name: step3.participationName || undefined,
     description: step3.participationDescription || undefined,
+    typeId: step3.participationTypeId || undefined,
+    manualApproval: step3.participationManualApproval,
   };
 }
 
@@ -222,6 +224,8 @@ export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partia
     out.participationEnabled = true;
     out.participationName = p.name ?? '';
     out.participationDescription = p.description ?? '';
+    out.participationTypeId = p.typeId ?? '';
+    out.participationManualApproval = p.manualApproval ?? false;
   }
 
   const payment = groups['PAYMENT'];

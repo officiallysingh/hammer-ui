@@ -115,6 +115,11 @@ export const PAYMENT_HEAD_DEFAULT: { name: string; description: string } = {
   description: 'Earnest money deposit',
 };
 
+export const PAYMENT_HEAD_DEFAULT_POST: { name: string; description: string } = {
+  name: 'Winning payment',
+  description: 'Winning amount payment',
+};
+
 export function PolicyInfoButton({ description }: { description: string }) {
   const [open, setOpen] = useState(false);
   return (

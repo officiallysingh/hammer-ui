@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
-import { auctionsApi, PolicyGroup, PolicyEvaluationMap } from '@repo/api';
+import { auctionsApi, PolicyGroup } from '@repo/api';
 import { Button } from '@repo/ui';
 import { DismissibleError, SelectOption } from './AuctionShared';
 import {
@@ -10,16 +10,7 @@ import {
   PAYMENT_POLICY_NAME_DEFAULTS,
   PAYMENT_HEAD_DEFAULT,
 } from './PolicyShared';
-import {
-  mapSavedPolicies,
-  buildPaymentPolicyItem,
-  buildPreconditionItem,
-  buildPriceProgressionWrapper,
-  buildParticipationItem,
-  buildExtensionItem,
-  buildWinnerDeterminationItem,
-  buildWinnerPriceDeterminationItem,
-} from './AuctionStep3PolicyMapping';
+import { mapSavedPolicies } from './AuctionStep3PolicyMapping';
 import { PolicyPaymentSection } from './PolicyPaymentSection';
 import { PolicyParticipationSection } from './PolicyParticipationSection';
 import { PolicyPreconditionsSection } from './PolicyPreconditionsSection';
@@ -134,116 +125,6 @@ function seedMandatoryDefaults(current: Step3State, groups: PolicyGroup[]): Part
   return patch;
 }
 
-// ── Live preview — debounced /preview calls against the not-yet-saved draft ────
-// Each leaf policy is previewed independently so its evaluation can be shown inline,
-// at the bottom of the block that edits it, instead of in one consolidated block.
-
-interface PolicyPreviewState {
-  paymentByIndex: Record<number, PolicyEvaluationMap>;
-  preconditionByIndex: Record<number, PolicyEvaluationMap>;
-  priceProgressionByIndex: Record<number, PolicyEvaluationMap>;
-  participation?: PolicyEvaluationMap;
-  extension?: PolicyEvaluationMap;
-  winnerDetermination?: PolicyEvaluationMap;
-  winnerPriceDetermination?: PolicyEvaluationMap;
-}
-
-const EMPTY_PREVIEW_STATE: PolicyPreviewState = {
-  paymentByIndex: {},
-  preconditionByIndex: {},
-  priceProgressionByIndex: {},
-};
-
-function usePolicyPreview(
-  auctionId: string | undefined,
-  form: Step3State,
-  currencyUnit: string,
-): PolicyPreviewState {
-  const [state, setState] = useState<PolicyPreviewState>(EMPTY_PREVIEW_STATE);
-  const formSnapshot = JSON.stringify(form);
-
-  useEffect(() => {
-    if (!auctionId) {
-      setState(EMPTY_PREVIEW_STATE);
-      return;
-    }
-    const timer = setTimeout(() => {
-      const preview = (item: ReturnType<typeof buildExtensionItem>) =>
-        item
-          ? auctionsApi.previewAuctionPolicy(auctionId, item).catch(() => null)
-          : Promise.resolve(null);
-
-      const paymentTasks = form.paymentPolicies
-        .map((p, i) => ({ i, item: buildPaymentPolicyItem(p, i + 1, currencyUnit) }))
-        .filter((t) => t.item !== null);
-      const preconditionTasks = form.preconditions
-        .map((p, i) => ({ i, item: buildPreconditionItem(p) }))
-        .filter((t) => t.item !== null);
-      const priceWrapper = buildPriceProgressionWrapper(form.priceChangePolicies);
-      const priceValidIndices = form.priceChangePolicies
-        .map((p, i) => (p.type ? i : -1))
-        .filter((i) => i !== -1);
-
-      Promise.all([
-        Promise.all(
-          paymentTasks.map((t) =>
-            preview(t.item).then((res) => (res ? ([t.i, res] as const) : null)),
-          ),
-        ),
-        Promise.all(
-          preconditionTasks.map((t) =>
-            preview(t.item).then((res) => (res ? ([t.i, res] as const) : null)),
-          ),
-        ),
-        preview(priceWrapper),
-        preview(buildParticipationItem(form)),
-        preview(buildExtensionItem(form)),
-        preview(buildWinnerDeterminationItem(form)),
-        preview(buildWinnerPriceDeterminationItem(form)),
-      ]).then(
-        ([
-          paymentResults,
-          preconditionResults,
-          priceResult,
-          participationResult,
-          extensionResult,
-          winnerDetResult,
-          winnerPriceResult,
-        ]) => {
-          const paymentByIndex: Record<number, PolicyEvaluationMap> = {};
-          for (const r of paymentResults) if (r) paymentByIndex[r[0]] = r[1];
-
-          const preconditionByIndex: Record<number, PolicyEvaluationMap> = {};
-          for (const r of preconditionResults) if (r) preconditionByIndex[r[0]] = r[1];
-
-          const priceProgressionByIndex: Record<number, PolicyEvaluationMap> = {};
-          if (priceResult) {
-            Object.entries(priceResult).forEach(([name, evaluation], k) => {
-              const origIndex = priceValidIndices[k];
-              if (origIndex !== undefined)
-                priceProgressionByIndex[origIndex] = { [name]: evaluation };
-            });
-          }
-
-          setState({
-            paymentByIndex,
-            preconditionByIndex,
-            priceProgressionByIndex,
-            participation: participationResult ?? undefined,
-            extension: extensionResult ?? undefined,
-            winnerDetermination: winnerDetResult ?? undefined,
-            winnerPriceDetermination: winnerPriceResult ?? undefined,
-          });
-        },
-      );
-    }, 600);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auctionId, formSnapshot, currencyUnit]);
-
-  return state;
-}
-
 interface AuctionStep3PoliciesProps {
   auctionId?: string;
   form: Step3State;
@@ -283,8 +164,6 @@ export function AuctionStep3Policies({
   const [loadingGroups, setLoadingGroups] = useState(true);
   // Track whether we've already seeded defaults so we only do it once
   const seededRef = useRef(false);
-
-  const preview = usePolicyPreview(auctionId, form, currencyUnit);
 
   useEffect(() => {
     if (!auctionType) return;
@@ -353,12 +232,14 @@ export function AuctionStep3Policies({
       {/* Participation */}
       {hasGroup('PARTICIPATION') && (
         <PolicyParticipationSection
-          enabled={form.participationEnabled}
           name={form.participationName}
           description={form.participationDescription}
-          onToggle={(enabled) => onChange({ participationEnabled: enabled })}
           onNameChange={(v) => onChange({ participationName: v })}
           onDescriptionChange={(v) => onChange({ participationDescription: v })}
+          typeId={form.participationTypeId}
+          onTypeIdChange={(v) => onChange({ participationTypeId: v })}
+          manualApproval={form.participationManualApproval}
+          onManualApprovalToggle={(v) => onChange({ participationManualApproval: v })}
           groupDescription={getGroupDescription('PARTICIPATION')}
         />
       )}
@@ -375,7 +256,6 @@ export function AuctionStep3Policies({
           groupDescription={getGroupDescription('PAYMENT')}
           title="Pre Payment / Participation Eligibility Policy"
           fixedScheduleReference="AUCTION_START_TIME"
-          evaluationsByIndex={preview.paymentByIndex}
         />
       )}
 
@@ -387,7 +267,6 @@ export function AuctionStep3Policies({
           options={getGroupOptions('PRECONDITION')}
           fieldErrors={fieldErrors}
           groupDescription={getGroupDescription('PRECONDITION')}
-          evaluationsByIndex={preview.preconditionByIndex}
         />
       )}
 
@@ -399,7 +278,6 @@ export function AuctionStep3Policies({
           options={getGroupOptions('PRICE_PROGRESSION')}
           fieldErrors={fieldErrors}
           groupDescription={getGroupDescription('PRICE_PROGRESSION')}
-          evaluationsByIndex={preview.priceProgressionByIndex}
         />
       )}
 
@@ -436,7 +314,6 @@ export function AuctionStep3Policies({
           options={getGroupOptions(extensionGroupName)}
           fieldErrors={fieldErrors}
           groupDescription={getGroupDescription(extensionGroupName)}
-          evaluations={preview.extension}
         />
       )}
 
@@ -494,8 +371,6 @@ export function AuctionStep3Policies({
           fieldErrors={fieldErrors}
           winnerGroupInfo={getGroupDescription('WINNER_DETERMINATION')}
           winnerPriceGroupInfo={getGroupDescription('WINNER_PRICE_DETERMINATION')}
-          winnerDeterminationEvaluations={preview.winnerDetermination}
-          winnerPriceDeterminationEvaluations={preview.winnerPriceDetermination}
         />
       )}
 
@@ -511,7 +386,6 @@ export function AuctionStep3Policies({
           groupDescription={getGroupDescription('PAYMENT')}
           title="Post Payment / Winning Amount Payment Policy"
           fixedScheduleReference="AUCTION_END_TIME"
-          evaluationsByIndex={preview.paymentByIndex}
         />
       )}
 
