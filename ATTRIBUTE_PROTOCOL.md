@@ -79,7 +79,7 @@ The editor shows/hides block sub-keys automatically based on activation conditio
 
 ## `ui:component` — Widget override (both surfaces)
 
-| Value          | Applies to metaType      | Renders                                                                     |
+| Value          | Applies to dataType      | Renders                                                                     |
 | -------------- | ------------------------ | --------------------------------------------------------------------------- |
 | `checkbox`     | BOOLEAN                  | Single checkbox — checked = true                                            |
 | `toggle`       | BOOLEAN                  | Animated pill switch                                                        |
@@ -292,9 +292,9 @@ Group of related leaf values?        → COMPOSITE_PROPERTY
 Repeating list of items?             → LIST_PROPERTY
 ```
 
-### Step 2: Choose the metaType
+### Step 2: Choose the dataType
 
-| Data          | metaType                  |
+| Data          | dataType                  |
 | ------------- | ------------------------- |
 | Text (short)  | `STRING`                  |
 | Text (long)   | `STRING` + `ui:multiline` |
@@ -311,7 +311,7 @@ Repeating list of items?             → LIST_PROPERTY
 Select an input widget and style it:
 
 ```
-metaType: STRING
+dataType: STRING
 html:placeholder  →  Enter product name…
 form:size         →  lg
 form:variant      →  outline
@@ -319,7 +319,7 @@ form:layout       →  vertical
 ```
 
 ```
-metaType: INTEGER
+dataType: INTEGER
 ui:component     →  slider
 html:min         →  0
 html:max         →  100000
@@ -333,7 +333,7 @@ form:label.position →  left
 Choose how the stored value looks in public views:
 
 ```
-metaType: STRING
+dataType: STRING
 list:display    →  badge
 list:badge.color   →  success
 list:badge.variant →  soft
@@ -341,7 +341,7 @@ list:prefix     →  #
 ```
 
 ```
-metaType: INTEGER
+dataType: INTEGER
 list:display        →  price
 list:price.currency →  INR
 list:price.size     →  lg
@@ -435,14 +435,14 @@ if (compositeLayout === 'accordion') {
 ### Basic text with placeholder
 
 ```
-metaType: STRING
+dataType: STRING
 html:placeholder  →  e.g. SKU-001-BLK
 ```
 
 ### Compact form input (horizontal label)
 
 ```
-metaType: STRING
+dataType: STRING
 html:placeholder    →  e.g. SKU-001-BLK
 form:size           →  sm
 form:variant        →  outline
@@ -452,7 +452,7 @@ form:label.position →  left
 ### Coloured status badge
 
 ```
-metaType:       STRING
+dataType:       STRING
 style:options   →  Active:active,Inactive:inactive,Pending:pending
 ui:component    →  option-pills
 list:display    →  badge
@@ -463,7 +463,7 @@ list:badge.variant →  soft
 ### Price with currency symbol
 
 ```
-metaType:           INTEGER
+dataType:           INTEGER
 ui:component        →  slider
 html:min            →  0
 html:max            →  100000
@@ -476,7 +476,7 @@ list:price.size     →  md
 ### Percentage field with suffix
 
 ```
-metaType:      FLOAT
+dataType:      FLOAT
 html:min       →  0
 html:max       →  100
 html:step      →  0.5
@@ -538,7 +538,7 @@ COMPOSITE "Battery"
 ### Product image thumbnail
 
 ```
-metaType:       FILE
+dataType:       FILE
 html:accept     →  image/*
 list:display    →  image
 list:image.size →  md
@@ -585,7 +585,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
         "type": "COMPLEX_PROPERTY",
         "name": "product_title",
         "label": "Product Title",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "html:placeholder": "e.g. Apple iPhone 16 Pro Max 256 GB"
         },
@@ -595,7 +595,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
         "type": "COMPLEX_PROPERTY",
         "name": "selling_price",
         "label": "Selling Price",
-        "metaType": "INTEGER",
+        "dataType": "INTEGER",
         "attributes": {
           "html:min": "0",
           "html:placeholder": "139900",
@@ -611,7 +611,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
         "type": "COMPLEX_PROPERTY",
         "name": "rating",
         "label": "Rating",
-        "metaType": "INTEGER",
+        "dataType": "INTEGER",
         "attributes": {
           "ui:component": "rating",
           "list:display": "rating"
@@ -621,7 +621,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
         "type": "COMPLEX_PROPERTY",
         "name": "main_image",
         "label": "Main Image",
-        "metaType": "FILE",
+        "dataType": "FILE",
         "attributes": {
           "html:accept": "image/*",
           "list:display": "image",
@@ -634,7 +634,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
         "type": "LIST_PROPERTY",
         "name": "highlights",
         "label": "Key Highlights",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "list:list.layout": "inline",
           "list:list.item-style": "separated",
@@ -645,7 +645,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
             "type": "COMPLEX_PROPERTY",
             "name": "highlight",
             "label": "Highlight",
-            "metaType": "STRING",
+            "dataType": "STRING",
             "attributes": { "html:placeholder": "e.g. A18 Pro Chip" }
           }
         ]
@@ -654,7 +654,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
         "type": "COMPOSITE_PROPERTY",
         "name": "display_specs",
         "label": "Display",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "list:composite.layout": "card"
         },
@@ -663,7 +663,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
             "type": "COMPLEX_PROPERTY",
             "name": "screen_size",
             "label": "Screen Size",
-            "metaType": "FLOAT",
+            "dataType": "FLOAT",
             "attributes": {
               "html:min": "3.0",
               "html:max": "10.0",
@@ -677,7 +677,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
             "type": "COMPLEX_PROPERTY",
             "name": "resolution",
             "label": "Resolution",
-            "metaType": "STRING",
+            "dataType": "STRING",
             "attributes": {
               "html:placeholder": "2868 × 1320 pixels",
               "form:size": "sm"
@@ -687,7 +687,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
             "type": "COMPLEX_PROPERTY",
             "name": "display_type",
             "label": "Type",
-            "metaType": "STRING",
+            "dataType": "STRING",
             "attributes": {
               "style:options": "Super Retina XDR OLED,Liquid Retina HD,LTPO AMOLED",
               "ui:component": "option-pills",
@@ -698,7 +698,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
             "type": "COMPLEX_PROPERTY",
             "name": "refresh_rate",
             "label": "Refresh Rate",
-            "metaType": "INTEGER",
+            "dataType": "INTEGER",
             "attributes": {
               "style:options": "60Hz,90Hz,120Hz,144Hz",
               "ui:component": "option-pills",
@@ -712,7 +712,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
         "type": "COMPOSITE_PROPERTY",
         "name": "camera_specs",
         "label": "Camera",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "list:composite.layout": "grid",
           "list:composite.columns": "2"
@@ -722,28 +722,28 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
             "type": "COMPLEX_PROPERTY",
             "name": "rear_camera",
             "label": "Rear Camera",
-            "metaType": "STRING",
+            "dataType": "STRING",
             "attributes": { "html:placeholder": "48MP + 12MP + 12MP" }
           },
           {
             "type": "COMPLEX_PROPERTY",
             "name": "front_camera",
             "label": "Front Camera",
-            "metaType": "STRING",
+            "dataType": "STRING",
             "attributes": { "html:placeholder": "12MP TrueDepth" }
           },
           {
             "type": "COMPLEX_PROPERTY",
             "name": "video_recording",
             "label": "Video",
-            "metaType": "STRING",
+            "dataType": "STRING",
             "attributes": { "html:placeholder": "4K @ 24/30/60fps" }
           },
           {
             "type": "COMPLEX_PROPERTY",
             "name": "features",
             "label": "Camera Features",
-            "metaType": "STRING",
+            "dataType": "STRING",
             "attributes": {
               "ui:component": "tag-input",
               "html:placeholder": "Night mode,Portrait,Cinematic…"
@@ -755,7 +755,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
         "type": "COMPOSITE_PROPERTY",
         "name": "battery",
         "label": "Battery",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "list:composite.layout": "definition",
           "list:composite.label-width": "w-36"
@@ -765,7 +765,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
             "type": "COMPLEX_PROPERTY",
             "name": "capacity",
             "label": "Capacity",
-            "metaType": "INTEGER",
+            "dataType": "INTEGER",
             "attributes": {
               "list:suffix": " mAh",
               "form:size": "sm"
@@ -775,7 +775,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
             "type": "COMPLEX_PROPERTY",
             "name": "charging",
             "label": "Charging",
-            "metaType": "STRING",
+            "dataType": "STRING",
             "attributes": {
               "html:placeholder": "27W wired, 25W MagSafe",
               "form:size": "sm"
@@ -785,7 +785,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
             "type": "COMPLEX_PROPERTY",
             "name": "battery_life",
             "label": "Battery Life",
-            "metaType": "STRING",
+            "dataType": "STRING",
             "attributes": {
               "html:placeholder": "Up to 33 hours video playback",
               "form:size": "sm"
@@ -797,7 +797,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
         "type": "COMPLEX_PROPERTY",
         "name": "description",
         "label": "Description",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "ui:multiline": "true",
           "ui:rows": "6",
@@ -845,21 +845,21 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/components \
         "type": "COMPLEX_PROPERTY",
         "name": "length",
         "label": "Length",
-        "metaType": "FLOAT",
+        "dataType": "FLOAT",
         "attributes": { "html:min": "0", "html:max": "500", "html:step": "0.1", "html:placeholder": "cm", "form:size": "sm", "form:layout": "horizontal" }
       },
       {
         "type": "COMPLEX_PROPERTY",
         "name": "width",
         "label": "Width",
-        "metaType": "FLOAT",
+        "dataType": "FLOAT",
         "attributes": { "html:min": "0", "html:max": "500", "html:step": "0.1", "html:placeholder": "cm", "form:size": "sm", "form:layout": "horizontal" }
       },
       {
         "type": "COMPLEX_PROPERTY",
         "name": "height",
         "label": "Height",
-        "metaType": "FLOAT",
+        "dataType": "FLOAT",
         "attributes": { "html:min": "0", "html:max": "500", "html:step": "0.1", "html:placeholder": "cm", "form:size": "sm", "form:layout": "horizontal" }
       }
     ]
@@ -881,7 +881,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/components \
         "type": "COMPLEX_PROPERTY",
         "name": "status",
         "label": "Status",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "style:options": "Active:active,Inactive:inactive,Pending:pending,Archived:archived",
           "ui:component": "option-pills",
@@ -911,7 +911,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/components \
         "type": "COMPLEX_PROPERTY",
         "name": "min_price",
         "label": "Min Price",
-        "metaType": "INTEGER",
+        "dataType": "INTEGER",
         "attributes": {
           "ui:component": "slider",
           "html:min": "0",
@@ -926,7 +926,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/components \
         "type": "COMPLEX_PROPERTY",
         "name": "max_price",
         "label": "Max Price",
-        "metaType": "INTEGER",
+        "dataType": "INTEGER",
         "attributes": {
           "ui:component": "slider",
           "html:min": "0",
@@ -999,7 +999,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
         "type": "COMPLEX_PROPERTY",
         "name": "brand",
         "label": "Brand",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "html:placeholder": "e.g. Samsung, Apple",
           "form:size": "md",
@@ -1012,7 +1012,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
         "type": "COMPLEX_PROPERTY",
         "name": "status",
         "label": "Status",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "style:options": "Active:active,Inactive:inactive,Pending:pending",
           "ui:component": "option-pills",
@@ -1026,7 +1026,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
         "type": "COMPLEX_PROPERTY",
         "name": "price",
         "label": "Price",
-        "metaType": "INTEGER",
+        "dataType": "INTEGER",
         "attributes": {
           "ui:component": "slider",
           "html:min": "0",
@@ -1042,7 +1042,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
         "type": "COMPLEX_PROPERTY",
         "name": "color",
         "label": "Color",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "style:color-options": "black,white,silver,gold,blue,red",
           "list:display": "color-swatch"
@@ -1052,7 +1052,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
         "type": "COMPLEX_PROPERTY",
         "name": "product_image",
         "label": "Product Image",
-        "metaType": "FILE",
+        "dataType": "FILE",
         "attributes": {
           "html:accept": "image/*",
           "list:display": "image",
@@ -1065,7 +1065,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
         "type": "COMPLEX_PROPERTY",
         "name": "in_stock",
         "label": "In Stock",
-        "metaType": "BOOLEAN",
+        "dataType": "BOOLEAN",
         "attributes": {
           "ui:component": "toggle",
           "form:layout": "inline"
@@ -1075,7 +1075,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
         "type": "COMPLEX_PROPERTY",
         "name": "keywords",
         "label": "Keywords",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "ui:component": "tag-input",
           "html:placeholder": "Add keywords…",
@@ -1086,7 +1086,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
         "type": "COMPLEX_PROPERTY",
         "name": "description",
         "label": "Description",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "ui:multiline": "true",
           "ui:rows": "4",
@@ -1099,7 +1099,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
         "type": "COMPOSITE_PROPERTY",
         "name": "dimensions",
         "label": "Dimensions",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "list:composite.layout": "inline"
         },
@@ -1108,21 +1108,21 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
             "type": "COMPLEX_PROPERTY",
             "name": "length",
             "label": "Length",
-            "metaType": "FLOAT",
+            "dataType": "FLOAT",
             "attributes": { "html:min": "0", "html:max": "200", "html:step": "0.1", "html:placeholder": "cm", "form:size": "sm", "form:layout": "horizontal", "list:suffix": " cm" }
           },
           {
             "type": "COMPLEX_PROPERTY",
             "name": "width",
             "label": "Width",
-            "metaType": "FLOAT",
+            "dataType": "FLOAT",
             "attributes": { "html:min": "0", "html:max": "200", "html:step": "0.1", "html:placeholder": "cm", "form:size": "sm", "form:layout": "horizontal", "list:suffix": " cm" }
           },
           {
             "type": "COMPLEX_PROPERTY",
             "name": "weight",
             "label": "Weight",
-            "metaType": "FLOAT",
+            "dataType": "FLOAT",
             "attributes": { "html:min": "0", "html:max": "50", "html:step": "0.01", "html:placeholder": "kg", "form:size": "sm", "form:layout": "horizontal", "list:suffix": " kg" }
           }
         ]

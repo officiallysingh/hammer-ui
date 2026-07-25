@@ -1,4 +1,4 @@
-import type { PropertyType, MetaType, PropertyDef, ValidatorDef } from '@repo/api';
+import type { PropertyType, DataType, PropertyDef, ValidatorDef } from '@repo/api';
 
 export interface KV {
   key: string;
@@ -14,44 +14,44 @@ export const PROPERTY_TYPES: KV[] = [
 
 export const HAS_CHILDREN: PropertyType[] = ['COMPOSITE_PROPERTY', 'LIST_PROPERTY'];
 
-export function emptyProperty(metaTypes: KV[]): PropertyDef {
+export function emptyProperty(dataTypes: KV[]): PropertyDef {
   return {
     type: 'SIMPLE_PROPERTY',
     name: '',
     label: '',
-    metaType: (metaTypes[0]?.key ?? 'STRING') as MetaType,
+    dataType: (dataTypes[0]?.key ?? 'STRING') as DataType,
     validators: [],
   };
 }
 
 /** Extract the plain enum key from either a string "STRING" or an object {STRING: "Text"}. */
-export function extractMetaTypeKey(raw: unknown): string {
+export function extractDataTypeKey(raw: unknown): string {
   if (typeof raw === 'string') return raw;
   if (raw && typeof raw === 'object') return Object.keys(raw as object)[0] ?? '';
   return '';
 }
 
-/** Normalize raw API properties: resolve object-shaped metaType/validator.type to plain strings. */
+/** Normalize raw API properties: resolve object-shaped dataType/validator.type to plain strings. */
 export function normalizeProperties(properties: PropertyDef[]): PropertyDef[] {
   return properties.map(normalizeProperty);
 }
 
 function normalizeProperty(prop: PropertyDef): PropertyDef {
-  const metaType = extractMetaTypeKey(prop.metaType as unknown) as MetaType;
+  const dataType = extractDataTypeKey(prop.dataType as unknown) as DataType;
   const validators = (prop.validators ?? []).map((v) => ({
     ...v,
     type: extractValidatorType(v.type) as ValidatorDef['type'],
   }));
   return {
     ...prop,
-    metaType,
+    dataType,
     validators,
     value: prop.value ? prop.value.map(normalizeProperty) : prop.value,
     subProperties: prop.subProperties ? normalizeProperty(prop.subProperties) : prop.subProperties,
   };
 }
 
-/** Strip metaType from any property whose type is a container (HAS_CHILDREN), recursively. */
+/** Strip dataType from any property whose type is a container (HAS_CHILDREN), recursively. */
 export function sanitizeProperties(properties: PropertyDef[]): PropertyDef[] {
   return properties.map(sanitizeProperty);
 }
@@ -89,8 +89,8 @@ function sanitizeProperty(prop: PropertyDef): PropertyDef {
   return {
     ...prop,
     ...(isContainer
-      ? { metaType: undefined as unknown as MetaType }
-      : { metaType: extractMetaTypeKey(prop.metaType) as MetaType }),
+      ? { dataType: undefined as unknown as DataType }
+      : { dataType: extractDataTypeKey(prop.dataType) as DataType }),
     validators: validators.length > 0 ? validators : undefined,
     value: prop.value ? prop.value.map(sanitizeProperty) : undefined,
     subProperties: prop.subProperties ? sanitizeProperty(prop.subProperties) : undefined,

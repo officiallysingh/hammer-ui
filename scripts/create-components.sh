@@ -66,7 +66,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "street",
         "label": "Street Address",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "ui:multiline": "true",
           "ui:rows": "2",
@@ -78,7 +78,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "city",
         "label": "City",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "html:placeholder": "e.g. Mumbai"
         },
@@ -88,7 +88,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "state",
         "label": "State",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "style:options": "Andhra Pradesh,Arunachal Pradesh,Assam,Bihar,Chhattisgarh,Goa,Gujarat,Haryana,Himachal Pradesh,Jharkhand,Karnataka,Kerala,Madhya Pradesh,Maharashtra,Manipur,Meghalaya,Mizoram,Nagaland,Odisha,Punjab,Rajasthan,Sikkim,Tamil Nadu,Telangana,Tripura,Uttar Pradesh,Uttarakhand,West Bengal",
           "html:placeholder": "Select state"
@@ -99,7 +99,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "zip",
         "label": "PIN Code",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "html:placeholder": "6-digit PIN",
           "html:pattern": "[0-9]{6}"
@@ -130,7 +130,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "email",
         "label": "Email",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "html:type": "email",
           "html:placeholder": "you@example.com"
@@ -144,7 +144,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "phone",
         "label": "Phone Number",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "html:type": "tel",
           "html:placeholder": "+91 98765 43210",
@@ -156,7 +156,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "social_links",
         "label": "Social Links",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "ui:component": "tag-input",
           "html:placeholder": "Add profile URLs…"
@@ -183,14 +183,14 @@ create_component \
         "type": "COMPOSITE_PROPERTY",
         "name": "dimensions",
         "label": "Dimensions cm",
-        "metaType": "LIST",
+        "dataType": "LIST",
         "attributes": {},
         "value": [
           {
             "type": "COMPLEX_PROPERTY",
             "name": "length",
             "label": "Length",
-            "metaType": "FLOAT",
+            "dataType": "FLOAT",
             "attributes": {
               "html:min": "0",
               "html:max": "200",
@@ -203,7 +203,7 @@ create_component \
             "type": "COMPLEX_PROPERTY",
             "name": "width",
             "label": "Width",
-            "metaType": "FLOAT",
+            "dataType": "FLOAT",
             "attributes": {
               "html:min": "0",
               "html:max": "200",
@@ -216,7 +216,7 @@ create_component \
             "type": "COMPLEX_PROPERTY",
             "name": "height",
             "label": "Height",
-            "metaType": "FLOAT",
+            "dataType": "FLOAT",
             "attributes": {
               "html:min": "0",
               "html:max": "200",
@@ -247,7 +247,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "price",
         "label": "Price",
-        "metaType": "INTEGER",
+        "dataType": "INTEGER",
         "attributes": {
           "ui:component": "slider",
           "html:min": "0",
@@ -260,7 +260,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "stock_count",
         "label": "Stock Count",
-        "metaType": "INTEGER",
+        "dataType": "INTEGER",
         "attributes": {
           "ui:component": "stepper",
           "html:min": "0",
@@ -271,7 +271,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "in_stock",
         "label": "In Stock",
-        "metaType": "BOOLEAN",
+        "dataType": "BOOLEAN",
         "attributes": {
           "ui:component": "toggle"
         }
@@ -280,7 +280,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "condition",
         "label": "Condition",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "style:options": "New:new,Like New:like_new,Good:good,Fair:fair,Poor:poor",
           "ui:component": "option-pills"
@@ -290,7 +290,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "rating",
         "label": "Rating",
-        "metaType": "INTEGER",
+        "dataType": "INTEGER",
         "attributes": {
           "ui:component": "rating"
         }
@@ -316,7 +316,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "start_date",
         "label": "Start Date",
-        "metaType": "LOCAL_DATE",
+        "dataType": "LOCAL_DATE",
         "attributes": {
           "html:placeholder": "Select start date"
         },
@@ -326,7 +326,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "end_date",
         "label": "End Date",
-        "metaType": "LOCAL_DATE",
+        "dataType": "LOCAL_DATE",
         "attributes": {
           "html:placeholder": "Select end date"
         }
@@ -335,7 +335,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "duration_days",
         "label": "Duration days",
-        "metaType": "INTEGER",
+        "dataType": "INTEGER",
         "attributes": {
           "ui:component": "stepper",
           "html:min": "1",
@@ -363,7 +363,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "color",
         "label": "Color",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "style:color-options": "Black:black,White:white,Red:red,Navy:navy,Gold:gold,Silver:silver,#C0A060:tan"
         },
@@ -373,7 +373,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "size",
         "label": "Size",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "style:options": "XS,S,M,L,XL,XXL,3XL",
           "ui:component": "option-pills"
@@ -383,7 +383,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "variant_image",
         "label": "Variant Image",
-        "metaType": "FILE",
+        "dataType": "FILE",
         "attributes": {
           "html:accept": "image/*"
         }
@@ -409,7 +409,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "title",
         "label": "Title",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "html:placeholder": "Enter a descriptive title"
         },
@@ -419,7 +419,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "body",
         "label": "Body",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "ui:multiline": "true",
           "ui:rows": "6",
@@ -431,7 +431,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "keywords",
         "label": "Keywords",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "ui:component": "tag-input",
           "html:placeholder": "Add keywords…"
@@ -441,7 +441,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "reference_url",
         "label": "Reference URL",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "html:type": "url",
           "html:placeholder": "https://example.com"
@@ -469,7 +469,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "auction_start",
         "label": "Auction Start",
-        "metaType": "LOCAL_DATE_TIME",
+        "dataType": "LOCAL_DATE_TIME",
         "attributes": {
           "html:placeholder": "Select auction start time"
         },
@@ -479,7 +479,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "auction_end",
         "label": "Auction End",
-        "metaType": "LOCAL_DATE_TIME",
+        "dataType": "LOCAL_DATE_TIME",
         "attributes": {
           "html:placeholder": "Select auction end time"
         },
@@ -489,7 +489,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "reserve_price",
         "label": "Reserve Price",
-        "metaType": "LONG",
+        "dataType": "LONG",
         "attributes": {
           "html:placeholder": "Minimum selling price",
           "html:min": "0"
@@ -499,7 +499,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "auto_extend",
         "label": "Auto Extend",
-        "metaType": "BOOLEAN",
+        "dataType": "BOOLEAN",
         "attributes": {
           "ui:component": "toggle"
         }
@@ -508,7 +508,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "bid_increment",
         "label": "Bid Increment",
-        "metaType": "INTEGER",
+        "dataType": "INTEGER",
         "attributes": {
           "ui:component": "stepper",
           "html:min": "100",
@@ -537,7 +537,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "coordinates",
         "label": "Coordinates",
-        "metaType": "COORDINATES",
+        "dataType": "COORDINATES",
         "attributes": {
           "html:placeholder": "e.g. 19.0760, 72.8777"
         }
@@ -546,7 +546,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "place_name",
         "label": "Place Name",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "html:placeholder": "e.g. Gateway of India"
         }
@@ -555,7 +555,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "location_notes",
         "label": "Location Notes",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "ui:multiline": "true",
           "ui:rows": "3",
@@ -584,7 +584,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "warranty_period",
         "label": "Warranty Period",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "style:options": "No Warranty:no_warranty,3 Months:3m,6 Months:6m,1 Year:1y,2 Years:2y,Lifetime:lifetime",
           "ui:component": "option-pills"
@@ -595,7 +595,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "returnable",
         "label": "Returnable",
-        "metaType": "BOOLEAN",
+        "dataType": "BOOLEAN",
         "attributes": {
           "ui:component": "toggle"
         }
@@ -604,7 +604,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "return_window",
         "label": "Return Window",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "style:options": "7 Days:7d,15 Days:15d,30 Days:30d,60 Days:60d,90 Days:90d",
           "ui:component": "option-pills"
@@ -614,7 +614,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "policy_details",
         "label": "Policy Details",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "ui:multiline": "true",
           "ui:rows": "4",
@@ -643,7 +643,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "manufacture_year",
         "label": "Manufacture Year",
-        "metaType": "YEAR",
+        "dataType": "YEAR",
         "attributes": {
           "html:min": "1990",
           "html:max": "2026",
@@ -655,7 +655,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "registration",
         "label": "First Registration",
-        "metaType": "YEAR_MONTH",
+        "dataType": "YEAR_MONTH",
         "attributes": {
           "html:placeholder": "e.g. 2024-06"
         }
@@ -664,7 +664,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "mileage",
         "label": "Mileage km",
-        "metaType": "INTEGER",
+        "dataType": "INTEGER",
         "attributes": {
           "ui:component": "stepper",
           "html:min": "0",
@@ -677,7 +677,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "fuel_type",
         "label": "Fuel Type",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "style:options": "Petrol, Diesel, CNG, LPG, Electric, Hybrid",
           "ui:component": "option-pills"
@@ -688,7 +688,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "transmission",
         "label": "Transmission",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "style:options": "Manual, Automatic, CVT, DCT",
           "ui:component": "option-pills"
@@ -698,7 +698,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "engine_cc",
         "label": "Engine cc",
-        "metaType": "DOUBLE",
+        "dataType": "DOUBLE",
         "attributes": {
           "html:min": "0",
           "html:max": "10000",
@@ -728,7 +728,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "employment_type",
         "label": "Employment Type",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "style:options": "Full-time:full_time,Part-time:part_time,Contract:contract,Freelance:freelance,Internship:internship",
           "ui:component": "option-pills"
@@ -739,7 +739,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "salary_min",
         "label": "Min Salary",
-        "metaType": "INTEGER",
+        "dataType": "INTEGER",
         "attributes": {
           "ui:component": "slider",
           "html:min": "0",
@@ -752,7 +752,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "salary_max",
         "label": "Max Salary",
-        "metaType": "INTEGER",
+        "dataType": "INTEGER",
         "attributes": {
           "ui:component": "slider",
           "html:min": "0",
@@ -764,7 +764,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "required_skills",
         "label": "Required Skills",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "ui:component": "tag-input",
           "html:placeholder": "e.g. React, TypeScript, Go…"
@@ -775,7 +775,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "is_remote",
         "label": "Remote Work",
-        "metaType": "BOOLEAN",
+        "dataType": "BOOLEAN",
         "attributes": {
           "ui:component": "toggle"
         }
@@ -784,7 +784,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "application_deadline",
         "label": "Application Deadline",
-        "metaType": "LOCAL_DATE",
+        "dataType": "LOCAL_DATE",
         "attributes": {
           "html:placeholder": "Select deadline"
         },
@@ -794,7 +794,7 @@ create_component \
         "type": "COMPLEX_PROPERTY",
         "name": "job_description",
         "label": "Job Description",
-        "metaType": "STRING",
+        "dataType": "STRING",
         "attributes": {
           "ui:multiline": "true",
           "ui:rows": "6",

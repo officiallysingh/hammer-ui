@@ -1,9 +1,9 @@
 import type { ManagedTypeVM, PropertyDef } from '@repo/api';
 
-const INTEGER_META_TYPES = new Set(['BYTE', 'SHORT', 'INTEGER', 'LONG', 'BIG_INTEGER']);
+const INTEGER_DATA_TYPES = new Set(['BYTE', 'SHORT', 'INTEGER', 'LONG', 'BIG_INTEGER']);
 
-const DECIMAL_META_TYPES = new Set(['FLOAT', 'DOUBLE', 'BIG_DECIMAL']);
-const BOOLEAN_META_TYPES = new Set(['BOOLEAN']);
+const DECIMAL_DATA_TYPES = new Set(['FLOAT', 'DOUBLE', 'BIG_DECIMAL']);
+const BOOLEAN_DATA_TYPES = new Set(['BOOLEAN']);
 
 function isEmptyValue(value: unknown): boolean {
   if (value === undefined || value === null) return true;
@@ -16,13 +16,13 @@ function isEmptyValue(value: unknown): boolean {
 function normalizeValue(prop: PropertyDef, value: unknown): unknown {
   if (isEmptyValue(value)) return undefined;
 
-  if (BOOLEAN_META_TYPES.has(prop.metaType)) {
+  if (BOOLEAN_DATA_TYPES.has(prop.dataType)) {
     if (typeof value === 'boolean') return value;
     if (typeof value === 'string') return value === 'true';
     if (typeof value === 'number') return value !== 0;
   }
 
-  if (INTEGER_META_TYPES.has(prop.metaType)) {
+  if (INTEGER_DATA_TYPES.has(prop.dataType)) {
     if (typeof value === 'number') return value;
     if (typeof value === 'string') {
       const parsed = Number.parseInt(value, 10);
@@ -30,7 +30,7 @@ function normalizeValue(prop: PropertyDef, value: unknown): unknown {
     }
   }
 
-  if (DECIMAL_META_TYPES.has(prop.metaType)) {
+  if (DECIMAL_DATA_TYPES.has(prop.dataType)) {
     if (typeof value === 'number') return value;
     if (typeof value === 'string') {
       const parsed = Number.parseFloat(value);

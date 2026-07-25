@@ -288,22 +288,22 @@ function isRequired(prop: PropertyDef): boolean {
   });
 }
 
-const INTEGER_META_TYPES = new Set(['BYTE', 'SHORT', 'INTEGER', 'LONG', 'BIG_INTEGER', 'YEAR']);
+const INTEGER_DATA_TYPES = new Set(['BYTE', 'SHORT', 'INTEGER', 'LONG', 'BIG_INTEGER', 'YEAR']);
 
-const DECIMAL_META_TYPES = new Set(['FLOAT', 'DOUBLE', 'BIG_DECIMAL']);
-const BOOLEAN_META_TYPES = new Set(['BOOLEAN']);
+const DECIMAL_DATA_TYPES = new Set(['FLOAT', 'DOUBLE', 'BIG_DECIMAL']);
+const BOOLEAN_DATA_TYPES = new Set(['BOOLEAN']);
 
 function coerceValue(prop: PropertyDef, value: unknown): unknown {
   if (value === undefined || value === null) return value;
-  const metaType = resolveMetaType(prop.metaType as unknown);
+  const dataType = resolveDataType(prop.dataType as unknown);
 
-  if (BOOLEAN_META_TYPES.has(metaType)) {
+  if (BOOLEAN_DATA_TYPES.has(dataType)) {
     if (typeof value === 'boolean') return value;
     if (typeof value === 'string') return value === 'true';
     if (typeof value === 'number') return value !== 0;
   }
 
-  if (INTEGER_META_TYPES.has(metaType)) {
+  if (INTEGER_DATA_TYPES.has(dataType)) {
     if (typeof value === 'number') return value;
     if (typeof value === 'string') {
       if (value === '') return value;
@@ -312,7 +312,7 @@ function coerceValue(prop: PropertyDef, value: unknown): unknown {
     }
   }
 
-  if (DECIMAL_META_TYPES.has(metaType)) {
+  if (DECIMAL_DATA_TYPES.has(dataType)) {
     if (typeof value === 'number') return value;
     if (typeof value === 'string') {
       if (value === '') return value;
@@ -324,14 +324,14 @@ function coerceValue(prop: PropertyDef, value: unknown): unknown {
   return value;
 }
 
-function resolveMetaType(metaType: unknown): string {
-  if (typeof metaType === 'string') return metaType;
-  if (typeof metaType === 'object' && metaType !== null)
-    return Object.keys(metaType as Record<string, unknown>)[0] ?? '';
+function resolveDataType(dataType: unknown): string {
+  if (typeof dataType === 'string') return dataType;
+  if (typeof dataType === 'object' && dataType !== null)
+    return Object.keys(dataType as Record<string, unknown>)[0] ?? '';
   return '';
 }
 
-const META_TYPE_LABELS: Partial<Record<string, string>> = {
+const DATA_TYPE_LABELS: Partial<Record<string, string>> = {
   BOOLEAN: 'Boolean',
   BYTE: 'Byte',
   SHORT: 'Small Int',
@@ -371,7 +371,7 @@ interface FieldGroupProps {
 function PropertyFieldGroup({ prop, value, onChange, depth = 0 }: FieldGroupProps) {
   const indent = depth > 0 ? 'ml-4 pl-3 border-l border-border' : '';
   const required = isRequired(prop);
-  const resolvedMetaType = resolveMetaType(prop.metaType as unknown);
+  const resolvedDataType = resolveDataType(prop.dataType as unknown);
   const handleChange = (nextValue: unknown) => onChange(coerceValue(prop, nextValue));
 
   // COMPOSITE_PROPERTY → labeled card with child fields inside
@@ -436,9 +436,9 @@ function PropertyFieldGroup({ prop, value, onChange, depth = 0 }: FieldGroupProp
   const labelEl = (
     <div className="flex items-center gap-2">
       <FieldLabel label={prop.label} required={required} />
-      {resolvedMetaType && resolvedMetaType !== 'STRING' && (
+      {resolvedDataType && resolvedDataType !== 'STRING' && (
         <span className="text-[10px] text-muted-foreground/70 font-mono bg-muted/40 px-1.5 py-0.5 rounded">
-          {META_TYPE_LABELS[resolvedMetaType] ?? resolvedMetaType}
+          {DATA_TYPE_LABELS[resolvedDataType] ?? resolvedDataType}
         </span>
       )}
     </div>
@@ -920,7 +920,7 @@ function ScalarField({
   const numBase = `${base} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`;
 
   const strVal = typeof value === 'string' ? value : value != null ? String(value) : '';
-  const metaType = resolveMetaType(prop.metaType as unknown);
+  const dataType = resolveDataType(prop.dataType as unknown);
 
   // ── Read attributes as typed rendering hints (namespaced protocol) ────────
   const attrs = prop.attributes ?? {};
@@ -949,7 +949,7 @@ function ScalarField({
         .filter(Boolean)
     : null;
 
-  switch (metaType) {
+  switch (dataType) {
     // ── Numeric ──────────────────────────────────────────────────────────────
     case 'BYTE':
     case 'SHORT':

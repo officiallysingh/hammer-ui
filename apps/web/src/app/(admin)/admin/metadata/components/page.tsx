@@ -113,12 +113,12 @@ export default function ComponentsPage() {
       cell: ({ row }) => (
         <TagList
           tags={(row.original.properties ?? []).map((p) => {
-            const metaTypeLabel =
-              typeof p.metaType === 'string'
-                ? p.metaType
-                : (Object.keys(p.metaType as object)[0] ?? '');
+            const dataTypeLabel =
+              typeof p.dataType === 'string'
+                ? p.dataType
+                : (Object.keys(p.dataType as object)[0] ?? '');
 
-            const formattedLabel = metaTypeLabel
+            const formattedLabel = dataTypeLabel
               .replace(/_/g, ' ')
               .toLowerCase()
               .replace(/\b\w/g, (char) => char.toUpperCase());

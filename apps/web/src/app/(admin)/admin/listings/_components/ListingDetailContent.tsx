@@ -68,7 +68,7 @@ function PropValue({ prop, def }: { prop: EmbeddedProp; def?: PropertyDef }) {
   const uiComponent = attrs['ui:component'];
   const colorOptionsRaw = attrs['style:color-options'];
   const optionsRaw = attrs['style:options'];
-  const metaType = def?.metaType;
+  const dataType = def?.dataType;
 
   if (val === undefined || val === null || val === '') {
     return <span className="text-muted-foreground text-sm">—</span>;
@@ -265,7 +265,7 @@ function PropValue({ prop, def }: { prop: EmbeddedProp; def?: PropertyDef }) {
   }
 
   // BOOLEAN
-  if (metaType === 'BOOLEAN' || strVal === 'true' || strVal === 'false') {
+  if (dataType === 'BOOLEAN' || strVal === 'true' || strVal === 'false') {
     const isTrue = strVal === 'true';
     if (uiDisplay === 'badge' || uiComponent === 'toggle' || uiComponent === 'checkbox') {
       return isTrue ? (
@@ -507,8 +507,8 @@ function PropValue({ prop, def }: { prop: EmbeddedProp; def?: PropertyDef }) {
     );
   }
 
-  // metaType-specific rendering for structured values
-  if (metaType === 'COORDINATES' && typeof val === 'object' && val !== null) {
+  // dataType-specific rendering for structured values
+  if (dataType === 'COORDINATES' && typeof val === 'object' && val !== null) {
     const c = val as Record<string, unknown>;
     const lat = c['latitude'] != null ? String(c['latitude']) : '—';
     const lng = c['longitude'] != null ? String(c['longitude']) : '—';
@@ -519,7 +519,7 @@ function PropValue({ prop, def }: { prop: EmbeddedProp; def?: PropertyDef }) {
     );
   }
 
-  if (metaType === 'ADDRESS' && typeof val === 'object' && val !== null) {
+  if (dataType === 'ADDRESS' && typeof val === 'object' && val !== null) {
     const a = val as Record<string, unknown>;
     const parts = [
       a['addressLine1'],
@@ -533,7 +533,7 @@ function PropValue({ prop, def }: { prop: EmbeddedProp; def?: PropertyDef }) {
     return <span className="text-sm text-foreground">{parts.join(', ') || '—'}</span>;
   }
 
-  if (metaType === 'DURATION' && typeof strVal === 'string') {
+  if (dataType === 'DURATION' && typeof strVal === 'string') {
     const m = strVal.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/);
     if (m) {
       const parts: string[] = [];
@@ -544,7 +544,7 @@ function PropValue({ prop, def }: { prop: EmbeddedProp; def?: PropertyDef }) {
     }
   }
 
-  if (metaType === 'PERIOD' && typeof strVal === 'string') {
+  if (dataType === 'PERIOD' && typeof strVal === 'string') {
     const m = strVal.match(/^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)D)?$/);
     if (m) {
       const parts: string[] = [];

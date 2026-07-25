@@ -4,11 +4,11 @@ import { useState, useCallback, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Trash2, Plus } from 'lucide-react';
 import { Input, Label, Button } from '@repo/ui';
 import { metadataApi } from '@repo/api';
-import type { PropertyDef, ValidatorDef, MetaType, PropertyType } from '@repo/api';
+import type { PropertyDef, ValidatorDef, DataType, PropertyType } from '@repo/api';
 import { ValidatorRow } from './ValidatorRow';
 import { AttributeEditor } from './AttributeEditor';
 import { ATTR_PROTOCOL_MAP } from './attribute-protocol';
-import { PROPERTY_TYPES, HAS_CHILDREN, emptyProperty, extractMetaTypeKey } from './types';
+import { PROPERTY_TYPES, HAS_CHILDREN, emptyProperty, extractDataTypeKey } from './types';
 import type { KV } from './types';
 
 interface PropertyRowProps {
@@ -16,7 +16,7 @@ interface PropertyRowProps {
   index: number;
   total: number;
   depth: number; // 0 = root, 1 = child, 2 = grandchild (max)
-  metaTypes: KV[];
+  dataTypes: KV[];
   onUpdate: (patch: Partial<PropertyDef>) => void;
   onRemove: () => void;
   onMove: (dir: -1 | 1) => void;
@@ -27,7 +27,7 @@ export function PropertyRow({
   index,
   total,
   depth,
-  metaTypes,
+  dataTypes,
   onUpdate,
   onRemove,
   onMove,
@@ -42,7 +42,7 @@ export function PropertyRow({
     if (!mt) return;
     setLoadingValidators(true);
     try {
-      const result = await metadataApi.getValidatorsForMetaType(mt as MetaType);
+      const result = await metadataApi.getValidatorsForDataType(mt as DataType);
       setValidatorOptions(result);
     } catch {
       setValidatorOptions([]);
@@ -51,14 +51,14 @@ export function PropertyRow({
     }
   }, []);
 
-  // Fetch validators on mount if metaType set
+  // Fetch validators on mount if dataType set
   useEffect(() => {
-    const key = extractMetaTypeKey(prop.metaType);
+    const key = extractDataTypeKey(prop.dataType);
     if (key) fetchValidators(key);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleMetaTypeChange = (mt: string) => {
-    onUpdate({ metaType: mt as MetaType, validators: [] });
+  const handleDataTypeChange = (mt: string) => {
+    onUpdate({ dataType: mt as DataType, validators: [] });
     fetchValidators(mt);
   };
 
@@ -82,7 +82,7 @@ export function PropertyRow({
   const children = prop.value ?? [];
   const canHaveChildren = HAS_CHILDREN.includes(prop.type) && depth < 2;
 
-  const addChild = () => onUpdate({ value: [...children, emptyProperty(metaTypes)] });
+  const addChild = () => onUpdate({ value: [...children, emptyProperty(dataTypes)] });
 
   const updateChild = (ci: number, patch: Partial<PropertyDef>) =>
     onUpdate({ value: children.map((c, i) => (i === ci ? { ...c, ...patch } : c)) });
@@ -120,7 +120,7 @@ export function PropertyRow({
               <span className="text-xs text-destructive shrink-0">⚠ incomplete</span>
             )}
             <span className="text-xs text-muted-foreground font-mono shrink-0">
-              {extractMetaTypeKey(prop.metaType)}
+              {extractDataTypeKey(prop.dataType)}
             </span>
           </>
         )}
@@ -195,7 +195,7 @@ export function PropertyRow({
             </div>
           </div>
 
-          {/* Type + MetaType */}
+          {/* Type + DataType */}
           <div
             className={`grid gap-3 ${HAS_CHILDREN.includes(prop.type) ? 'grid-cols-1' : 'grid-cols-2'}`}
           >
@@ -209,8 +209,8 @@ export function PropertyRow({
                   onUpdate({
                     type: newType,
                     value: undefined,
-                    // clear metaType when switching to a container type
-                    ...(isContainer ? { metaType: undefined as unknown as MetaType } : {}),
+                    // clear dataType when switching to a container type
+                    ...(isContainer ? { dataType: undefined as unknown as DataType } : {}),
                   });
                 }}
                 className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -229,11 +229,11 @@ export function PropertyRow({
               <div className="space-y-1">
                 <Label className="text-xs">Meta type</Label>
                 <select
-                  value={extractMetaTypeKey(prop.metaType)}
-                  onChange={(e) => handleMetaTypeChange(e.target.value)}
+                  value={extractDataTypeKey(prop.dataType)}
+                  onChange={(e) => handleDataTypeChange(e.target.value)}
                   className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 >
-                  {metaTypes.map((t) => (
+                  {dataTypes.map((t) => (
                     <option key={t.key} value={t.key}>
                       {t.value}
                     </option>
@@ -341,7 +341,7 @@ export function PropertyRow({
                     index={ci}
                     total={children.length}
                     depth={depth + 1}
-                    metaTypes={metaTypes}
+                    dataTypes={dataTypes}
                     onUpdate={(patch) => updateChild(ci, patch)}
                     onRemove={() => removeChild(ci)}
                     onMove={(dir) => moveChild(ci, dir)}
@@ -371,7 +371,7 @@ export function PropertyRow({
                 {!prop.subProperties && (
                   <button
                     type="button"
-                    onClick={() => onUpdate({ subProperties: emptyProperty(metaTypes) })}
+                    onClick={() => onUpdate({ subProperties: emptyProperty(dataTypes) })}
                     className="text-xs text-primary hover:underline flex items-center gap-1"
                   >
                     <Plus className="h-3 w-3" />
@@ -385,7 +385,7 @@ export function PropertyRow({
                   index={0}
                   total={1}
                   depth={depth + 1}
-                  metaTypes={metaTypes}
+                  dataTypes={dataTypes}
                   onUpdate={(patch) =>
                     onUpdate({ subProperties: { ...prop.subProperties!, ...patch } })
                   }

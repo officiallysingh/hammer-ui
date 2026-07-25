@@ -1,6 +1,6 @@
 import { apiClient } from './client';
 
-export type MetaType =
+export type DataType =
   | 'BOOLEAN'
   | 'BYTE'
   | 'SHORT'
@@ -58,7 +58,7 @@ export interface PropertyDef {
   type: PropertyType;
   name: string;
   label: string;
-  metaType: MetaType;
+  dataType: DataType;
   path?: string;
   value?: PropertyDef[]; // child properties for COMPOSITE/LIST/SET
   validators?: ValidatorDef[];
@@ -239,18 +239,18 @@ export const metadataApi = {
     return normalizePairs(response.data);
   },
 
-  getMetaTypes: async (): Promise<{ key: string; value: string }[]> => {
+  getDataTypes: async (): Promise<{ key: string; value: string }[]> => {
     const response = await apiClient.get<Record<string, string>[]>(
-      '/api/v1/meta-data/model/meta-types',
+      '/api/v1/meta-data/model/data-types',
     );
     return normalizePairs(response.data);
   },
 
-  getValidatorsForMetaType: async (
-    metaType: MetaType,
+  getValidatorsForDataType: async (
+    dataType: DataType,
   ): Promise<{ key: string; value: string }[]> => {
     const response = await apiClient.get<Record<string, string>[]>(
-      `/api/v1/meta-data/model/meta-types/${metaType}/validators`,
+      `/api/v1/meta-data/model/data-types/${dataType}/validators`,
     );
     return normalizePairs(response.data);
   },

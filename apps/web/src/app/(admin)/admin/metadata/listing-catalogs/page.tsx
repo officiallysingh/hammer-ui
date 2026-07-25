@@ -111,9 +111,9 @@ export default function ListingCatalogsPage() {
       cell: ({ row }) => (
         <TagList
           tags={(row.original.properties ?? []).map((p) => {
-            const metaTypeLabel = Object.keys(p.metaType)[0] || '';
+            const dataTypeLabel = Object.keys(p.dataType)[0] || '';
 
-            const formattedLabel = metaTypeLabel
+            const formattedLabel = dataTypeLabel
               .replace(/_/g, ' ')
               .toLowerCase()
               .replace(/\b\w/g, (char) => char.toUpperCase());

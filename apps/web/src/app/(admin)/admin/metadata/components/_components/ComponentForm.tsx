@@ -144,7 +144,7 @@ export function ComponentForm({
   const [step, setStep] = useState<1 | 2>(1);
   const [previewTab, setPreviewTab] = useState<'build' | 'form' | 'preview'>('build');
   const [form, setForm] = useState<ComponentFormValues>({ ...EMPTY, ...initialValues });
-  const [metaTypeOptions, setMetaTypeOptions] = useState<KV[]>([]);
+  const [dataTypeOptions, setDataTypeOptions] = useState<KV[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -153,8 +153,8 @@ export function ComponentForm({
 
   useEffect(() => {
     metadataApi
-      .getMetaTypes()
-      .then(setMetaTypeOptions)
+      .getDataTypes()
+      .then(setDataTypeOptions)
       .catch(() => {})
       .finally(() => setLoadingOptions(false));
   }, []);
@@ -400,7 +400,7 @@ export function ComponentForm({
               <PropertyBuilder
                 properties={form.properties}
                 onChange={(properties) => set('properties', properties)}
-                metaTypes={metaTypeOptions}
+                dataTypes={dataTypeOptions}
               />
             ) : previewTab === 'form' ? (
               <PropertyFormPreview key="form" properties={form.properties} />

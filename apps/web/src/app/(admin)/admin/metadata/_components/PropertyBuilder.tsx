@@ -15,10 +15,10 @@ interface PropertyBuilderProps {
   properties: PropertyDef[];
   onChange: (props: PropertyDef[]) => void;
   propertyTypes?: KV[]; // kept for API compat, not used (PROPERTY_TYPES is internal)
-  metaTypes: KV[];
+  dataTypes: KV[];
 }
 
-export function PropertyBuilder({ properties, onChange, metaTypes }: PropertyBuilderProps) {
+export function PropertyBuilder({ properties, onChange, dataTypes }: PropertyBuilderProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const update = (i: number, patch: Partial<PropertyDef>) =>
@@ -46,7 +46,7 @@ export function PropertyBuilder({ properties, onChange, metaTypes }: PropertyBui
           index={i}
           total={properties.length}
           depth={0}
-          metaTypes={metaTypes}
+          dataTypes={dataTypes}
           onUpdate={(patch) => update(i, patch)}
           onRemove={() => remove(i)}
           onMove={(dir) => move(i, dir)}
@@ -58,7 +58,7 @@ export function PropertyBuilder({ properties, onChange, metaTypes }: PropertyBui
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => onChange([...properties, emptyProperty(metaTypes)])}
+          onClick={() => onChange([...properties, emptyProperty(dataTypes)])}
         >
           <Plus className="h-4 w-4 mr-1" />
           Add property

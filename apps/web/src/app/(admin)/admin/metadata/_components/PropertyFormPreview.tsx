@@ -15,10 +15,10 @@ interface PropertyFormPreviewProps {
 
 // ── Dummy value generation ────────────────────────────────────────────────────
 
-function resolveMT(metaType: unknown): string {
-  if (typeof metaType === 'string') return metaType;
-  if (typeof metaType === 'object' && metaType !== null)
-    return Object.keys(metaType as Record<string, unknown>)[0] ?? '';
+function resolveMT(dataType: unknown): string {
+  if (typeof dataType === 'string') return dataType;
+  if (typeof dataType === 'object' && dataType !== null)
+    return Object.keys(dataType as Record<string, unknown>)[0] ?? '';
   return '';
 }
 
@@ -33,7 +33,7 @@ function dummyScalar(prop: PropertyDef): string {
   const colorRaw = attrs['style:color-options'];
   if (colorRaw) return colorRaw.split(',')[0]?.trim() ?? '';
 
-  const mt = resolveMT(prop.metaType);
+  const mt = resolveMT(prop.dataType);
   switch (mt) {
     case 'BYTE':
     case 'SHORT':
@@ -83,7 +83,7 @@ function dummyValue(prop: PropertyDef): unknown {
     return [item];
   }
   // Spatial types are stored as structured objects, not strings
-  const mt = resolveMT(prop.metaType);
+  const mt = resolveMT(prop.dataType);
   if (mt === 'COORDINATES') return { latitude: 28.6139, longitude: 77.209 };
   if (mt === 'ADDRESS') {
     return {
@@ -155,10 +155,10 @@ export function PropertyFormPreview({ properties, initialValues }: PropertyFormP
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-function resolveMetaType(metaType: unknown): string {
-  if (typeof metaType === 'string') return metaType;
-  if (typeof metaType === 'object' && metaType !== null)
-    return Object.keys(metaType as Record<string, unknown>)[0] ?? '';
+function resolveDataType(dataType: unknown): string {
+  if (typeof dataType === 'string') return dataType;
+  if (typeof dataType === 'object' && dataType !== null)
+    return Object.keys(dataType as Record<string, unknown>)[0] ?? '';
   return '';
 }
 
@@ -413,13 +413,13 @@ function PreviewScalarField({
   const [tagInputVal, setTagInputVal] = useState('');
   const base = baseClass(formAttrs);
   const numBase = `${base} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`;
-  const metaType = resolveMetaType(prop.metaType as unknown);
+  const dataType = resolveDataType(prop.dataType as unknown);
 
   // Spatial types are stored as structured objects — handle before string coercion
-  if (metaType === 'COORDINATES') {
+  if (dataType === 'COORDINATES') {
     return <CoordinatesMapField value={rawValue} onChange={onChange} />;
   }
-  if (metaType === 'ADDRESS') {
+  if (dataType === 'ADDRESS') {
     return <AddressField value={rawValue} onChange={onChange} />;
   }
 
@@ -451,7 +451,7 @@ function PreviewScalarField({
     : null;
 
   // ── Numeric ──────────────────────────────────────────────────────────────────
-  if (['BYTE', 'SHORT', 'INTEGER', 'LONG', 'BIG_INTEGER'].includes(metaType)) {
+  if (['BYTE', 'SHORT', 'INTEGER', 'LONG', 'BIG_INTEGER'].includes(dataType)) {
     if (uiComponent === 'slider') {
       const min = attrMin ? Number(attrMin) : 0;
       const max = attrMax ? Number(attrMax) : 100;
@@ -541,7 +541,7 @@ function PreviewScalarField({
     );
   }
 
-  if (['FLOAT', 'DOUBLE', 'BIG_DECIMAL'].includes(metaType)) {
+  if (['FLOAT', 'DOUBLE', 'BIG_DECIMAL'].includes(dataType)) {
     if (uiComponent === 'slider') {
       const min = attrMin ? Number(attrMin) : 0;
       const max = attrMax ? Number(attrMax) : 100;
@@ -585,7 +585,7 @@ function PreviewScalarField({
   }
 
   // ── Boolean ───────────────────────────────────────────────────────────────────
-  if (metaType === 'BOOLEAN') {
+  if (dataType === 'BOOLEAN') {
     if (uiComponent === 'toggle') {
       const on = value === 'true';
       return (
@@ -638,15 +638,15 @@ function PreviewScalarField({
   }
 
   // ── Date / Time ───────────────────────────────────────────────────────────────
-  if (metaType === 'LOCAL_DATE')
+  if (dataType === 'LOCAL_DATE')
     return <DatePicker value={value || undefined} onChange={onChange} placeholder={placeholder} />;
-  if (metaType === 'LOCAL_TIME')
+  if (dataType === 'LOCAL_TIME')
     return <TimePicker value={value || undefined} onChange={onChange} placeholder={placeholder} />;
-  if (['LOCAL_DATE_TIME', 'ZONED_DATE_TIME', 'INSTANT'].includes(metaType))
+  if (['LOCAL_DATE_TIME', 'ZONED_DATE_TIME', 'INSTANT'].includes(dataType))
     return (
       <DateTimePicker value={value || undefined} onChange={onChange} placeholder={placeholder} />
     );
-  if (metaType === 'YEAR')
+  if (dataType === 'YEAR')
     return (
       <YearPicker
         value={value || undefined}
@@ -656,7 +656,7 @@ function PreviewScalarField({
         maxYear={attrMax ? Number(attrMax) : undefined}
       />
     );
-  if (metaType === 'YEAR_MONTH')
+  if (dataType === 'YEAR_MONTH')
     return (
       <input
         type="month"
@@ -668,7 +668,7 @@ function PreviewScalarField({
       />
     );
 
-  if (metaType === 'MONTH') {
+  if (dataType === 'MONTH') {
     const MONTHS = [
       'JANUARY',
       'FEBRUARY',
@@ -695,7 +695,7 @@ function PreviewScalarField({
     );
   }
 
-  if (metaType === 'DAY_OF_WEEK') {
+  if (dataType === 'DAY_OF_WEEK') {
     const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
     return (
       <select value={value} onChange={(e) => onChange(e.target.value)} className={base}>
@@ -888,7 +888,7 @@ function ListViewField({ prop, value }: { prop: PropertyDef; value: unknown }) {
     );
   }
 
-  const mt = resolveMT(prop.metaType);
+  const mt = resolveMT(prop.dataType);
 
   // Spatial types are structured objects — render before generic stringification
   if (mt === 'COORDINATES' && typeof value === 'object' && value !== null) {
