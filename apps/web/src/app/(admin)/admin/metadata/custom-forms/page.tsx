@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { metadataApi, ManagedTypeVM } from '@repo/api';
-import { Loader2, Trash2, RefreshCw, Plus, Pencil } from 'lucide-react';
+import { Loader2, Trash2, RefreshCw, Plus, Pencil, Eye } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@repo/ui';
 import { DataTable } from '@/components/common/data-table';
@@ -13,6 +13,7 @@ import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
 import { TagList } from '@/components/common/admin/TagList';
 import { PhraseSearchBar } from '@/components/common/admin/PhraseSearchBar';
+import { ManagedTypeViewDialog } from '../_components/ManagedTypeViewDialog';
 
 const TYPE = 'CUSTOM_FORM' as const;
 
@@ -25,6 +26,7 @@ export default function CustomFormsPage() {
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [viewId, setViewId] = useState<string | null>(null);
   const PAGE_SIZE = 16;
   const [pageIndex, setPageIndex] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -133,6 +135,16 @@ export default function CustomFormsPage() {
       header: 'Actions',
       cell: ({ row }) => (
         <div className="flex items-center gap-0.5">
+          <Tip label="View form">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+              onClick={() => setViewId(row.original.id)}
+            >
+              <Eye className="h-3.5 w-3.5" />
+            </Button>
+          </Tip>
           <Tip label="Edit form">
             <Button
               variant="ghost"
@@ -221,6 +233,8 @@ export default function CustomFormsPage() {
         }}
         onCancel={() => setConfirmId(null)}
       />
+
+      <ManagedTypeViewDialog typeId={viewId} onClose={() => setViewId(null)} />
     </div>
   );
 }
