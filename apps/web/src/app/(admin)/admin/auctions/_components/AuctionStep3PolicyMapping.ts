@@ -62,6 +62,7 @@ export function buildPaymentPolicyItem(
   const heads = p.heads.filter((h) => h.basis && h.value);
   if (heads.length === 0) return null;
   return {
+    type: 'PAYMENT_POLICY',
     name: p.name || undefined,
     description: p.description || undefined,
     priority,
@@ -170,8 +171,13 @@ export function buildParticipationItem(step3: Step3State): PolicyItemRQ | null {
     type: 'PARTICIPATION_POLICY',
     name: step3.participationName || undefined,
     description: step3.participationDescription || undefined,
+    priority: 1,
     typeId: step3.participationTypeId || undefined,
     manualApproval: step3.participationManualApproval,
+    preStartValidationDuration: buildWindowDuration(
+      step3.participationValidationHours,
+      step3.participationValidationMinutes,
+    ),
   };
 }
 
@@ -226,6 +232,9 @@ export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partia
     out.participationDescription = p.description ?? '';
     out.participationTypeId = p.typeId ?? '';
     out.participationManualApproval = p.manualApproval ?? false;
+    const { hours, minutes } = parseDurationWindow(p.preStartValidationDuration ?? 'PT0S');
+    out.participationValidationHours = hours;
+    out.participationValidationMinutes = minutes;
   }
 
   const payment = groups['PAYMENT'];

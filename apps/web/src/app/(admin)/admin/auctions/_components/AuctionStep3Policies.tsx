@@ -56,6 +56,8 @@ function seedMandatoryDefaults(current: Step3State, groups: PolicyGroup[]): Part
     patch.participationEnabled = true;
     patch.participationName = defaults?.name ?? '';
     patch.participationDescription = defaults?.description ?? '';
+    patch.participationValidationHours = '0';
+    patch.participationValidationMinutes = '0';
   }
 
   // Payment — mandatory
@@ -377,6 +379,10 @@ export function AuctionStep3Policies({
             onTypeIdChange={(v) => onChange({ participationTypeId: v })}
             manualApproval={form.participationManualApproval}
             onManualApprovalToggle={(v) => onChange({ participationManualApproval: v })}
+            validationHours={form.participationValidationHours}
+            onValidationHoursChange={(v) => onChange({ participationValidationHours: v })}
+            validationMinutes={form.participationValidationMinutes}
+            onValidationMinutesChange={(v) => onChange({ participationValidationMinutes: v })}
             groupDescription={getGroupDescription('PARTICIPATION')}
           />
         )}

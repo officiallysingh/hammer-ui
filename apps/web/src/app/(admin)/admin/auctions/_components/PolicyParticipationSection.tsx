@@ -1,11 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Loader2, Search } from 'lucide-react';
+import { CheckCircle2, Eye, Loader2, Search } from 'lucide-react';
 import { Input } from '@repo/ui';
 import { metadataApi, ManagedTypeListItemFull, PolicyEvaluationMap } from '@repo/api';
-import { PolicyInfoButton } from './PolicyShared';
+import { PolicyInfoButton, DayHourDropdowns } from './PolicyShared';
 import { EvaluationList } from './PolicyEvaluationDisplay';
+import { ManagedTypeViewDialog } from '../../metadata/_components/ManagedTypeViewDialog';
 
 interface Props {
   name: string;
@@ -16,6 +17,10 @@ interface Props {
   onTypeIdChange: (typeId: string) => void;
   manualApproval: boolean;
   onManualApprovalToggle: (manualApproval: boolean) => void;
+  validationHours: string;
+  onValidationHoursChange: (v: string) => void;
+  validationMinutes: string;
+  onValidationMinutesChange: (v: string) => void;
   groupDescription?: string;
   evaluations?: PolicyEvaluationMap;
 }
@@ -29,6 +34,10 @@ export function PolicyParticipationSection({
   onTypeIdChange,
   manualApproval,
   onManualApprovalToggle,
+  validationHours,
+  onValidationHoursChange,
+  validationMinutes,
+  onValidationMinutesChange,
   groupDescription,
   evaluations,
 }: Props) {
@@ -36,7 +45,8 @@ export function PolicyParticipationSection({
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<ManagedTypeListItemFull[]>([]);
-  const [selectedName, setSelectedName] = useState('');
+  const [selected, setSelected] = useState<{ name: string; description?: string } | null>(null);
+  const [viewingSelected, setViewingSelected] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -69,20 +79,20 @@ export function PolicyParticipationSection({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Resolve the selected template's name when a typeId is already set (e.g. loaded from a saved policy)
+  // Resolve the selected template's details when a typeId is already set (e.g. loaded from a saved policy)
   useEffect(() => {
     if (!typeId) {
-      setSelectedName('');
+      setSelected(null);
       return;
     }
     const match = results.find((r) => r.id === typeId);
     if (match) {
-      setSelectedName(match.name);
+      setSelected({ name: match.name, description: match.description });
       return;
     }
     metadataApi
       .getManagedTypeById(typeId)
-      .then((t) => setSelectedName(t.name ?? ''))
+      .then((t) => setSelected({ name: t.name ?? '', description: t.description }))
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [typeId]);
@@ -139,6 +149,20 @@ export function PolicyParticipationSection({
           Approve/Reject Manually after reviewing participants details
         </label>
 
+        <div className="space-y-3">
+          <h4 className="text-sm font-medium text-foreground">
+            Validate participants before auction starts
+          </h4>
+          <DayHourDropdowns
+            label="Validation duration"
+            suffix="before auction start"
+            daysValue={validationHours}
+            hoursValue={validationMinutes}
+            onDaysChange={onValidationHoursChange}
+            onHoursChange={onValidationMinutesChange}
+          />
+        </div>
+
         <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-3">
           <h4 className="text-sm font-medium text-foreground">
             Ask participants for additional details
@@ -178,7 +202,7 @@ export function PolicyParticipationSection({
                         type="button"
                         onClick={() => {
                           onTypeIdChange(t.id);
-                          setSelectedName(t.name);
+                          setSelected({ name: t.name, description: t.description });
                           setOpen(false);
                         }}
                         className={`w-full text-left px-3 py-2.5 transition-colors ${
@@ -201,16 +225,36 @@ export function PolicyParticipationSection({
               </div>
             )}
 
-            {typeId && selectedName && (
-              <p className="text-xs text-muted-foreground">
-                Selected: <span className="text-foreground font-medium">{selectedName}</span>
-              </p>
+            {typeId && selected && (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-md border border-primary/40 bg-primary/5">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{selected.name}</p>
+                  {selected.description && (
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                      {selected.description}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewingSelected(true)}
+                  className="shrink-0 p-1 text-muted-foreground hover:text-foreground transition-colors"
+                  title="View form details"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                </button>
+              </div>
             )}
           </div>
         </div>
       </div>
 
       {evaluations && <EvaluationList evaluations={evaluations} />}
+
+      <ManagedTypeViewDialog
+        typeId={viewingSelected ? typeId : null}
+        onClose={() => setViewingSelected(false)}
+      />
     </div>
   );
 }
