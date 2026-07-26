@@ -68,6 +68,7 @@ export function SelectField({
   loading,
   required,
   disabledValues,
+  readonly,
 }: {
   id: string;
   label: string;
@@ -79,7 +80,28 @@ export function SelectField({
   loading?: boolean;
   required?: boolean;
   disabledValues?: string[];
+  readonly?: boolean;
 }) {
+  if (readonly) {
+    const selectedLabel = options.find((opt) => opt.value === value)?.label ?? value;
+    return (
+      <div className="space-y-1.5">
+        <Label htmlFor={id} className="text-sm font-medium">
+          {label}
+          {required && <span className="text-destructive ml-0.5">*</span>}
+        </Label>
+        <input
+          id={id}
+          type="text"
+          readOnly
+          value={loading ? 'Loading...' : selectedLabel}
+          className="w-full rounded-md border border-input bg-muted px-3 py-[7px] text-sm text-muted-foreground cursor-default"
+        />
+        <FieldError message={error} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id} className="text-sm font-medium">

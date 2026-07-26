@@ -101,7 +101,7 @@ export function AddStepDialog({
       try {
         const results = await metadataApi.searchManagedTypeListItems({
           phrases: q.trim() ? [q.trim()] : [],
-          type: 'WORKFLOW_STEP_FORM',
+          type: 'CUSTOM_FORM',
         });
         setFormResults(results);
       } catch {

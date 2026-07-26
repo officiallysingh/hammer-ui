@@ -205,6 +205,7 @@ export function AuctionStep1Details({
             error={fieldErrors.format}
             placeholder="Select format..."
             loading={loadingOptions}
+            readonly={true}
             disabledValues={formats.filter((f) => f.label !== 'Simple').map((f) => f.value)}
           />
 

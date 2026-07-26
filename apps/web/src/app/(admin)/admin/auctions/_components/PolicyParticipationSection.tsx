@@ -32,10 +32,12 @@ export function PolicyParticipationSection({
   groupDescription,
   evaluations,
 }: Props) {
+  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<ManagedTypeListItemFull[]>([]);
   const [selectedName, setSelectedName] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const search = useCallback((q: string) => {
@@ -45,7 +47,7 @@ export function PolicyParticipationSection({
       try {
         const items = await metadataApi.searchManagedTypeListItems({
           phrases: q.trim() ? [q.trim()] : [],
-          type: 'WORKFLOW_STEP_FORM',
+          type: 'CUSTOM_FORM',
         });
         setResults(items);
       } catch {
@@ -56,9 +58,15 @@ export function PolicyParticipationSection({
     }, 300);
   }, []);
 
+  // Close dropdown on outside click
   useEffect(() => {
-    search(query);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    function handler(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   // Resolve the selected template's name when a typeId is already set (e.g. loaded from a saved policy)
@@ -81,7 +89,13 @@ export function PolicyParticipationSection({
 
   const handleQueryChange = (q: string) => {
     setQuery(q);
+    setOpen(true);
     search(q);
+  };
+
+  const handleFocus = () => {
+    setOpen(true);
+    if (!results.length) search(query);
   };
 
   return (
@@ -130,12 +144,13 @@ export function PolicyParticipationSection({
             Ask participants for additional details
           </h4>
 
-          <div className="space-y-2">
+          <div ref={containerRef} className="space-y-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <Input
                 value={query}
                 onChange={(e) => handleQueryChange(e.target.value)}
+                onFocus={handleFocus}
                 placeholder="Search form template by name..."
                 className="pl-8 text-sm"
               />
@@ -144,44 +159,47 @@ export function PolicyParticipationSection({
               )}
             </div>
 
-            <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
-              {searching && !results.length ? (
-                <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground text-sm">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Searching...
-                </div>
-              ) : results.length === 0 ? (
-                <p className="text-center py-6 text-xs text-muted-foreground">
-                  No managed types found
-                </p>
-              ) : (
-                <div className="max-h-48 overflow-y-auto divide-y divide-border/50">
-                  {results.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => {
-                        onTypeIdChange(t.id);
-                        setSelectedName(t.name);
-                      }}
-                      className={`w-full text-left px-3 py-2.5 transition-colors ${
-                        typeId === t.id ? 'bg-primary/10' : 'hover:bg-muted/30'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-foreground">{t.name}</span>
-                        {typeId === t.id && <CheckCircle2 className="h-3.5 w-3.5 text-primary" />}
-                      </div>
-                      {t.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                          {t.description}
-                        </p>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            {open && (
+              <div className="rounded-lg border border-border bg-card shadow-lg overflow-hidden">
+                {searching && !results.length ? (
+                  <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground text-sm">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Searching...
+                  </div>
+                ) : results.length === 0 ? (
+                  <p className="text-center py-6 text-xs text-muted-foreground">
+                    No managed types found
+                  </p>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto divide-y divide-border/50">
+                    {results.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          onTypeIdChange(t.id);
+                          setSelectedName(t.name);
+                          setOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2.5 transition-colors ${
+                          typeId === t.id ? 'bg-primary/10' : 'hover:bg-muted/30'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-foreground">{t.name}</span>
+                          {typeId === t.id && <CheckCircle2 className="h-3.5 w-3.5 text-primary" />}
+                        </div>
+                        {t.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                            {t.description}
+                          </p>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {typeId && selectedName && (
               <p className="text-xs text-muted-foreground">
