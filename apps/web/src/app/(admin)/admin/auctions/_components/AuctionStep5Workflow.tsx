@@ -17,13 +17,16 @@ import {
   FileText,
   ShieldCheck,
   Upload,
+  Pencil,
 } from 'lucide-react';
-import { Button, Label, DateTimePicker, Badge } from '@repo/ui';
+import { Button, Label, DateTimePicker } from '@repo/ui';
 import { auctionsApi, AuctionWorkflowStep, PolicyItemRQ, PolicyEvaluationMap } from '@repo/api';
 import { DismissibleError, FieldError } from './AuctionShared';
 import { SELECT_CLS, resolveStr, fmtLabel } from './PolicyShared';
-import { EvaluationList } from './PolicyEvaluationDisplay';
+import { PolicyItemCard } from './PolicyEvaluationDisplay';
 import { AddStepDialog } from './AddStepDialog';
+import { EditStepDialog } from './EditStepDialog';
+import Tip from '@/components/common/admin/Tip';
 import { parseApiError } from '@/lib/api-errors';
 
 interface Props {
@@ -121,90 +124,6 @@ function StepTypeIcon({ type, className }: { type?: unknown; className?: string 
   }
 }
 
-// ── Policy detail card (shared by step cards + post-payment block) ─────────────
-
-function PolicyDetailCard({
-  item,
-  openingPrice,
-  precision,
-  evaluations,
-}: {
-  item: PolicyItemRQ;
-  openingPrice?: number;
-  precision?: number;
-  evaluations?: PolicyEvaluationMap;
-}) {
-  return (
-    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-1.5 text-xs">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium text-foreground">{item.name || fmtLabel(item.type)}</span>
-        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-          {fmtLabel(item.type)}
-        </Badge>
-        {item.currency && <span className="text-muted-foreground">{item.currency}</span>}
-      </div>
-      {item.description && <p className="text-muted-foreground">{item.description}</p>}
-      {item.schedule && (
-        <p className="text-muted-foreground">
-          Due: <span className="text-foreground">{fmtLabel(item.schedule.reference)}</span>
-          {item.schedule.offset && <> · offset {item.schedule.offset}</>}
-        </p>
-      )}
-      {item.heads && item.heads.length > 0 ? (
-        <div className="space-y-1.5 pt-1">
-          {item.heads.map((h, hi) => {
-            const isPercentage = resolveStr(h.basis).startsWith('PERCENTAGE');
-            const calculated =
-              isPercentage && h.value != null && openingPrice
-                ? (openingPrice * h.value) / 100
-                : null;
-            return (
-              <div key={hi} className="rounded bg-muted/40 px-2 py-1.5 text-[11px] space-y-0.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{h.name || fmtLabel(h.type)}</span>
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                    {fmtLabel(h.type)}
-                  </Badge>
-                  {h.refundable && <span className="text-emerald-600">Refundable</span>}
-                </div>
-                {h.description && <p className="text-muted-foreground">{h.description}</p>}
-                <p className="text-muted-foreground">
-                  {fmtLabel(h.basis)}:{' '}
-                  <span className="text-foreground">
-                    {h.value}
-                    {isPercentage ? '%' : ''}
-                  </span>
-                  {calculated !== null && (
-                    <>
-                      {' '}
-                      · ≈{' '}
-                      <span className="text-foreground">
-                        {item.currency ? `${item.currency} ` : ''}
-                        {calculated.toFixed(precision ?? 2)}
-                      </span>
-                    </>
-                  )}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        item.value != null && (
-          <span className="text-muted-foreground">
-            Value: <span className="text-foreground">{item.value}</span>
-          </span>
-        )
-      )}
-      {evaluations && (
-        <div className="pt-1">
-          <EvaluationList evaluations={evaluations} />
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Bank details (view-only) — fixed schema collected by BANK_DETAIL_FORM_STEP ─
 
 const BANK_DETAIL_FIELDS = [
@@ -243,23 +162,23 @@ function BankDetailsPreview() {
 // ── Workflow step accordion card ──────────────────────────────────────────────
 
 function WorkflowStepCard({
+  auctionId,
   step,
   index,
   dragHandleProps,
   isDragTarget,
-  openingPrice,
-  precision,
   prePaymentPolicies,
   evaluationsByPolicyId,
+  onEdit,
 }: {
+  auctionId: string;
   step: AuctionWorkflowStep;
   index: number;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
   isDragTarget?: boolean;
-  openingPrice?: number;
-  precision?: number;
   prePaymentPolicies?: PolicyItemRQ[];
   evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
+  onEdit?: () => void;
 }) {
   const [open, setOpen] = useState(true);
   const statusType = resolveStr(step.status?.type);
@@ -326,6 +245,21 @@ function WorkflowStepCard({
           >
             {fmtLabel(statusType)}
           </span>
+        )}
+
+        {/* Edit step */}
+        {onEdit && (
+          <Tip label="Edit step">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground shrink-0"
+              onClick={onEdit}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          </Tip>
         )}
 
         {/* Expand */}
@@ -409,11 +343,12 @@ function WorkflowStepCard({
                   Policies
                 </p>
                 {policiesToShow.map((p, pi) => (
-                  <PolicyDetailCard
-                    key={pi}
-                    item={p}
-                    openingPrice={openingPrice}
-                    precision={precision}
+                  <PolicyItemCard
+                    key={p.id ?? pi}
+                    auctionId={auctionId}
+                    policyId={p.id}
+                    name={p.name}
+                    type={p.type}
                     evaluations={p.id ? evaluationsByPolicyId?.[p.id] : undefined}
                   />
                 ))}
@@ -449,14 +384,12 @@ function WorkflowStepCard({
 // ── Post-payment block ────────────────────────────────────────────────────────
 
 function PostPaymentBlock({
+  auctionId,
   policies,
-  openingPrice,
-  precision,
   evaluationsByPolicyId,
 }: {
+  auctionId: string;
   policies: PolicyItemRQ[];
-  openingPrice?: number;
-  precision?: number;
   evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
 }) {
   return (
@@ -475,11 +408,12 @@ function PostPaymentBlock({
           <p className="text-xs text-muted-foreground">No post-payment policies configured.</p>
         ) : (
           policies.map((item, i) => (
-            <PolicyDetailCard
-              key={i}
-              item={item}
-              openingPrice={openingPrice}
-              precision={precision}
+            <PolicyItemCard
+              key={item.id ?? i}
+              auctionId={auctionId}
+              policyId={item.id}
+              name={item.name}
+              type={item.type}
               evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
             />
           ))
@@ -524,14 +458,13 @@ export function AuctionStep5Workflow({
   const [workflow, setWorkflow] = useState<AuctionWorkflowStep[]>([]);
   const [postPaymentPolicies, setPostPaymentPolicies] = useState<PolicyItemRQ[]>([]);
   const [prePaymentPolicies, setPrePaymentPolicies] = useState<PolicyItemRQ[]>([]);
-  const [openingPrice, setOpeningPrice] = useState<number | undefined>(undefined);
-  const [precision, setPrecision] = useState<number | undefined>(undefined);
   const [evaluationsByPolicyId, setEvaluationsByPolicyId] = useState<
     Record<string, PolicyEvaluationMap>
   >({});
   const [reordering, setReordering] = useState(false);
   const [reorderError, setReorderError] = useState<string | null>(null);
   const [addStepOpen, setAddStepOpen] = useState(false);
+  const [editingStep, setEditingStep] = useState<AuctionWorkflowStep | null>(null);
 
   // Schedule state
   const [startTime, setStartTime] = useState('');
@@ -562,9 +495,8 @@ export function AuctionStep5Workflow({
     Promise.all([
       auctionsApi.getAuctionWorkflow(auctionId).catch(() => [] as AuctionWorkflowStep[]),
       auctionsApi.getAuctionPolicies(auctionId).catch(() => null),
-      auctionsApi.getAuctionById(auctionId).catch(() => null),
     ])
-      .then(([wf, pol, auction]) => {
+      .then(([wf, pol]) => {
         if (!mounted) return;
         setWorkflow(wf);
         // Policies flagged postPayment: true are collected after the auction ends —
@@ -572,8 +504,6 @@ export function AuctionStep5Workflow({
         const allItems = Object.values(pol ?? {}).flat();
         setPostPaymentPolicies(allItems.filter((item) => item.postPayment === true));
         setPrePaymentPolicies(allItems.filter((item) => item.prePayment === true));
-        setOpeningPrice(auction?.unit?.openingPrice);
-        setPrecision(auction?.monetaryOptions?.precision);
 
         // Evaluate every saved policy (workflow-embedded + pre/post payment) by id.
         const policyIds = Array.from(
@@ -774,13 +704,13 @@ export function AuctionStep5Workflow({
                   className={`transition-opacity ${dragOverIdx === i ? 'opacity-50' : ''}`}
                 >
                   <WorkflowStepCard
+                    auctionId={auctionId}
                     step={step}
                     index={i}
                     isDragTarget={dragOverIdx === i}
-                    openingPrice={openingPrice}
-                    precision={precision}
                     prePaymentPolicies={prePaymentPolicies}
                     evaluationsByPolicyId={evaluationsByPolicyId}
+                    onEdit={() => setEditingStep(step)}
                     dragHandleProps={{
                       onPointerDown: () => {
                         dragHandleActiveRef.current = true;
@@ -796,9 +726,8 @@ export function AuctionStep5Workflow({
           {!loading && postPaymentPolicies.length > 0 && (
             <div className="border-t border-border px-4 pb-4 pt-3">
               <PostPaymentBlock
+                auctionId={auctionId}
                 policies={postPaymentPolicies}
-                openingPrice={openingPrice}
-                precision={precision}
                 evaluationsByPolicyId={evaluationsByPolicyId}
               />
             </div>
@@ -974,7 +903,18 @@ export function AuctionStep5Workflow({
         nextOrder={workflow.length + 1}
         hasTnCStep={hasTnCStep}
         hasBankDetailStep={hasBankDetailStep}
+        workflow={workflow}
         onAdded={reloadWorkflow}
+      />
+
+      <EditStepDialog
+        auctionId={auctionId}
+        step={editingStep}
+        onOpenChange={(open) => !open && setEditingStep(null)}
+        onSaved={() => {
+          setEditingStep(null);
+          reloadWorkflow();
+        }}
       />
     </div>
   );

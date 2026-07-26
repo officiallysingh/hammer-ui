@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
-import { auctionsApi, PolicyGroup, PolicyEvaluationMap } from '@repo/api';
+import { auctionsApi, PolicyGroup, PolicyEvaluationMap, PolicyItemRQ } from '@repo/api';
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@repo/ui';
 import { DismissibleError, SelectOption } from './AuctionShared';
 import {
@@ -20,13 +20,14 @@ import {
   buildWinnerDeterminationItem,
   buildWinnerPriceDeterminationItem,
 } from './AuctionStep3PolicyMapping';
-import { PolicyPaymentSection } from './PolicyPaymentSection';
+import { PolicyPaymentSection, PaymentPolicyFields } from './PolicyPaymentSection';
 import { PolicyParticipationSection } from './PolicyParticipationSection';
-import { PolicyPreconditionsSection } from './PolicyPreconditionsSection';
+import { PolicyPreconditionsSection, PreconditionFields } from './PolicyPreconditionsSection';
 import { PolicyPriceProgressionSection } from './PolicyPriceProgressionSection';
 import { PolicyExtensionSection } from './PolicyExtensionSection';
 import { PolicyWinnerSection } from './PolicyWinnerSection';
-import { EvaluationList } from './PolicyEvaluationDisplay';
+import { EvaluationList, PolicyItemCard } from './PolicyEvaluationDisplay';
+import { parseApiError } from '@/lib/api-errors';
 
 // Re-export types so pages can import from a single location
 export type {
@@ -171,6 +172,35 @@ function ReviewSection({
   );
 }
 
+// ── Inline save/cancel bar for editing a single already-saved policy ───────────
+
+function SaveCancelBar({
+  saving,
+  error,
+  onSave,
+  onCancel,
+}: {
+  saving: boolean;
+  error: string | null;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={saving}>
+          Cancel
+        </Button>
+        <Button type="button" size="sm" onClick={onSave} disabled={saving} className="gap-2">
+          {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          Save
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 interface AuctionStep3PoliciesProps {
   auctionId?: string;
   form: Step3State;
@@ -211,6 +241,84 @@ export function AuctionStep3Policies({
   const [paymentModeOptions, setPaymentModeOptions] = useState<SelectOption[]>([]);
   // Track whether we've already seeded defaults so we only do it once
   const seededRef = useRef(false);
+
+  // Evaluate-only view for already-saved policies — keyed by policy id.
+  const [evaluationsByPolicyId, setEvaluationsByPolicyId] = useState<
+    Record<string, PolicyEvaluationMap>
+  >({});
+  // Which saved policy (by a stable key, e.g. 'participation' or `payment-2`) is
+  // currently showing its editable form instead of the read-only evaluate card.
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [savingItem, setSavingItem] = useState(false);
+  const [itemError, setItemError] = useState<string | null>(null);
+
+  /** Saves a single already-saved policy, refreshes its evaluation, and exits edit mode. */
+  const runSave = async (policyId: string | undefined, item: PolicyItemRQ | null) => {
+    if (!auctionId || !policyId || !item) return;
+    setSavingItem(true);
+    setItemError(null);
+    try {
+      await auctionsApi.updateAuctionPolicy(auctionId, policyId, item);
+      const evals = await auctionsApi.evaluateAuctionPolicy(auctionId, policyId).catch(() => null);
+      if (evals) setEvaluationsByPolicyId((m) => ({ ...m, [policyId]: evals }));
+      setEditingKey(null);
+    } catch (err) {
+      setItemError(parseApiError(err).general ?? 'Failed to save policy.');
+    } finally {
+      setSavingItem(false);
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingKey(null);
+    setItemError(null);
+  };
+
+  /** Saves Winner Determination + Winner Price Determination together — they're
+   *  edited as one form (PolicyWinnerSection) even though each is its own saved policy. */
+  const saveWinnerBoth = async () => {
+    if (!auctionId) return;
+    setSavingItem(true);
+    setItemError(null);
+    try {
+      if (form.winnerDeterminationPolicyId) {
+        const item = buildWinnerDeterminationItem(form);
+        if (item) {
+          await auctionsApi.updateAuctionPolicy(auctionId, form.winnerDeterminationPolicyId, item);
+          const evals = await auctionsApi
+            .evaluateAuctionPolicy(auctionId, form.winnerDeterminationPolicyId)
+            .catch(() => null);
+          if (evals) {
+            setEvaluationsByPolicyId((m) => ({ ...m, [form.winnerDeterminationPolicyId!]: evals }));
+          }
+        }
+      }
+      if (form.winnerPriceDeterminationPolicyId) {
+        const item = buildWinnerPriceDeterminationItem(form);
+        if (item) {
+          await auctionsApi.updateAuctionPolicy(
+            auctionId,
+            form.winnerPriceDeterminationPolicyId,
+            item,
+          );
+          const evals = await auctionsApi
+            .evaluateAuctionPolicy(auctionId, form.winnerPriceDeterminationPolicyId)
+            .catch(() => null);
+          if (evals) {
+            setEvaluationsByPolicyId((m) => ({
+              ...m,
+              [form.winnerPriceDeterminationPolicyId!]: evals,
+            }));
+          }
+        }
+      }
+      setEditingKey(null);
+    } catch (err) {
+      setItemError(parseApiError(err).general ?? 'Failed to save policy.');
+    } finally {
+      setSavingItem(false);
+    }
+  };
 
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewLoading, setReviewLoading] = useState(false);
@@ -323,6 +431,33 @@ export function AuctionStep3Policies({
 
         if (savedGroups && Object.keys(savedGroups).length > 0) {
           patch = mapSavedPolicies(savedGroups);
+
+          // Evaluate every saved policy (top-level items across all groups) by id,
+          // so the read-only card view can show real results instead of raw fields.
+          const policyIds = Array.from(
+            new Set(
+              Object.values(savedGroups)
+                .flat()
+                .map((p) => p.id)
+                .filter((id): id is string => Boolean(id)),
+            ),
+          );
+          if (auctionId && policyIds.length > 0) {
+            Promise.all(
+              policyIds.map((policyId) =>
+                auctionsApi
+                  .evaluateAuctionPolicy(auctionId, policyId)
+                  .then((res) => [policyId, res] as const)
+                  .catch(() => [policyId, null] as const),
+              ),
+            ).then((results) => {
+              const map: Record<string, PolicyEvaluationMap> = {};
+              for (const [policyId, res] of results) {
+                if (res) map[policyId] = res;
+              }
+              setEvaluationsByPolicyId(map);
+            });
+          }
         }
 
         // Then seed any mandatory groups that are still empty after restore
@@ -354,6 +489,90 @@ export function AuctionStep3Policies({
   const setField = (field: string, value: string) =>
     onChange({ [field]: value } as Partial<Step3State>);
 
+  /** Renders one payment group (pre or post payment) — saved items as read-only
+   *  evaluate cards (or an inline editor while being edited), drafts via the
+   *  existing add-new-item form. */
+  const renderPaymentGroup = (
+    fixedScheduleReference: 'AUCTION_START_TIME' | 'AUCTION_END_TIME',
+    title: string,
+  ) => {
+    const savedItems = form.paymentPolicies
+      .map((p, i) => ({ p, i }))
+      .filter(
+        ({ p }) => p.id && (p.scheduleReference || 'AUCTION_START_TIME') === fixedScheduleReference,
+      );
+
+    return (
+      <div className="space-y-3">
+        {savedItems.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+            {savedItems.map(({ p, i }) =>
+              editingKey === `payment-${i}` ? (
+                <div key={p.id} className="rounded-lg border border-border bg-card p-4 space-y-3">
+                  <PaymentPolicyFields
+                    index={i}
+                    policy={p}
+                    onChange={(patch) =>
+                      onChange({
+                        paymentPolicies: form.paymentPolicies.map((pp, idx) =>
+                          idx === i ? { ...pp, ...patch } : pp,
+                        ),
+                      })
+                    }
+                    openingPrice={openingPrice}
+                    precision={precision}
+                    currencyUnit={currencyUnit}
+                    fieldErrors={fieldErrors}
+                    fixedScheduleReference={fixedScheduleReference}
+                    modeOptions={paymentModeOptions}
+                  />
+                  <SaveCancelBar
+                    saving={savingItem}
+                    error={itemError}
+                    onSave={() =>
+                      runSave(p.id, buildPaymentPolicyItem(p, p.priority ?? i + 1, currencyUnit))
+                    }
+                    onCancel={cancelEdit}
+                  />
+                </div>
+              ) : (
+                <PolicyItemCard
+                  key={p.id}
+                  auctionId={auctionId!}
+                  policyId={p.id}
+                  name={p.name || 'Payment Policy'}
+                  type="PAYMENT_POLICY"
+                  evaluations={p.id ? evaluationsByPolicyId[p.id] : undefined}
+                  editable
+                  onEdit={() => setEditingKey(`payment-${i}`)}
+                  deletable
+                  onDeleted={() =>
+                    onChange({
+                      paymentPolicies: form.paymentPolicies.filter((_, idx) => idx !== i),
+                    })
+                  }
+                />
+              ),
+            )}
+          </div>
+        )}
+        <PolicyPaymentSection
+          policies={form.paymentPolicies}
+          onChange={(v) => onChange({ paymentPolicies: v })}
+          openingPrice={openingPrice}
+          precision={precision}
+          currencyUnit={currencyUnit}
+          fieldErrors={fieldErrors}
+          groupDescription={getGroupDescription('PAYMENT')}
+          title={savedItems.length > 0 ? `Add another — ${title}` : title}
+          fixedScheduleReference={fixedScheduleReference}
+          modeOptions={paymentModeOptions}
+        />
+      </div>
+    );
+  };
+
   if (loadingGroups) {
     return (
       <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
@@ -369,170 +588,367 @@ export function AuctionStep3Policies({
         <DismissibleError message={generalError} />
 
         {/* Participation */}
-        {hasGroup('PARTICIPATION') && (
-          <PolicyParticipationSection
-            name={form.participationName}
-            description={form.participationDescription}
-            onNameChange={(v) => onChange({ participationName: v })}
-            onDescriptionChange={(v) => onChange({ participationDescription: v })}
-            typeId={form.participationTypeId}
-            onTypeIdChange={(v) => onChange({ participationTypeId: v })}
-            manualApproval={form.participationManualApproval}
-            onManualApprovalToggle={(v) => onChange({ participationManualApproval: v })}
-            validationHours={form.participationValidationHours}
-            onValidationHoursChange={(v) => onChange({ participationValidationHours: v })}
-            validationMinutes={form.participationValidationMinutes}
-            onValidationMinutesChange={(v) => onChange({ participationValidationMinutes: v })}
-            groupDescription={getGroupDescription('PARTICIPATION')}
-          />
-        )}
+        {hasGroup('PARTICIPATION') &&
+          (form.participationPolicyId && editingKey !== 'participation' ? (
+            <PolicyItemCard
+              auctionId={auctionId!}
+              policyId={form.participationPolicyId}
+              name={form.participationName || 'Participation Policy'}
+              type="PARTICIPATION_POLICY"
+              evaluations={evaluationsByPolicyId[form.participationPolicyId]}
+              editable
+              onEdit={() => setEditingKey('participation')}
+              deletable
+              onDeleted={() =>
+                onChange({
+                  participationEnabled: false,
+                  participationPolicyId: undefined,
+                  participationName: '',
+                  participationDescription: '',
+                  participationTypeId: '',
+                  participationManualApproval: false,
+                })
+              }
+            />
+          ) : (
+            <div className="space-y-2">
+              <PolicyParticipationSection
+                name={form.participationName}
+                description={form.participationDescription}
+                onNameChange={(v) => onChange({ participationName: v })}
+                onDescriptionChange={(v) => onChange({ participationDescription: v })}
+                typeId={form.participationTypeId}
+                onTypeIdChange={(v) => onChange({ participationTypeId: v })}
+                manualApproval={form.participationManualApproval}
+                onManualApprovalToggle={(v) => onChange({ participationManualApproval: v })}
+                validationHours={form.participationValidationHours}
+                onValidationHoursChange={(v) => onChange({ participationValidationHours: v })}
+                validationMinutes={form.participationValidationMinutes}
+                onValidationMinutesChange={(v) => onChange({ participationValidationMinutes: v })}
+                groupDescription={getGroupDescription('PARTICIPATION')}
+              />
+              {editingKey === 'participation' && (
+                <SaveCancelBar
+                  saving={savingItem}
+                  error={itemError}
+                  onSave={() => runSave(form.participationPolicyId, buildParticipationItem(form))}
+                  onCancel={cancelEdit}
+                />
+              )}
+            </div>
+          ))}
 
         {/* Payment */}
-        {hasGroup('PAYMENT') && (
-          <PolicyPaymentSection
-            policies={form.paymentPolicies}
-            onChange={(v) => onChange({ paymentPolicies: v })}
-            openingPrice={openingPrice}
-            precision={precision}
-            currencyUnit={currencyUnit}
-            fieldErrors={fieldErrors}
-            groupDescription={getGroupDescription('PAYMENT')}
-            title="Pre Payment / Participation Eligibility Policy"
-            fixedScheduleReference="AUCTION_START_TIME"
-            modeOptions={paymentModeOptions}
-          />
-        )}
+        {hasGroup('PAYMENT') &&
+          renderPaymentGroup(
+            'AUCTION_START_TIME',
+            'Pre Payment / Participation Eligibility Policy',
+          )}
 
         {/* Preconditions */}
-        {(hasGroup('PRECONDITION') || getGroupOptions('PRECONDITION').length > 0) && (
-          <PolicyPreconditionsSection
-            preconditions={form.preconditions}
-            onChange={(v) => onChange({ preconditions: v })}
-            options={getGroupOptions('PRECONDITION')}
-            fieldErrors={fieldErrors}
-            groupDescription={getGroupDescription('PRECONDITION')}
-          />
-        )}
+        {(hasGroup('PRECONDITION') || getGroupOptions('PRECONDITION').length > 0) &&
+          (() => {
+            const savedItems = form.preconditions.map((p, i) => ({ p, i })).filter(({ p }) => p.id);
+            const usedTypes = form.preconditions.map((p) => p.type).filter(Boolean);
+            return (
+              <div className="space-y-3">
+                {savedItems.length > 0 && (
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold text-foreground">Preconditions</h3>
+                    {savedItems.map(({ p, i }) =>
+                      editingKey === `precondition-${i}` ? (
+                        <div
+                          key={p.id}
+                          className="rounded-lg border border-border bg-card p-4 space-y-3"
+                        >
+                          <PreconditionFields
+                            index={i}
+                            precondition={p}
+                            onChange={(patch) =>
+                              onChange({
+                                preconditions: form.preconditions.map((pp, idx) =>
+                                  idx === i ? { ...pp, ...patch } : pp,
+                                ),
+                              })
+                            }
+                            options={getGroupOptions('PRECONDITION')}
+                            usedTypes={usedTypes}
+                            fieldErrors={fieldErrors}
+                          />
+                          <SaveCancelBar
+                            saving={savingItem}
+                            error={itemError}
+                            onSave={() => runSave(p.id, buildPreconditionItem(p))}
+                            onCancel={cancelEdit}
+                          />
+                        </div>
+                      ) : (
+                        <PolicyItemCard
+                          key={p.id}
+                          auctionId={auctionId!}
+                          policyId={p.id}
+                          name={p.name || 'Precondition'}
+                          type={p.type}
+                          evaluations={p.id ? evaluationsByPolicyId[p.id] : undefined}
+                          editable
+                          onEdit={() => setEditingKey(`precondition-${i}`)}
+                          deletable
+                          onDeleted={() =>
+                            onChange({
+                              preconditions: form.preconditions.filter((_, idx) => idx !== i),
+                            })
+                          }
+                        />
+                      ),
+                    )}
+                  </div>
+                )}
+                <PolicyPreconditionsSection
+                  preconditions={form.preconditions}
+                  onChange={(v) => onChange({ preconditions: v })}
+                  options={getGroupOptions('PRECONDITION')}
+                  fieldErrors={fieldErrors}
+                  groupDescription={getGroupDescription('PRECONDITION')}
+                />
+              </div>
+            );
+          })()}
 
         {/* Price Progression */}
-        {hasGroup('PRICE_PROGRESSION') && (
-          <PolicyPriceProgressionSection
-            priceChangePolicies={form.priceChangePolicies}
-            onPoliciesChange={(v) => onChange({ priceChangePolicies: v })}
-            options={getGroupOptions('PRICE_PROGRESSION')}
-            fieldErrors={fieldErrors}
-            groupDescription={getGroupDescription('PRICE_PROGRESSION')}
-          />
-        )}
+        {hasGroup('PRICE_PROGRESSION') &&
+          (form.priceProgressionPolicyId && editingKey !== 'priceProgression' ? (
+            <PolicyItemCard
+              auctionId={auctionId!}
+              policyId={form.priceProgressionPolicyId}
+              name="Price Progression"
+              type="PRICE_PROGRESSION_POLICY"
+              evaluations={evaluationsByPolicyId[form.priceProgressionPolicyId]}
+              editable
+              onEdit={() => setEditingKey('priceProgression')}
+              deletable
+              onDeleted={() =>
+                onChange({ priceProgressionPolicyId: undefined, priceChangePolicies: [] })
+              }
+            />
+          ) : (
+            <div className="space-y-2">
+              <PolicyPriceProgressionSection
+                priceChangePolicies={form.priceChangePolicies}
+                onPoliciesChange={(v) => onChange({ priceChangePolicies: v })}
+                options={getGroupOptions('PRICE_PROGRESSION')}
+                fieldErrors={fieldErrors}
+                groupDescription={getGroupDescription('PRICE_PROGRESSION')}
+              />
+              {editingKey === 'priceProgression' && (
+                <SaveCancelBar
+                  saving={savingItem}
+                  error={itemError}
+                  onSave={() =>
+                    runSave(
+                      form.priceProgressionPolicyId,
+                      buildPriceProgressionWrapper(form.priceChangePolicies),
+                    )
+                  }
+                  onCancel={cancelEdit}
+                />
+              )}
+            </div>
+          ))}
 
         {/* Extension */}
-        {hasExtension && (
-          <PolicyExtensionSection
-            extensionEnabled={form.extensionEnabled}
-            extensionType={form.extensionType}
-            extensionName={form.extensionName}
-            extensionDescription={form.extensionDescription}
-            extensionReference={form.extensionReference}
-            extensionDurationMinutes={form.extensionDurationMinutes}
-            extensionLimit={form.extensionLimit}
-            onAdd={() => {
-              const opts = getGroupOptions(extensionGroupName);
-              const first = opts[0];
-              const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
-              onChange({
-                extensionEnabled: true,
-                extensionType: first?.value ?? '',
-                extensionName: defaults?.name ?? '',
-                extensionDescription: defaults?.description ?? '',
-              });
-            }}
-            onRemove={() =>
-              onChange({
-                extensionEnabled: false,
-                extensionType: '',
-                extensionName: '',
-                extensionDescription: '',
-              })
-            }
-            onFieldChange={setField}
-            options={getGroupOptions(extensionGroupName)}
-            fieldErrors={fieldErrors}
-            groupDescription={getGroupDescription(extensionGroupName)}
-          />
-        )}
+        {hasExtension &&
+          (form.extensionPolicyId && editingKey !== 'extension' ? (
+            <PolicyItemCard
+              auctionId={auctionId!}
+              policyId={form.extensionPolicyId}
+              name={form.extensionName || 'Extension Policy'}
+              type={form.extensionType}
+              evaluations={evaluationsByPolicyId[form.extensionPolicyId]}
+              editable
+              onEdit={() => setEditingKey('extension')}
+              deletable
+              onDeleted={() =>
+                onChange({
+                  extensionEnabled: false,
+                  extensionPolicyId: undefined,
+                  extensionType: '',
+                  extensionName: '',
+                  extensionDescription: '',
+                })
+              }
+            />
+          ) : (
+            <div className="space-y-2">
+              <PolicyExtensionSection
+                extensionEnabled={form.extensionEnabled}
+                extensionType={form.extensionType}
+                extensionName={form.extensionName}
+                extensionDescription={form.extensionDescription}
+                extensionReference={form.extensionReference}
+                extensionDurationMinutes={form.extensionDurationMinutes}
+                extensionLimit={form.extensionLimit}
+                onAdd={() => {
+                  const opts = getGroupOptions(extensionGroupName);
+                  const first = opts[0];
+                  const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
+                  onChange({
+                    extensionEnabled: true,
+                    extensionType: first?.value ?? '',
+                    extensionName: defaults?.name ?? '',
+                    extensionDescription: defaults?.description ?? '',
+                  });
+                }}
+                onRemove={() =>
+                  onChange({
+                    extensionEnabled: false,
+                    extensionType: '',
+                    extensionName: '',
+                    extensionDescription: '',
+                  })
+                }
+                onFieldChange={setField}
+                options={getGroupOptions(extensionGroupName)}
+                fieldErrors={fieldErrors}
+                groupDescription={getGroupDescription(extensionGroupName)}
+              />
+              {editingKey === 'extension' && (
+                <SaveCancelBar
+                  saving={savingItem}
+                  error={itemError}
+                  onSave={() => runSave(form.extensionPolicyId, buildExtensionItem(form))}
+                  onCancel={cancelEdit}
+                />
+              )}
+            </div>
+          ))}
 
         {/* Winner Determination + Winner Price Determination */}
-        {(hasGroup('WINNER_DETERMINATION') || hasGroup('WINNER_PRICE_DETERMINATION')) && (
-          <PolicyWinnerSection
-            direction={direction}
-            winnerDeterminationType={form.winnerDeterminationType}
-            winnerDeterminationKth={form.winnerDeterminationKth}
-            winnerDeterminationName={form.winnerDeterminationName}
-            winnerDeterminationDescription={form.winnerDeterminationDescription}
-            winnerPriceDeterminationType={form.winnerPriceDeterminationType}
-            winnerPriceDeterminationKth={form.winnerPriceDeterminationKth}
-            winnerPriceDeterminationName={form.winnerPriceDeterminationName}
-            winnerPriceDeterminationDescription={form.winnerPriceDeterminationDescription}
-            onFieldChange={setField}
-            onWinnerAdd={() => {
-              const opts = getGroupOptions('WINNER_DETERMINATION');
-              const first = opts[0];
-              const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
-              onChange({
-                winnerDeterminationType: first?.value ?? '',
-                winnerDeterminationName: defaults?.name ?? '',
-                winnerDeterminationDescription: defaults?.description ?? '',
-              });
-            }}
-            onWinnerRemove={() =>
-              onChange({
-                winnerDeterminationType: '',
-                winnerDeterminationName: '',
-                winnerDeterminationDescription: '',
-                winnerDeterminationKth: '1',
-              })
+        {(hasGroup('WINNER_DETERMINATION') || hasGroup('WINNER_PRICE_DETERMINATION')) &&
+          (() => {
+            const winnerFullySaved =
+              (!hasGroup('WINNER_DETERMINATION') || Boolean(form.winnerDeterminationPolicyId)) &&
+              (!hasGroup('WINNER_PRICE_DETERMINATION') ||
+                Boolean(form.winnerPriceDeterminationPolicyId));
+
+            if (winnerFullySaved && editingKey !== 'winner') {
+              return (
+                <div className="space-y-3">
+                  {form.winnerDeterminationPolicyId && (
+                    <PolicyItemCard
+                      auctionId={auctionId!}
+                      policyId={form.winnerDeterminationPolicyId}
+                      name={form.winnerDeterminationName || 'Winner Determination'}
+                      type={form.winnerDeterminationType}
+                      evaluations={evaluationsByPolicyId[form.winnerDeterminationPolicyId]}
+                      editable
+                      onEdit={() => setEditingKey('winner')}
+                      deletable
+                      onDeleted={() =>
+                        onChange({
+                          winnerDeterminationPolicyId: undefined,
+                          winnerDeterminationType: '',
+                          winnerDeterminationName: '',
+                          winnerDeterminationDescription: '',
+                          winnerDeterminationKth: '1',
+                        })
+                      }
+                    />
+                  )}
+                  {form.winnerPriceDeterminationPolicyId && (
+                    <PolicyItemCard
+                      auctionId={auctionId!}
+                      policyId={form.winnerPriceDeterminationPolicyId}
+                      name={form.winnerPriceDeterminationName || 'Winner Price Determination'}
+                      type={form.winnerPriceDeterminationType}
+                      evaluations={evaluationsByPolicyId[form.winnerPriceDeterminationPolicyId]}
+                      editable
+                      onEdit={() => setEditingKey('winner')}
+                      deletable
+                      onDeleted={() =>
+                        onChange({
+                          winnerPriceDeterminationPolicyId: undefined,
+                          winnerPriceDeterminationType: '',
+                          winnerPriceDeterminationName: '',
+                          winnerPriceDeterminationDescription: '',
+                          winnerPriceDeterminationKth: '1',
+                        })
+                      }
+                    />
+                  )}
+                </div>
+              );
             }
-            onWinnerPriceAdd={() => {
-              const opts = getGroupOptions('WINNER_PRICE_DETERMINATION');
-              const first = opts[0];
-              const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
-              onChange({
-                winnerPriceDeterminationType: first?.value ?? '',
-                winnerPriceDeterminationName: defaults?.name ?? '',
-                winnerPriceDeterminationDescription: defaults?.description ?? '',
-              });
-            }}
-            onWinnerPriceRemove={() =>
-              onChange({
-                winnerPriceDeterminationType: '',
-                winnerPriceDeterminationName: '',
-                winnerPriceDeterminationDescription: '',
-                winnerPriceDeterminationKth: '1',
-              })
-            }
-            winnerDeterminationOptions={getGroupOptions('WINNER_DETERMINATION')}
-            winnerPriceOptions={getGroupOptions('WINNER_PRICE_DETERMINATION')}
-            fieldErrors={fieldErrors}
-            winnerGroupInfo={getGroupDescription('WINNER_DETERMINATION')}
-            winnerPriceGroupInfo={getGroupDescription('WINNER_PRICE_DETERMINATION')}
-          />
-        )}
+
+            return (
+              <div className="space-y-2">
+                <PolicyWinnerSection
+                  direction={direction}
+                  winnerDeterminationType={form.winnerDeterminationType}
+                  winnerDeterminationKth={form.winnerDeterminationKth}
+                  winnerDeterminationName={form.winnerDeterminationName}
+                  winnerDeterminationDescription={form.winnerDeterminationDescription}
+                  winnerPriceDeterminationType={form.winnerPriceDeterminationType}
+                  winnerPriceDeterminationKth={form.winnerPriceDeterminationKth}
+                  winnerPriceDeterminationName={form.winnerPriceDeterminationName}
+                  winnerPriceDeterminationDescription={form.winnerPriceDeterminationDescription}
+                  onFieldChange={setField}
+                  onWinnerAdd={() => {
+                    const opts = getGroupOptions('WINNER_DETERMINATION');
+                    const first = opts[0];
+                    const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
+                    onChange({
+                      winnerDeterminationType: first?.value ?? '',
+                      winnerDeterminationName: defaults?.name ?? '',
+                      winnerDeterminationDescription: defaults?.description ?? '',
+                    });
+                  }}
+                  onWinnerRemove={() =>
+                    onChange({
+                      winnerDeterminationType: '',
+                      winnerDeterminationName: '',
+                      winnerDeterminationDescription: '',
+                      winnerDeterminationKth: '1',
+                    })
+                  }
+                  onWinnerPriceAdd={() => {
+                    const opts = getGroupOptions('WINNER_PRICE_DETERMINATION');
+                    const first = opts[0];
+                    const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
+                    onChange({
+                      winnerPriceDeterminationType: first?.value ?? '',
+                      winnerPriceDeterminationName: defaults?.name ?? '',
+                      winnerPriceDeterminationDescription: defaults?.description ?? '',
+                    });
+                  }}
+                  onWinnerPriceRemove={() =>
+                    onChange({
+                      winnerPriceDeterminationType: '',
+                      winnerPriceDeterminationName: '',
+                      winnerPriceDeterminationDescription: '',
+                      winnerPriceDeterminationKth: '1',
+                    })
+                  }
+                  winnerDeterminationOptions={getGroupOptions('WINNER_DETERMINATION')}
+                  winnerPriceOptions={getGroupOptions('WINNER_PRICE_DETERMINATION')}
+                  fieldErrors={fieldErrors}
+                  winnerGroupInfo={getGroupDescription('WINNER_DETERMINATION')}
+                  winnerPriceGroupInfo={getGroupDescription('WINNER_PRICE_DETERMINATION')}
+                />
+                {editingKey === 'winner' && (
+                  <SaveCancelBar
+                    saving={savingItem}
+                    error={itemError}
+                    onSave={saveWinnerBoth}
+                    onCancel={cancelEdit}
+                  />
+                )}
+              </div>
+            );
+          })()}
 
         {/* Post Payment */}
-        {hasGroup('PAYMENT') && (
-          <PolicyPaymentSection
-            policies={form.paymentPolicies}
-            onChange={(v) => onChange({ paymentPolicies: v })}
-            openingPrice={openingPrice}
-            precision={precision}
-            currencyUnit={currencyUnit}
-            fieldErrors={fieldErrors}
-            groupDescription={getGroupDescription('PAYMENT')}
-            title="Post Payment / Winning Amount Payment Policy"
-            fixedScheduleReference="AUCTION_END_TIME"
-            modeOptions={paymentModeOptions}
-          />
-        )}
+        {hasGroup('PAYMENT') &&
+          renderPaymentGroup('AUCTION_END_TIME', 'Post Payment / Winning Amount Payment Policy')}
 
         <div className="flex justify-between gap-3">
           <Button type="button" variant="outline" onClick={onBack} disabled={saving}>

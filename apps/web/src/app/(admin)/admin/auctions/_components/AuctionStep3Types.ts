@@ -8,6 +8,8 @@ export interface PolicyHeadItem {
 }
 
 export interface PaymentPolicyItem {
+  /** Present only when this item was loaded from a previously saved policy. */
+  id?: string;
   name: string;
   description: string;
   scheduleReference: string;
@@ -20,6 +22,8 @@ export interface PaymentPolicyItem {
 }
 
 export interface PreconditionItem {
+  /** Present only when this item was loaded from a previously saved policy. */
+  id?: string;
   name: string;
   description: string;
   type: string;
@@ -51,9 +55,13 @@ export interface Step3State {
   participationManualApproval: boolean;
   participationValidationHours: string;
   participationValidationMinutes: string;
+  /** Present only when participation was loaded from a previously saved policy. */
+  participationPolicyId?: string;
   paymentPolicies: PaymentPolicyItem[];
   preconditions: PreconditionItem[];
   priceChangePolicies: PriceChangeItem[];
+  /** Present only when the price progression wrapper was loaded from a previously saved policy. */
+  priceProgressionPolicyId?: string;
   extensionEnabled: boolean;
   extensionType: string;
   extensionName: string;
@@ -61,14 +69,20 @@ export interface Step3State {
   extensionReference: string;
   extensionDurationMinutes: string;
   extensionLimit: string;
+  /** Present only when extension was loaded from a previously saved policy. */
+  extensionPolicyId?: string;
   winnerDeterminationType: string;
   winnerDeterminationKth: string;
   winnerDeterminationName: string;
   winnerDeterminationDescription: string;
+  /** Present only when winner determination was loaded from a previously saved policy. */
+  winnerDeterminationPolicyId?: string;
   winnerPriceDeterminationType: string;
   winnerPriceDeterminationKth: string;
   winnerPriceDeterminationName: string;
   winnerPriceDeterminationDescription: string;
+  /** Present only when winner price determination was loaded from a previously saved policy. */
+  winnerPriceDeterminationPolicyId?: string;
 }
 
 export const initialStep3: Step3State = {

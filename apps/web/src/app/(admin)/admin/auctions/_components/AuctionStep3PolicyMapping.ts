@@ -232,6 +232,7 @@ export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partia
     out.participationDescription = p.description ?? '';
     out.participationTypeId = p.typeId ?? '';
     out.participationManualApproval = p.manualApproval ?? false;
+    out.participationPolicyId = p.id;
     const { hours, minutes } = parseDurationWindow(p.preStartValidationDuration ?? 'PT0S');
     out.participationValidationHours = hours;
     out.participationValidationMinutes = minutes;
@@ -242,6 +243,7 @@ export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partia
     out.paymentPolicies = payment.map((p): PaymentPolicyItem => {
       const { days, hours } = parseDurationHours(p.schedule?.offset ?? 'PT0S');
       return {
+        id: p.id,
         name: p.name ?? '',
         description: p.description ?? '',
         scheduleReference: resolveType(p.schedule?.reference) || 'AUCTION_START_TIME',
@@ -266,6 +268,7 @@ export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partia
     out.preconditions = preconditions.map((p) => {
       const { days, hours } = parseDurationHours(p.preStartValidationDuration ?? 'PT0S');
       return {
+        id: p.id,
         name: p.name ?? '',
         description: p.description ?? '',
         type: resolveType(p.type),
@@ -279,6 +282,7 @@ export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partia
   const priceProgression = groups['PRICE_PROGRESSION'];
   if (priceProgression?.length) {
     const wrapper = priceProgression[0]!;
+    out.priceProgressionPolicyId = wrapper.id;
     out.priceChangePolicies = (wrapper.priceChangePolicies ?? []).map((p): PriceChangeItem => {
       const { hours, minutes } = parseDurationWindow(p.windowDuration ?? 'PT0S');
       return {
@@ -306,6 +310,7 @@ export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partia
       return m ? m[1]! : '10';
     })();
     out.extensionLimit = String(ext.limit ?? 0);
+    out.extensionPolicyId = ext.id;
   }
 
   const winnerDet = groups['WINNER_DETERMINATION'];
@@ -315,6 +320,7 @@ export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partia
     out.winnerDeterminationKth = String(w.kth ?? 1);
     out.winnerDeterminationName = w.name ?? '';
     out.winnerDeterminationDescription = w.description ?? '';
+    out.winnerDeterminationPolicyId = w.id;
   }
 
   const winnerPrice = groups['WINNER_PRICE_DETERMINATION'];
@@ -324,6 +330,7 @@ export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partia
     out.winnerPriceDeterminationKth = String(w.kth ?? 1);
     out.winnerPriceDeterminationName = w.name ?? '';
     out.winnerPriceDeterminationDescription = w.description ?? '';
+    out.winnerPriceDeterminationPolicyId = w.id;
   }
 
   return out;

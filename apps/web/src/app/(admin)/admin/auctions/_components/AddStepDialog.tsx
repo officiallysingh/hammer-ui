@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, CheckCircle2, Search, Upload, Landmark } from 'lucide-react';
 import {
   Button,
@@ -16,10 +16,12 @@ import {
   auctionsApi,
   metadataApi,
   blobsApi,
+  AuctionWorkflowStep,
   ManagedTypeListItemFull,
   ManagedTypeVM,
 } from '@repo/api';
 import { DismissibleError } from './AuctionShared';
+import { resolveStr } from './PolicyShared';
 import { PropertyFormPreview } from '../../metadata/_components/PropertyFormPreview';
 import { sanitizeProperties } from '../../metadata/_components/types';
 import { parseApiError } from '@/lib/api-errors';
@@ -38,6 +40,7 @@ export function AddStepDialog({
   nextOrder,
   hasTnCStep,
   hasBankDetailStep,
+  workflow,
   onAdded,
 }: {
   auctionId: string;
@@ -46,6 +49,8 @@ export function AddStepDialog({
   nextOrder: number;
   hasTnCStep: boolean;
   hasBankDetailStep: boolean;
+  /** Current workflow steps — used to keep the Bank Details + Payment steps adjacent. */
+  workflow: AuctionWorkflowStep[];
   onAdded: () => void;
 }) {
   const [mode, setMode] = useState<AddStepMode>('choose');
@@ -133,8 +138,24 @@ export function AddStepDialog({
       .finally(() => setLoadingTypeDetail(false));
   };
 
-  // Order dropdown — positions 1..nextOrder (insert at any position)
-  const orderOptions = Array.from({ length: nextOrder }, (_, i) => i + 1);
+  // The Bank Details step and the Payment step must stay adjacent — if both already
+  // exist, inserting a new step at the position between them would split them apart,
+  // so that single slot is removed from the picker entirely.
+  const blockedOrder = useMemo(() => {
+    const paymentIdx = workflow.findIndex((s) => resolveStr(s.type) === 'PAYMENT_STEP');
+    const bankIdx = workflow.findIndex((s) => resolveStr(s.type) === 'BANK_DETAIL_FORM_STEP');
+    if (paymentIdx === -1 || bankIdx === -1) return null;
+    const paymentOrder = workflow[paymentIdx]?.order ?? paymentIdx + 1;
+    const bankOrder = workflow[bankIdx]?.order ?? bankIdx + 1;
+    if (Math.abs(paymentOrder - bankOrder) !== 1) return null;
+    return Math.max(paymentOrder, bankOrder);
+  }, [workflow]);
+
+  // Order dropdown — positions 1..nextOrder (insert at any position), minus the
+  // slot that would split the Bank Details + Payment pair apart.
+  const orderOptions = Array.from({ length: nextOrder }, (_, i) => i + 1).filter(
+    (o) => o !== blockedOrder,
+  );
 
   const OrderField = () => (
     <div className="space-y-1.5">
@@ -280,7 +301,12 @@ export function AddStepDialog({
             <button
               type="button"
               disabled={hasTnCStep}
-              onClick={() => !hasTnCStep && setMode('TNC_FORM_STEP')}
+              onClick={() => {
+                if (hasTnCStep) return;
+                // Terms & Conditions should come first in the workflow by default.
+                setSelectedOrder(blockedOrder === 1 ? 2 : 1);
+                setMode('TNC_FORM_STEP');
+              }}
               className={`text-left rounded-lg border p-4 transition-colors space-y-1 ${
                 hasTnCStep
                   ? 'border-border/50 opacity-50 cursor-not-allowed'

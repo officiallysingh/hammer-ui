@@ -1,7 +1,11 @@
 'use client';
 
-import { CheckCircle2, Clock, XCircle } from 'lucide-react';
-import type { PolicyEvaluation, PolicyEvaluationMap } from '@repo/api';
+import { useState } from 'react';
+import { CheckCircle2, Clock, Pencil, Trash2, XCircle } from 'lucide-react';
+import { auctionsApi, type PolicyEvaluation, type PolicyEvaluationMap } from '@repo/api';
+import { Badge, Button } from '@repo/ui';
+import Tip from '@/components/common/admin/Tip';
+import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import { fmtLabel, resolveStr } from './PolicyShared';
 
 function statusStyle(statusType: string): { className: string; Icon: typeof Clock } {
@@ -108,6 +112,121 @@ export function EvaluationList({
       {entries.map(([name, evaluation]) => (
         <EvaluationCard key={name} name={name} evaluation={evaluation} />
       ))}
+    </div>
+  );
+}
+
+// ── Reusable "evaluate-only" policy card ────────────────────────────────────────
+// Shows a saved policy's name/type plus its evaluation results (never raw form
+// fields), with an optional edit pencil and delete button. Shared between the
+// auction edit-policies page and the workflow step view so both read-only
+// surfaces look and behave identically.
+
+export function PolicyItemCard({
+  auctionId,
+  policyId,
+  name,
+  type,
+  evaluations,
+  loadingEvaluation,
+  editable,
+  onEdit,
+  deletable,
+  onDeleted,
+  deleteConfirmDescription,
+}: {
+  auctionId: string;
+  /** The saved policy's id. Required for delete; edit is delegated to `onEdit`. */
+  policyId?: string;
+  name?: string;
+  type?: unknown;
+  evaluations?: PolicyEvaluationMap | null;
+  loadingEvaluation?: boolean;
+  editable?: boolean;
+  onEdit?: () => void;
+  deletable?: boolean;
+  onDeleted?: () => void;
+  deleteConfirmDescription?: string;
+}) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleDelete = async () => {
+    if (!policyId) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await auctionsApi.deleteAuctionPolicy(auctionId, policyId);
+      setConfirmOpen(false);
+      onDeleted?.();
+    } catch {
+      setDeleteError('Failed to delete policy. Please try again.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-1.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+          <span className="text-sm font-medium text-foreground truncate">
+            {name || fmtLabel(type) || 'Policy'}
+          </span>
+          {type != null && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
+              {fmtLabel(type)}
+            </Badge>
+          )}
+        </div>
+        {(editable || deletable) && (
+          <div className="flex items-center gap-1 shrink-0">
+            {editable && onEdit && (
+              <Tip label="Edit">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                  onClick={onEdit}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              </Tip>
+            )}
+            {deletable && policyId && (
+              <Tip label="Delete">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => setConfirmOpen(true)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </Tip>
+            )}
+          </div>
+        )}
+      </div>
+
+      {deleteError && <p className="text-xs text-destructive">{deleteError}</p>}
+
+      <EvaluationList evaluations={evaluations} loading={loadingEvaluation} />
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Delete policy?"
+        description={
+          deleteConfirmDescription ??
+          'This removes the policy and its related workflow steps. This action cannot be undone.'
+        }
+        confirmLabel={deleting ? 'Deleting...' : 'Delete'}
+        onConfirm={handleDelete}
+        onCancel={() => !deleting && setConfirmOpen(false)}
+      />
     </div>
   );
 }
