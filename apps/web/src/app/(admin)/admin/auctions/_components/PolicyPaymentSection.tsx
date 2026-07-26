@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
 import type { PolicyEvaluationMap } from '@repo/api';
-import { FieldError, SelectField } from './AuctionShared';
+import { FieldError, SelectField, SelectOption } from './AuctionShared';
 import { PaymentPolicyItem, PolicyHeadItem } from './AuctionStep3Types';
 import { EvaluationList } from './PolicyEvaluationDisplay';
 import {
@@ -34,6 +34,7 @@ interface Props {
   groupDescription?: string;
   title: string;
   fixedScheduleReference: ScheduleReference;
+  modeOptions: SelectOption[];
   /** Keyed by the item's original index in `policies` (not the filtered/visible index). */
   evaluationsByIndex?: Record<number, PolicyEvaluationMap>;
 }
@@ -44,7 +45,6 @@ function makeEmptyHead(scheduleReference: ScheduleReference): PolicyHeadItem {
   return {
     name: defaults.name,
     description: defaults.description,
-    type: '',
     basis: '',
     value: '',
     refundable: false,
@@ -60,6 +60,7 @@ function makeEmptyPolicy(scheduleReference: ScheduleReference): PaymentPolicyIte
     offsetDays: '',
     offsetHours: '0',
     heads: [makeEmptyHead(scheduleReference)],
+    mode: 'ONLINE',
   };
 }
 
@@ -73,6 +74,7 @@ export function PolicyPaymentSection({
   groupDescription,
   title,
   fixedScheduleReference,
+  modeOptions,
   evaluationsByIndex,
 }: Props) {
   const dragIndexRef = useRef<number | null>(null);
@@ -103,10 +105,10 @@ export function PolicyPaymentSection({
   const update = (i: number, patch: Partial<PaymentPolicyItem>) =>
     onChange(policies.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
 
-  const headTypeOptions =
-    fixedScheduleReference === 'AUCTION_END_TIME'
-      ? PAYMENT_HEAD_TYPE_OPTIONS_POST
-      : PAYMENT_HEAD_TYPE_OPTIONS_PRE;
+  // const headTypeOptions =
+  //   fixedScheduleReference === 'AUCTION_END_TIME'
+  //     ? PAYMENT_HEAD_TYPE_OPTIONS_POST
+  //     : PAYMENT_HEAD_TYPE_OPTIONS_PRE;
 
   const basisOptions =
     fixedScheduleReference === 'AUCTION_END_TIME'
@@ -233,6 +235,34 @@ export function PolicyPaymentSection({
                 onHoursChange={(v) => update(i, { offsetHours: v })}
               />
 
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Mode</Label>
+                <div className="flex items-center gap-4">
+                  {(modeOptions.length > 0
+                    ? modeOptions
+                    : [
+                        { value: 'ONLINE', label: 'Online' },
+                        { value: 'OFFLINE', label: 'Offline' },
+                      ]
+                  ).map((opt) => (
+                    <label
+                      key={opt.value}
+                      className="flex items-center gap-2 text-sm cursor-pointer select-none"
+                    >
+                      <input
+                        type="radio"
+                        name={`payment_mode_${i}`}
+                        value={opt.value}
+                        checked={pp.mode === opt.value}
+                        onChange={() => update(i, { mode: opt.value })}
+                        className="accent-primary"
+                      />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               {/* Payment Head */}
               <div className="rounded-lg border border-border/60 bg-background/60 p-3 space-y-3">
                 <div className="flex items-center justify-between">
@@ -286,7 +316,7 @@ export function PolicyPaymentSection({
                         />
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <SelectField
+                          {/* <SelectField
                             id={`payment_head_type_${i}_${j}`}
                             label="Type"
                             required
@@ -300,7 +330,7 @@ export function PolicyPaymentSection({
                             }
                             error={fieldErrors[`payment_head_type_${i}_${j}`]}
                             placeholder="Select type..."
-                          />
+                          /> */}
                           <SelectField
                             id={`payment_head_basis_${i}_${j}`}
                             label="Basis"

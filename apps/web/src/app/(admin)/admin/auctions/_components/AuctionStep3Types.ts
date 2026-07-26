@@ -1,7 +1,7 @@
 export interface PolicyHeadItem {
   name: string;
   description: string;
-  type: string;
+  // type: string;
   basis: string;
   value: string;
   refundable: boolean;
@@ -14,6 +14,9 @@ export interface PaymentPolicyItem {
   offsetDays: string;
   offsetHours: string;
   heads: PolicyHeadItem[];
+  priority?: number;
+  currency?: string;
+  mode: string;
 }
 
 export interface PreconditionItem {

@@ -14,7 +14,7 @@ import Tip from '@/components/common/admin/Tip';
 import { TagList } from '@/components/common/admin/TagList';
 import { PhraseSearchBar } from '@/components/common/admin/PhraseSearchBar';
 
-const TYPE = 'WORKFLOW_STEP_FORM' as const;
+const TYPE = 'CUSTOM_FORM' as const;
 
 export default function CustomFormsPage() {
   const router = useRouter();

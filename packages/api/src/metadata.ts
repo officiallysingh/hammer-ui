@@ -37,11 +37,7 @@ export type PropertyType =
   | 'LIST_PROPERTY'
   | 'SET_PROPERTY';
 
-export type ManagedTypeType =
-  | 'ENTITY'
-  | 'LISTING_PROPERTIES'
-  | 'AUCTION_PROPERTIES'
-  | 'WORKFLOW_STEP_FORM';
+export type ManagedTypeType = 'CATALOGUE' | 'CUSTOM_FORM';
 
 export interface ValidatorDef {
   type: string;

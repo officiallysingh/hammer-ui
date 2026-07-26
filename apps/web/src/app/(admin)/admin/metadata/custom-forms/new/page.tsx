@@ -4,7 +4,7 @@ import { metadataApi } from '@repo/api';
 import { MetadataForm, MetadataFormValues } from '../../_components/MetadataForm';
 import { sanitizeProperties } from '../../_components/types';
 
-const TYPE = 'WORKFLOW_STEP_FORM';
+const TYPE = 'CUSTOM_FORM';
 
 export default function NewCustomFormPage() {
   const handleSubmit = async (values: MetadataFormValues) => {

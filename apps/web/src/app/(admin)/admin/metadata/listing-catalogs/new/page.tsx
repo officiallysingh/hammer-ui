@@ -4,7 +4,7 @@ import { metadataApi } from '@repo/api';
 import { MetadataForm, MetadataFormValues } from '../../_components/MetadataForm';
 import { sanitizeProperties } from '../../_components/types';
 
-const TYPE = 'LISTING_PROPERTIES';
+const TYPE = 'CATALOGUE';
 
 export default function NewListingCatalogPage() {
   const handleSubmit = async (values: MetadataFormValues) => {

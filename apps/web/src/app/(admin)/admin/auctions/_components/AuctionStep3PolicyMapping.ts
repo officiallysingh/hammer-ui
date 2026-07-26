@@ -59,14 +59,14 @@ export function buildPaymentPolicyItem(
   priority: number,
   currencyUnit: string,
 ): PolicyItemRQ | null {
-  const heads = p.heads.filter((h) => h.type && h.basis && h.value);
+  const heads = p.heads.filter((h) => h.basis && h.value);
   if (heads.length === 0) return null;
   return {
-    type: 'PAYMENT_POLICY',
     name: p.name || undefined,
     description: p.description || undefined,
     priority,
     currency: currencyUnit,
+    mode: p.mode || 'ONLINE',
     schedule: {
       reference: (p.scheduleReference || 'AUCTION_START_TIME') as
         | 'AUCTION_START_TIME'
@@ -76,7 +76,7 @@ export function buildPaymentPolicyItem(
     heads: heads.map((h) => ({
       name: h.name || undefined,
       description: h.description || undefined,
-      type: h.type,
+      // type: h.type,
       basis: h.basis,
       value: parseFloat(h.value),
       refundable: h.refundable,
@@ -185,7 +185,7 @@ export function buildPolicies(
   if (participation) policies['PARTICIPATION'] = [participation];
 
   const validPayments = step3.paymentPolicies.filter((p) =>
-    p.heads.some((h) => h.type && h.basis && h.value),
+    p.heads.some((h) => h.basis && h.value),
   );
   if (validPayments.length > 0) {
     policies['PAYMENT'] = validPayments.map(
@@ -238,11 +238,11 @@ export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partia
         scheduleReference: resolveType(p.schedule?.reference) || 'AUCTION_START_TIME',
         offsetDays: days,
         offsetHours: hours,
+        mode: resolveType(p.mode) || 'ONLINE',
         heads: (p.heads ?? []).map(
           (h): PolicyHeadItem => ({
             name: h.name ?? '',
             description: h.description ?? '',
-            type: resolveType(h.type),
             basis: resolveType(h.basis),
             value: String(h.value ?? ''),
             refundable: h.refundable ?? false,
@@ -333,9 +333,7 @@ export function validatePolicies(step3: Step3State): Record<string, string> {
       return;
     }
     policy.heads.forEach((h, j) => {
-      if (!h.type) {
-        errs[`payment_head_type_${i}_${j}`] = 'Please select a head type.';
-      } else if (!h.basis) {
+      if (!h.basis) {
         errs[`payment_head_basis_${i}_${j}`] = 'Please select a basis.';
       } else if (!h.value || isNaN(parseFloat(h.value)) || parseFloat(h.value) <= 0) {
         errs[`payment_head_value_${i}_${j}`] = 'A positive value is required.';

@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { MetadataForm, MetadataFormValues } from '../../../_components/MetadataForm';
 
-const TYPE = 'LISTING_PROPERTIES';
+const TYPE = 'CATALOGUE';
 
 export default function EditListingCatalogPage() {
   const { id } = useParams<{ id: string }>();

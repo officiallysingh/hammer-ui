@@ -58,11 +58,11 @@ function seedMandatoryDefaults(current: Step3State, groups: PolicyGroup[]): Part
         scheduleReference: 'AUCTION_START_TIME',
         offsetDays: '',
         offsetHours: '0',
+        mode: 'ONLINE',
         heads: [
           {
             name: PAYMENT_HEAD_DEFAULT.name,
             description: PAYMENT_HEAD_DEFAULT.description,
-            type: '',
             basis: '',
             value: '',
             refundable: false,
@@ -162,8 +162,16 @@ export function AuctionStep3Policies({
 }: AuctionStep3PoliciesProps) {
   const [groups, setGroups] = useState<PolicyGroup[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
+  const [paymentModeOptions, setPaymentModeOptions] = useState<SelectOption[]>([]);
   // Track whether we've already seeded defaults so we only do it once
   const seededRef = useRef(false);
+
+  useEffect(() => {
+    auctionsApi
+      .getPaymentModes()
+      .then(setPaymentModeOptions)
+      .catch(() => setPaymentModeOptions([]));
+  }, []);
 
   useEffect(() => {
     if (!auctionType) return;
@@ -256,6 +264,7 @@ export function AuctionStep3Policies({
           groupDescription={getGroupDescription('PAYMENT')}
           title="Pre Payment / Participation Eligibility Policy"
           fixedScheduleReference="AUCTION_START_TIME"
+          modeOptions={paymentModeOptions}
         />
       )}
 
@@ -386,6 +395,7 @@ export function AuctionStep3Policies({
           groupDescription={getGroupDescription('PAYMENT')}
           title="Post Payment / Winning Amount Payment Policy"
           fixedScheduleReference="AUCTION_END_TIME"
+          modeOptions={paymentModeOptions}
         />
       )}
 

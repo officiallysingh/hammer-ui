@@ -578,7 +578,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
   -d '{
     "name": "Mobile Phone",
     "description": "Product spec page with composites, price block, image gallery, and spec sections",
-    "type": "LISTING_PROPERTIES",
+    "type": "CATALOGUE",
     "tags": ["mobile", "electronics", "phone"],
     "properties": [
       {
@@ -992,7 +992,7 @@ curl -s -X POST http://localhost:8090/api/v1/meta-data/managed-types \
   -d '{
     "name": "Electronics Listing",
     "description": "Catalog type for electronics — showcases form/list attribute styling",
-    "type": "LISTING_PROPERTIES",
+    "type": "CATALOGUE",
     "tags": ["electronics", "showcase"],
     "properties": [
       {

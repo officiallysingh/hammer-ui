@@ -71,7 +71,7 @@ export function Step3Catalog({
     try {
       const results = await metadataApi.searchManagedTypeListItems({
         phrases,
-        type: 'LISTING_PROPERTIES',
+        type: 'CATALOGUE',
       });
       setSearchResults(results);
     } catch {
@@ -81,7 +81,7 @@ export function Step3Catalog({
     }
   }, []);
 
-  // Auto-load all LISTING_PROPERTIES types on mount
+  // Auto-load all CATALOGUE types on mount
   useEffect(() => {
     doSearch([]);
   }, [doSearch]);

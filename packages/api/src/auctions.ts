@@ -172,7 +172,7 @@ export interface PolicyGroup {
 export interface PolicyHeadRQ {
   name?: string;
   description?: string;
-  type: string;
+  type?: string;
   basis: string;
   value: number;
   refundable?: boolean;
@@ -185,13 +185,14 @@ export interface PolicySchedule {
 
 export interface PolicyItemRQ {
   id?: string;
-  type: string;
+  type?: string;
   name?: string;
   description?: string;
   basis?: string;
   value?: number;
   priority?: number;
   currency?: string;
+  mode?: string;
   heads?: PolicyHeadRQ[];
   schedule?: PolicySchedule;
   preStartValidationDuration?: string;
@@ -430,6 +431,11 @@ export const auctionsApi = {
 
   getUnitTypes: async (): Promise<{ value: string; label: string }[]> => {
     const response = await apiClient.get<AuctionModelEntry[]>('/api/v1/auctions/model/unit-types');
+    return parseModelOptions(response.data);
+  },
+
+  getPaymentModes: async (): Promise<{ value: string; label: string }[]> => {
+    const response = await apiClient.get<AuctionModelEntry[]>('/api/v1/payments/modes');
     return parseModelOptions(response.data);
   },
 };

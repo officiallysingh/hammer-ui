@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { MetadataForm, MetadataFormValues } from '../../../_components/MetadataForm';
 
-const TYPE = 'WORKFLOW_STEP_FORM';
+const TYPE = 'CUSTOM_FORM';
 
 export default function EditCustomFormPage() {
   const { id } = useParams<{ id: string }>();
