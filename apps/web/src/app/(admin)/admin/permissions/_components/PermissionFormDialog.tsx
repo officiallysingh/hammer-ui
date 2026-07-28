@@ -32,6 +32,7 @@ function PermissionFields({
   labelId,
   descId,
   readOnly = false,
+  nameLocked = false,
 }: {
   name: string;
   onName: (v: string) => void;
@@ -45,7 +46,10 @@ function PermissionFields({
   labelId: string;
   descId: string;
   readOnly?: boolean;
+  /** Locks just the Name field (e.g. while editing — the key can't change after creation). */
+  nameLocked?: boolean;
 }) {
+  const nameDisabled = readOnly || nameLocked;
   return (
     <>
       <div className="space-y-1">
@@ -61,10 +65,15 @@ function PermissionFields({
           }}
           placeholder="admin.users.create"
           autoComplete="off"
-          readOnly={readOnly}
-          disabled={readOnly}
-          className={`${fieldErrors.name ? 'border-destructive focus-visible:ring-destructive' : ''} ${readOnly ? 'bg-muted/40 cursor-default' : ''}`}
+          readOnly={nameDisabled}
+          disabled={nameDisabled}
+          className={`${fieldErrors.name ? 'border-destructive focus-visible:ring-destructive' : ''} ${nameDisabled ? 'bg-muted/40 cursor-default' : ''}`}
         />
+        {nameLocked && !readOnly && (
+          <p className="text-xs text-muted-foreground">
+            Name can&apos;t be changed after creation.
+          </p>
+        )}
         {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
       </div>
       <div className="space-y-1">
@@ -357,6 +366,7 @@ export function EditPermissionDialog({
             labelId="ep-label"
             descId="ep-desc"
             readOnly={readOnly}
+            nameLocked
           />
           {error && <ErrorAlert message={error} />}
           <DialogFooter>

@@ -235,7 +235,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             : []
           : undefined,
       });
-      const userInfo = await usersApi.getUserInfoByLoginName(data.username);
+      const userInfo = await usersApi.getSelfInfo();
       setUserInfo(userInfo);
       if (userInfo.promptChangePassword) {
         router.push('/change-password');

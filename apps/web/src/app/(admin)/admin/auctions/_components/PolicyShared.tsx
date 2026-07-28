@@ -14,13 +14,19 @@ export function resolveStr(value?: unknown): string {
   return String(value);
 }
 
+/** Title-cases an enum code, snake_case key, or camelCase key alike (e.g.
+ *  "MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY" / "deadlineDescription" / "Aadhar Card"
+ *  all become "Minimum Participants Requirement Policy" / "Deadline Description" /
+ *  "Aadhar Card"). Idempotent on already-formatted text. */
 export function fmtLabel(value?: unknown): string {
   const str = resolveStr(value);
   if (!str) return '';
   return str
-    .toLowerCase()
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/_/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w))
     .join(' ');
 }
 

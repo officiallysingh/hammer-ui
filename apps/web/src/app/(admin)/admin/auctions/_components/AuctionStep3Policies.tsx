@@ -213,7 +213,6 @@ interface AuctionStep3PoliciesProps {
   fieldErrors: Record<string, string>;
   generalError: string | null;
   saving: boolean;
-  submitLabel?: string;
   onSubmit: (e: React.FormEvent) => void;
   onBack: () => void;
   onSkip?: () => void;
@@ -231,7 +230,6 @@ export function AuctionStep3Policies({
   fieldErrors,
   generalError,
   saving,
-  submitLabel = 'Save & Finish',
   onSubmit,
   onBack,
   onSkip,
@@ -392,6 +390,11 @@ export function AuctionStep3Policies({
 
   const confirmAndSubmit = () => {
     setReviewOpen(false);
+    // No pending changes — just move on, nothing needs to be (re-)saved.
+    if (onSkip) {
+      onSkip();
+      return;
+    }
     onSubmit({ preventDefault: () => {} } as React.FormEvent);
   };
 
@@ -955,28 +958,18 @@ export function AuctionStep3Policies({
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back
           </Button>
-          {onSkip ? (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onSkip}
-              disabled={saving}
-              className="gap-2"
-            >
-              Skip <ArrowRight className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button type="submit" disabled={saving} className="gap-2">
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                submitLabel
-              )}
-            </Button>
-          )}
+          <Button type="submit" disabled={saving} className="gap-2">
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : onSkip ? (
+              'Preview'
+            ) : (
+              'Preview & Continue'
+            )}
+          </Button>
         </div>
       </form>
 
@@ -1057,7 +1050,7 @@ export function AuctionStep3Policies({
                 </>
               ) : (
                 <>
-                  Next <ArrowRight className="h-4 w-4" />
+                  {onSkip ? 'Continue' : 'Save & Continue'} <ArrowRight className="h-4 w-4" />
                 </>
               )}
             </Button>

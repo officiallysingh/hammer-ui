@@ -40,24 +40,24 @@ export const ACCOUNT_NO_REGEX = /^\d{9,18}$/;
 // ── API ───────────────────────────────────────────────────────────────────────
 
 export const bankDetailsApi = {
-  /** GET /api/v1/bank-details — list all bank details for the authenticated user */
+  /** GET /api/v1/users/me/bank-details — list all bank details for the authenticated user */
   getAll: async (): Promise<BankDetailVM[]> => {
-    const response = await apiClient.get('/api/v1/bank-details');
+    const response = await apiClient.get('/api/v1/users/me/bank-details');
     return response.data;
   },
 
-  /** POST /api/v1/bank-details — create a bank detail */
+  /** POST /api/v1/users/me/bank-details — create a bank detail */
   create: async (data: BankDetailCreationRQ): Promise<void> => {
-    await apiClient.post('/api/v1/bank-details', data);
+    await apiClient.post('/api/v1/users/me/bank-details', data);
   },
 
-  /** PATCH /api/v1/bank-details/{id} — update a bank detail */
+  /** PATCH /api/v1/users/me/bank-details/{id} — update a bank detail */
   update: async (id: string, data: BankDetailUpdationRQ): Promise<void> => {
-    await apiClient.patch(`/api/v1/bank-details/${id}`, data);
+    await apiClient.patch(`/api/v1/users/me/bank-details/${id}`, data);
   },
 
-  /** DELETE /api/v1/bank-details/{id} — delete a bank detail */
+  /** DELETE /api/v1/users/me/bank-details/{id} — delete a bank detail */
   delete: async (id: string): Promise<void> => {
-    await apiClient.delete(`/api/v1/bank-details/${id}`);
+    await apiClient.delete(`/api/v1/users/me/bank-details/${id}`);
   },
 };

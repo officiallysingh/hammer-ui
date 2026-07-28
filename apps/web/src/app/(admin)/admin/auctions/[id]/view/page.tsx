@@ -12,7 +12,7 @@ import {
   AuctionPoliciesGroupRQ,
   PolicyEvaluationMap,
 } from '@repo/api';
-import { EvaluationList } from '../../_components/PolicyEvaluationDisplay';
+import { PolicyItemCard } from '../../_components/PolicyEvaluationDisplay';
 import {
   ArrowLeft,
   Loader2,
@@ -21,7 +21,6 @@ import {
   DollarSign,
   Settings2,
   Layers,
-  Clock,
   AlertCircle,
   Eye,
   Package,
@@ -127,329 +126,67 @@ function SectionCard({
 }
 
 // ── Policy group ──────────────────────────────────────────────────────────────
-
-function formatDuration(value?: unknown): string | null {
-  if (!value) return null;
-  const raw = String(value).trim();
-  if (!raw) return null;
-
-  const isoMatch = raw.match(
-    /^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/,
-  );
-  if (isoMatch) {
-    const [, years, months, days, hours, minutes, seconds] = isoMatch;
-    const parts: string[] = [];
-    if (years) parts.push(`${years}y`);
-    if (months) parts.push(`${months}mo`);
-    if (days) parts.push(`${days}d`);
-    if (hours) parts.push(`${hours}h`);
-    if (minutes) parts.push(`${minutes}m`);
-    if (seconds) parts.push(`${Number(seconds).toLocaleString()}s`);
-    return parts.join(' ');
-  }
-
-  return raw;
-}
-
-/** Parses an ISO-8601 duration (e.g. "PT1H30M") into total seconds; 0 if unparsable */
-function durationToSeconds(value?: unknown): number {
-  if (!value) return 0;
-  const raw = String(value).trim();
-  const isoMatch = raw.match(
-    /^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/,
-  );
-  if (!isoMatch) return 0;
-  const [, years, months, days, hours, minutes, seconds] = isoMatch;
-  const totalDays = Number(years || 0) * 365 + Number(months || 0) * 30 + Number(days || 0);
-  return (
-    totalDays * 86400 + Number(hours || 0) * 3600 + Number(minutes || 0) * 60 + Number(seconds || 0)
-  );
-}
-
-/** Formats a total-seconds value the same way formatDuration formats an ISO duration */
-function formatSecondsDuration(totalSeconds: number): string | null {
-  if (!totalSeconds) return null;
-  let remaining = Math.round(totalSeconds);
-  const days = Math.floor(remaining / 86400);
-  remaining -= days * 86400;
-  const hours = Math.floor(remaining / 3600);
-  remaining -= hours * 3600;
-  const minutes = Math.floor(remaining / 60);
-  remaining -= minutes * 60;
-  const parts: string[] = [];
-  if (days) parts.push(`${days}d`);
-  if (hours) parts.push(`${hours}h`);
-  if (minutes) parts.push(`${minutes}m`);
-  if (remaining) parts.push(`${remaining}s`);
-  return parts.join(' ');
-}
-
-/** Renders a "Schedule" badge (reference + offset) shared by the timeline and list layouts */
-function ScheduleBadge({ schedule }: { schedule: PolicyItemRQ['schedule'] }) {
-  if (!schedule) return null;
-  const offsetLabel = formatDuration(schedule.offset);
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-400">
-      <Clock className="h-3 w-3" />
-      {formatLabel(schedule.reference)}
-      {offsetLabel ? ` + ${offsetLabel}` : ''}
-    </span>
-  );
-}
-
-/** Renders the "Fee Heads" breakdown for a PAYMENT_POLICY item */
-function HeadsList({ heads }: { heads: PolicyItemRQ['heads'] }) {
-  if (!heads?.length) return null;
-  return (
-    <div className="mt-2 space-y-1">
-      {heads.map((h, i) => (
-        <div
-          key={i}
-          className="flex flex-wrap items-center gap-2 rounded-md border border-border/50 bg-muted/30 px-2 py-1 text-[11px]"
-        >
-          <span className="font-medium text-foreground">{h.name || formatLabel(h.type)}</span>
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-            {formatLabel(h.type)}
-          </Badge>
-          <span className="text-muted-foreground">
-            {formatLabel(h.basis)}: <span className="text-foreground">{h.value}</span>
-          </span>
-          {h.refundable && (
-            <span className="text-emerald-600 dark:text-emerald-400">Refundable</span>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function TimelineEntryCard({
-  item,
-  index,
-  isLast,
-  cumulativeSeconds,
-  evaluations,
-}: {
-  item: PolicyItemRQ;
-  index: number;
-  isLast: boolean;
-  cumulativeSeconds?: number;
-  evaluations?: PolicyEvaluationMap;
-}) {
-  const durationLabel = formatDuration(item.windowDuration ?? item.duration);
-  const stepLabel = item.steps?.length ? item.steps.join(', ') : null;
-  const cumulativeLabel =
-    cumulativeSeconds != null ? formatSecondsDuration(cumulativeSeconds) : null;
-  return (
-    <div className="relative pl-8 pb-4 last:pb-0">
-      <div className="absolute left-[6px] top-2.5 h-3 w-3 rounded-full border-2 border-primary/50 bg-background" />
-      <div className="rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium text-foreground">
-              {item.name || formatLabel(item.type)}
-            </span>
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-              {formatLabel(item.type)}
-            </Badge>
-          </div>
-          <span className="text-[10px] font-medium text-muted-foreground">
-            {isLast ? 'Rest of auction' : `Window ${index + 1}`}
-          </span>
-        </div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {durationLabel && (
-            <div className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
-              <Clock className="h-3 w-3" />
-              {durationLabel}
-            </div>
-          )}
-          {cumulativeLabel && (
-            <div className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-400">
-              <Clock className="h-3 w-3" />
-              Starts at T+{cumulativeLabel}
-            </div>
-          )}
-          {cumulativeSeconds === 0 && (
-            <div className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-400">
-              <Clock className="h-3 w-3" />
-              Starts at T+0
-            </div>
-          )}
-        </div>
-        {item.description && (
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p>
-        )}
-        <div className="mt-2 flex flex-wrap gap-2">
-          {item.value != null && (
-            <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
-              Value: <span className="text-foreground">{item.value}</span>
-            </span>
-          )}
-          {stepLabel && (
-            <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
-              Steps: <span className="text-foreground">{stepLabel}</span>
-            </span>
-          )}
-          {item.basis && (
-            <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
-              Basis: <span className="text-foreground">{formatLabel(item.basis)}</span>
-            </span>
-          )}
-        </div>
-        {evaluations && (
-          <div className="mt-2">
-            <EvaluationList evaluations={evaluations} />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+// Evaluate-only, full-width — no raw policy-form fields, just each policy's name/
+// type and its evaluation results (reuses the same card as the edit/workflow views).
 
 function PolicyGroupSection({
+  auctionId,
   groupKey,
   items,
   evaluationsByPolicyId,
 }: {
+  auctionId: string;
   groupKey: string;
   items: PolicyItemRQ[];
   evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
 }) {
-  const isTimelineGroup =
-    (groupKey.toLowerCase().includes('price') && groupKey.toLowerCase().includes('progress')) ||
-    items.some((item) => Boolean(item.windowDuration) || (item.steps?.length ?? 0) > 0);
-
-  if (isTimelineGroup) {
-    return (
-      <div>
-        <div className="px-4 py-2 bg-muted/30 border-b border-border/50">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            {formatLabel(groupKey)}
-          </span>
-        </div>
-        <div className="relative px-4 py-3">
-          <div className="absolute left-7 top-0 bottom-0 w-px bg-border/50" />
-          {items.map((item, i) => {
-            // Wrapper items (e.g. PRICE_PROGRESSION_POLICY) hold their own nested list —
-            // render the nested windows instead of treating the wrapper as a single entry.
-            if (item.priceChangePolicies?.length) {
-              return (
-                <div key={i} className="relative pb-4 last:pb-0">
-                  {(item.name || item.description) && (
-                    <div className="pl-8 mb-2">
-                      <span className="text-sm font-semibold text-foreground">{item.name}</span>
-                      {item.description && (
-                        <p className="text-xs text-muted-foreground">{item.description}</p>
-                      )}
-                    </div>
-                  )}
-                  {item.priceChangePolicies.map((nested, j) => {
-                    const cumulativeSeconds = item
-                      .priceChangePolicies!.slice(0, j)
-                      .reduce(
-                        (sum, w) => sum + durationToSeconds(w.windowDuration ?? w.duration),
-                        0,
-                      );
-                    return (
-                      <TimelineEntryCard
-                        key={j}
-                        item={nested}
-                        index={j}
-                        isLast={j === item.priceChangePolicies!.length - 1}
-                        cumulativeSeconds={cumulativeSeconds}
-                        evaluations={nested.id ? evaluationsByPolicyId?.[nested.id] : undefined}
-                      />
-                    );
-                  })}
-                </div>
-              );
-            }
-            const cumulativeSeconds = items
-              .slice(0, i)
-              .reduce((sum, w) => sum + durationToSeconds(w.windowDuration ?? w.duration), 0);
-            return (
-              <TimelineEntryCard
-                key={i}
-                item={item}
-                index={i}
-                isLast={i === items.length - 1}
-                cumulativeSeconds={cumulativeSeconds}
-                evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
-              />
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div>
-      <div className="px-4 py-2 bg-muted/30 border-b border-border/50">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          {formatLabel(groupKey)}
-        </span>
-      </div>
-      {items.map((item, i) => {
-        const durationLabel = formatDuration(item.duration);
-        return (
-          <div key={i} className="relative px-4 py-3 border-b border-border/30 last:border-0">
-            <div className="absolute left-5 top-0 bottom-0 w-px bg-border/50" />
-            <div className="relative pl-6">
-              <div className="absolute left-[-2px] top-3.5 h-3 w-3 rounded-full border-2 border-primary/50 bg-background" />
-              <div className="rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-foreground">
-                    {item.name || formatLabel(item.type)}
-                  </span>
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                    {formatLabel(item.type)}
-                  </Badge>
-                  {durationLabel && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
-                      <Clock className="h-3 w-3" />
-                      {durationLabel}
-                    </span>
-                  )}
-                  <ScheduleBadge schedule={item.schedule} />
-                </div>
-                {item.description && (
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p>
-                )}
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {item.basis && (
-                    <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
-                      Basis: <span className="text-foreground">{formatLabel(item.basis)}</span>
-                    </span>
-                  )}
-                  {item.value != null && (
-                    <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
-                      Value: <span className="text-foreground">{item.value}</span>
-                    </span>
-                  )}
-                  {item.count != null && (
-                    <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
-                      Count: <span className="text-foreground">{item.count}</span>
-                    </span>
-                  )}
-                  {item.kth != null && (
-                    <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
-                      Kth: <span className="text-foreground">{item.kth}</span>
-                    </span>
-                  )}
-                </div>
-                <HeadsList heads={item.heads} />
-                {item.id && evaluationsByPolicyId?.[item.id] && (
-                  <div className="mt-2">
-                    <EvaluationList evaluations={evaluationsByPolicyId[item.id]} />
-                  </div>
-                )}
+    <div className="px-4 py-3 space-y-2">
+      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        {formatLabel(groupKey)}
+      </span>
+      <div className="space-y-2">
+        {items.map((item, i) => {
+          // Wrapper items (e.g. PRICE_PROGRESSION_POLICY) hold their own nested list —
+          // show the wrapper plus each nested step as its own full-width card.
+          if (item.priceChangePolicies?.length) {
+            return (
+              <div key={i} className="space-y-2">
+                <PolicyItemCard
+                  auctionId={auctionId}
+                  policyId={item.id}
+                  name={item.name}
+                  type={item.type}
+                  evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
+                  showStatus={false}
+                />
+                {item.priceChangePolicies.map((nested, j) => (
+                  <PolicyItemCard
+                    key={j}
+                    auctionId={auctionId}
+                    policyId={nested.id}
+                    name={nested.name}
+                    type={nested.type}
+                    evaluations={nested.id ? evaluationsByPolicyId?.[nested.id] : undefined}
+                    showStatus={false}
+                  />
+                ))}
               </div>
-            </div>
-          </div>
-        );
-      })}
+            );
+          }
+          return (
+            <PolicyItemCard
+              key={i}
+              auctionId={auctionId}
+              policyId={item.id}
+              name={item.name}
+              type={item.type}
+              evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
+              showStatus={false}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -893,10 +630,11 @@ export default function AuctionViewPage() {
               {policyEntries.length} group{policyEntries.length !== 1 ? 's' : ''}
             </span>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 divide-x divide-y divide-border/50">
+          <div className="divide-y divide-border/50">
             {policyEntries.map(([key, items]) => (
               <PolicyGroupSection
                 key={key}
+                auctionId={id}
                 groupKey={key}
                 items={items}
                 evaluationsByPolicyId={evaluationsByPolicyId}

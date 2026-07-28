@@ -325,10 +325,9 @@ export const auctionsApi = {
     return response.data;
   },
 
-  reorderWorkflowSteps: async (id: string, stepIds: string[]): Promise<void> => {
-    await apiClient.post(`/api/v1/auctions/${id}/participation/workflow/steps/reorder`, {
-      stepIds,
-    });
+  /** Payload is a map of stepId -> new order (1-based), not an ordered id array. */
+  reorderWorkflowSteps: async (id: string, order: Record<string, number>): Promise<void> => {
+    await apiClient.post(`/api/v1/auctions/${id}/participation/workflow/steps/reorder`, order);
   },
 
   addWorkflowStep: async (id: string, data: AddWorkflowStepRQ): Promise<void> => {

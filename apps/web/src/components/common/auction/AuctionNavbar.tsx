@@ -4,7 +4,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  Gavel,
   Search,
   Bell,
   User,
@@ -61,11 +60,9 @@ const AuctionNavbar = () => {
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
       <div className="container mx-auto flex h-16 items-center justify-between px-6">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
-          <Gavel className="h-6 w-6 text-primary" />
-          <span className="font-display text-xl font-bold tracking-wide text-foreground">
-            HAM<span className="text-gradient-gold">MER</span>
-          </span>
+        <Link href="/" className="flex items-center hover:opacity-90 transition-opacity">
+          <img src="/oxneer_logo_light.svg" alt="Oxneer" className="h-8 w-auto dark:hidden" />
+          <img src="/oxneer_logo_dark.svg" alt="Oxneer" className="h-8 w-auto hidden dark:block" />
         </Link>
 
         {/* Desktop nav links */}

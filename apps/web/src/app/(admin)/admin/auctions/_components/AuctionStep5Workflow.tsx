@@ -185,12 +185,6 @@ function WorkflowStepCard({
   const isCompleted = statusType === 'COMPLETED';
   const isRunning = statusType === 'IN_PROGRESS' || statusType === 'RUNNING';
 
-  const statusColor = isCompleted
-    ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30'
-    : isRunning
-      ? 'bg-blue-500/10 text-blue-600 border-blue-500/30'
-      : 'bg-muted text-muted-foreground border-border';
-
   const bubbleClass = isCompleted
     ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600'
     : isRunning
@@ -237,15 +231,6 @@ function WorkflowStepCard({
             <p className="text-[10px] text-muted-foreground truncate">{fmtLabel(step.type)}</p>
           )}
         </div>
-
-        {/* Status */}
-        {statusType && (
-          <span
-            className={`text-[10px] font-medium px-2 py-0.5 rounded-full border shrink-0 ${statusColor}`}
-          >
-            {fmtLabel(statusType)}
-          </span>
-        )}
 
         {/* Edit step */}
         {onEdit && (
@@ -554,10 +539,11 @@ export function AuctionStep5Workflow({
       setReordering(true);
       setReorderError(null);
       try {
-        await auctionsApi.reorderWorkflowSteps(
-          auctionId,
-          newSteps.filter((s) => s.id).map((s) => s.id),
-        );
+        const order: Record<string, number> = {};
+        newSteps.forEach((s, i) => {
+          if (s.id) order[s.id] = i + 1;
+        });
+        await auctionsApi.reorderWorkflowSteps(auctionId, order);
       } catch {
         setReorderError('Failed to save new order. Please try again.');
       } finally {

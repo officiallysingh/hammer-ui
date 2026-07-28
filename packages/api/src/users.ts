@@ -72,7 +72,7 @@ export interface UserUpdateReq {
   roles?: string[]; // replaces all roles
 }
 
-// Self user info (GET /api/v1/users/username/{loginName}/info)
+// Self user info (GET /api/v1/users/me/info)
 export interface UserInfo {
   username: string;
   emailId: string;
@@ -91,7 +91,7 @@ export interface UserInfo {
   promptChangePassword: boolean;
 }
 
-// Self update (PATCH /api/v1/users/update-profile)
+// Self update (PATCH /api/v1/users/me/update-profile)
 export interface SelfUpdateReq {
   emailId?: string;
   firstName?: string;
@@ -116,10 +116,9 @@ export interface PaginatedUsers {
 }
 
 export const usersApi = {
-  getUserInfoByLoginName: async (loginName: string): Promise<UserInfo> => {
-    const response = await apiClient.get<UserInfo>(
-      `/api/v1/users/username/${encodeURIComponent(loginName)}/info`,
-    );
+  /** Fetches info for the currently logged-in user (session-derived, no id needed). */
+  getSelfInfo: async (): Promise<UserInfo> => {
+    const response = await apiClient.get<UserInfo>('/api/v1/users/me/info');
     return response.data;
   },
   checkUsernameExists: async (username: string) => {
@@ -173,6 +172,6 @@ export const usersApi = {
     await apiClient.delete(`/api/v1/users/${id}`);
   },
   updateSelf: async (data: SelfUpdateReq): Promise<void> => {
-    await apiClient.patch('/api/v1/users/update-profile', data);
+    await apiClient.patch('/api/v1/users/me/update-profile', data);
   },
 };

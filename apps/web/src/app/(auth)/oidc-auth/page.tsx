@@ -36,7 +36,7 @@ function OidcAuthInner() {
 
     (async () => {
       try {
-        const userInfo = await usersApi.getUserInfoByLoginName(username);
+        const userInfo = await usersApi.getSelfInfo();
         setUser({ username, authenticated: true });
         setUserInfo(userInfo);
         if (userInfo.promptChangePassword || promptChangePassword) {

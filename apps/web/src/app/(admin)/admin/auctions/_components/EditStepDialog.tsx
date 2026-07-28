@@ -99,7 +99,7 @@ export function EditStepDialog({
 
   return (
     <Dialog open={step !== null} onOpenChange={(o) => (o ? undefined : close())}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Step</DialogTitle>
         </DialogHeader>

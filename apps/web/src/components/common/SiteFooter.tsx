@@ -1,5 +1,3 @@
-import { Gavel } from 'lucide-react';
-
 const footerLinks = {
   Auctions: ['Live Now', 'Upcoming', 'Past Results', 'Categories'],
   Company: ['About Us', 'How It Works', 'Press', 'Careers'],
@@ -13,11 +11,13 @@ const SiteFooter = () => {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <Gavel className="h-5 w-5 text-primary" />
-              <span className="font-display text-lg font-bold text-foreground">
-                HAM<span className="text-gradient-gold">MER</span>
-              </span>
+            <div className="flex items-center mb-4">
+              <img src="/oxneer_logo_light.svg" alt="Oxneer" className="h-7 w-auto dark:hidden" />
+              <img
+                src="/oxneer_logo_dark.svg"
+                alt="Oxneer"
+                className="h-7 w-auto hidden dark:block"
+              />
             </div>
             <p className="font-body text-sm text-muted-foreground leading-relaxed">
               The premier destination for live auctions on rare art, antiques, watches, and luxury

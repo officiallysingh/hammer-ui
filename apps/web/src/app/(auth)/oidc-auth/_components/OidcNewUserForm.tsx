@@ -219,7 +219,7 @@ export function OidcNewUserForm({
       });
       const loginData = await authApi.login({ username: username.trim(), password });
       setUser({ username: loginData.username, authenticated: true });
-      const userInfo = await usersApi.getUserInfoByLoginName(loginData.username);
+      const userInfo = await usersApi.getSelfInfo();
       setUserInfo(userInfo);
       router.replace('/');
     } catch (err) {
