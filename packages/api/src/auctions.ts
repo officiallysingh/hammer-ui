@@ -424,20 +424,18 @@ export const auctionsApi = {
     await apiClient.delete(`/api/v1/auctions/${id}/policies/${policyId}`);
   },
 
-  /**
-   * Updates a workflow step's own fields (name/description/order, or full config
-   * for explicit steps). Reuses the add-step endpoint per product instruction until
-   * a dedicated step-update endpoint is available on the backend.
-   */
+  /** Updates a workflow step's own fields (name/description/order, or full config for explicit steps). */
   updateWorkflowStep: async (
     id: string,
     stepId: string,
     data: Partial<AddWorkflowStepRQ> & { type: WorkflowStepType },
   ): Promise<void> => {
-    await apiClient.post(`/api/v1/auctions/${id}/participation/workflow/steps`, {
-      ...data,
-      id: stepId,
-    });
+    await apiClient.put(`/api/v1/auctions/${id}/participation/workflow/steps/${stepId}`, data);
+  },
+
+  /** Deletes a single step from the auction workflow. */
+  deleteWorkflowStep: async (id: string, stepId: string): Promise<void> => {
+    await apiClient.delete(`/api/v1/auctions/${id}/participation/workflow/steps/${stepId}`);
   },
 
   getRoundingModeTypes: async (): Promise<{ value: string; label: string }[]> => {

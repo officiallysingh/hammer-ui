@@ -10,7 +10,7 @@ set -euo pipefail
 #   ./scripts/create-components.sh
 
 BASE_URL="${BASE_URL:-http://localhost:8090}"
-COOKIE_JAR="/tmp/hammer-cookies.txt"
+COOKIE_JAR="/tmp/oxneer-cookies.txt"
 rm -f "$COOKIE_JAR"
 
 echo "→ Logging in as superadmin…"

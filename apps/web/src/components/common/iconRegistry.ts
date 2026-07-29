@@ -317,7 +317,7 @@ export const ICON_GROUPS: IconGroup[] = [
     label: 'Tools',
     icons: [
       { id: 'FaWrench', label: 'Wrench', component: FaWrench },
-      { id: 'FaHammer', label: 'Hammer', component: FaHammer },
+      { id: 'FaHammer', label: 'Oxneer', component: FaHammer },
       { id: 'FaCog', label: 'Gear', component: FaCog },
       { id: 'FaScrewdriver', label: 'Screwdriver', component: FaScrewdriver },
       { id: 'FaClipboard', label: 'Clipboard', component: FaClipboard },
