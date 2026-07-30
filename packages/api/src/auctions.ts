@@ -27,6 +27,13 @@ export interface AuctionWorkflowStep {
   description?: string;
   order?: number;
   policies?: PolicyItemRQ[];
+  /** PAYMENT_STEP returns a single embedded policy object, not an array. */
+  policy?: PolicyItemRQ;
+  /** FORM_STEP embeds the managed-type reference and its resolved property definitions. */
+  embedded?: {
+    typeId?: string;
+    properties?: PropertyDef[];
+  };
   implicit?: boolean;
   status?: {
     type?: string | Record<string, string>;

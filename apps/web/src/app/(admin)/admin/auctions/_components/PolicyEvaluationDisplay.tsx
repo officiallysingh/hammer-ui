@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle2, Clock, Pencil, Trash2, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, Pencil, Trash2, XCircle, IndianRupee } from 'lucide-react';
 import { auctionsApi, type PolicyEvaluation, type PolicyEvaluationMap } from '@repo/api';
 import { Badge, Button } from '@repo/ui';
 import Tip from '@/components/common/admin/Tip';
@@ -27,13 +27,13 @@ function statusStyle(statusType: string): { className: string; Icon: typeof Cloc
   }
 }
 
-/** True for backend enum values shaped like `{ CODE: "Label" }` — render as just the label. */
+/** True for backend enum values shaped like `{ CODE: "Label" }` */
 function isEnumObject(value: unknown): value is Record<string, string | null> {
   if (value == null || typeof value !== 'object' || Array.isArray(value)) return false;
   const entries = Object.entries(value as Record<string, unknown>);
   if (entries.length !== 1) return false;
-  const [key, val] = entries[0]!;
-  return /^[A-Z][A-Z0-9_]*$/.test(key) && (typeof val === 'string' || val == null);
+  const [key] = entries[0]!;
+  return /^[A-Z][A-Z0-9_]*$/.test(key);
 }
 
 /** True for arrays shaped like `[{ "Aadhar Card": false }, { "Pan Card": true }, ...]`. */
@@ -49,33 +49,68 @@ function isChecklistArray(value: unknown): value is Record<string, boolean>[] {
   );
 }
 
-function formatScalarOrEnum(value: unknown): string {
-  if (isEnumObject(value)) return fmtLabel(Object.keys(value)[0]);
+function isISODateKey(key: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?/.test(key);
+}
+
+function isNestedPaymentBlock(value: unknown): value is Record<string, string> {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const keys = Object.keys(value as Record<string, unknown>);
+  return keys.length <= 4 && keys.some((k) => k === 'amount' || k === 'refundable');
+}
+
+function formatValue(value: unknown): string {
+  if (isEnumObject(value)) return fmtLabel(Object.keys(value)[0]) || '';
   if (value == null || value === '') return '';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  if (typeof value === 'object') return resolveStr(value);
+  if (typeof value === 'object') {
+    const str = resolveStr(value);
+    return str || '';
+  }
   return String(value);
 }
 
-function formatResult(result: unknown): string {
-  return formatScalarOrEnum(result);
+function formatDateTime(iso?: string): string {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
 }
 
 type DetailRender =
-  | { kind: 'chip'; text: string }
-  | { kind: 'checklist'; items: { label: string; ok: boolean }[] }
-  | { kind: 'block'; rows: [string, string][] };
+  | { kind: 'chip'; text: string; label?: string }
+  | { kind: 'checklist'; items: { label: string; ok: boolean }[]; label?: string }
+  | { kind: 'block'; rows: [string, string, string?][]; label?: string }
+  | { kind: 'payment-block'; amount: string; description: string; refundable?: string }
+  | { kind: 'date-chip'; date: string; text: string }
+  | { kind: 'pending-message'; text: string };
 
-/** Classifies a `details` value into how it should be laid out — a short inline
- *  chip, a checklist of yes/no items, or a small key/value breakdown block. */
+function formatAmount(value: unknown): string {
+  if (value == null || value === '') return '';
+  const str = String(value);
+  const num = parseFloat(str);
+  if (!Number.isNaN(num)) {
+    return num % 1 === 0
+      ? num.toLocaleString('en-IN')
+      : num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  return str;
+}
+
 function renderDetail(value: unknown): DetailRender | null {
   if (value == null || value === '') return null;
-
   if (isEnumObject(value)) {
     const text = fmtLabel(Object.keys(value)[0]);
     return text ? { kind: 'chip', text } : null;
   }
-
   if (isChecklistArray(value)) {
     return {
       kind: 'checklist',
@@ -85,26 +120,56 @@ function renderDetail(value: unknown): DetailRender | null {
       }),
     };
   }
-
   if (Array.isArray(value)) {
-    const text = value.map(formatScalarOrEnum).filter(Boolean).join(', ');
+    const text = value.map(formatValue).filter(Boolean).join(', ');
     return text ? { kind: 'chip', text } : null;
   }
-
   if (typeof value === 'object') {
-    const rows = Object.entries(value as Record<string, unknown>)
-      .map(([k, v]) => [fmtLabel(k), formatScalarOrEnum(v)] as [string, string])
-      .filter(([, v]) => v !== '');
-    return rows.length > 0 ? { kind: 'block', rows } : null;
+    const obj = value as Record<string, unknown>;
+    if (isNestedPaymentBlock(obj)) {
+      return {
+        kind: 'payment-block',
+        amount: formatAmount(obj.amount ?? ''),
+        description: formatValue(obj.description) || '',
+        refundable: formatValue(obj.refundable),
+      };
+    }
+    const rows: [string, string, string?][] = [];
+    for (const [k, v] of Object.entries(obj)) {
+      if (k === 'description') continue;
+      if (v == null) {
+        if (isISODateKey(k)) {
+          rows.push([k, formatDateTime(k), '']);
+        }
+        continue;
+      }
+      const formatted = formatValue(v);
+      if (!formatted) {
+        if (isISODateKey(k)) {
+          rows.push([k, formatDateTime(k), '']);
+        }
+        continue;
+      }
+      if (isEnumObject(v)) {
+        rows.push([k, fmtLabel(Object.keys(v)[0]!), '']);
+      } else if (typeof v === 'object' && !Array.isArray(v) && v !== null) {
+        const nested = v as Record<string, unknown>;
+        if (isNestedPaymentBlock(nested)) {
+          rows.push([k, formatAmount(nested.amount ?? ''), formatValue(nested.description) || '']);
+        } else {
+          rows.push([k, resolveStr(v), '']);
+        }
+      } else {
+        rows.push([k, formatted, '']);
+      }
+    }
+    if (rows.length === 0) return null;
+    return { kind: 'block', rows };
   }
-
-  const text = formatScalarOrEnum(value);
+  const text = formatValue(value);
   return text ? { kind: 'chip', text } : null;
 }
 
-/** Builds the display list for `evaluation.details` — when a `<key>Description`
- *  sibling exists (e.g. `deadline` + `deadlineDescription`), the human-readable
- *  description is shown under the base field's label instead of both. */
 function buildDetailItems(
   details: Record<string, unknown> | undefined,
 ): { key: string; label: string; rendered: DetailRender }[] {
@@ -120,8 +185,27 @@ function buildDetailItems(
     .filter(([key]) => !isDescriptionOf(key, descriptionKeys))
     .map(([key, value]) => {
       const descValue = details[`${key}Description`];
-      const effective = typeof descValue === 'string' && descValue.trim() ? descValue : value;
-      const rendered = renderDetail(effective);
+      if (typeof descValue === 'string' && descValue.trim()) {
+        const obj = value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+        if (obj && isNestedPaymentBlock(obj)) {
+          return {
+            key,
+            label: fmtLabel(key),
+            rendered: {
+              kind: 'payment-block',
+              amount: formatAmount(obj.amount ?? ''),
+              description: formatValue(obj.description) || '',
+              refundable: formatValue(obj.refundable),
+            } as DetailRender,
+          };
+        }
+        return {
+          key,
+          label: fmtLabel(key),
+          rendered: { kind: 'chip', text: descValue.trim() },
+        };
+      }
+      const rendered = renderDetail(value);
       return rendered ? { key, label: fmtLabel(key), rendered } : null;
     })
     .filter(
@@ -135,6 +219,11 @@ function isDescriptionOf(key: string, baseKeysWithDescription: Set<string>): boo
   );
 }
 
+function isNumeric(value: string): boolean {
+  const num = parseFloat(value);
+  return !Number.isNaN(num) && String(num) === value;
+}
+
 export function EvaluationCard({
   name,
   evaluation,
@@ -142,92 +231,177 @@ export function EvaluationCard({
 }: {
   name: string;
   evaluation: PolicyEvaluation;
-  /** Set to false to hide the status/condition badges (e.g. on the read-only auction view page). */
   showStatus?: boolean;
 }) {
   const statusType = showStatus ? resolveStr(evaluation.status?.type) : '';
   const { className, Icon } = statusStyle(statusType);
-  const resultStr = formatResult(evaluation.result);
+  const resultStr = formatValue(evaluation.result);
   const isLongResult = resultStr.length > 50;
 
   const detailItems = buildDetailItems(evaluation.details);
-  const isShortChip = (
-    d: (typeof detailItems)[number],
-  ): d is { key: string; label: string; rendered: { kind: 'chip'; text: string } } =>
-    d.rendered.kind === 'chip' && d.rendered.text.length <= 40;
-  const chipItems = detailItems.filter(isShortChip);
+  const isShortChip = (d: (typeof detailItems)[number]) =>
+    d.rendered.kind === 'chip' && d.rendered.text.length <= 50;
+  const chipItems = detailItems.filter(
+    (d): d is { key: string; label: string; rendered: { kind: 'chip'; text: string } } =>
+      isShortChip(d),
+  );
   const blockItems = detailItems.filter((d) => !isShortChip(d));
 
+  const isPendingMessage =
+    resultStr &&
+    !isNumeric(resultStr) &&
+    (resultStr.toLowerCase().includes("couldn't determine") ||
+      resultStr.toLowerCase().includes('could not determine') ||
+      resultStr.toLowerCase().includes('not available') ||
+      resultStr.toLowerCase().includes('pending'));
+
+  const showResult = resultStr && !isPendingMessage;
+
   return (
-    <div className="rounded-md border border-dashed border-border/60 bg-muted/20 p-2 space-y-1 text-[11px]">
+    <div className="rounded-lg border border-border/60 bg-card/50 p-3 space-y-2 text-xs">
+      {/* Header row */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="font-medium text-foreground">{name}</span>
+        <span className="font-semibold text-foreground text-sm">{name}</span>
         {statusType && (
           <span
-            className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${className}`}
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${className}`}
           >
-            <Icon className="h-2.5 w-2.5" />
+            <Icon className="h-3 w-3" />
             {fmtLabel(statusType)}
           </span>
         )}
         {showStatus && evaluation.condition === false && (
-          <span className="inline-flex items-center rounded-full border border-border/60 bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400 px-2 py-0.5 text-[10px] font-medium">
             Not yet active
           </span>
         )}
       </div>
-      {evaluation.description && <p className="text-muted-foreground">{evaluation.description}</p>}
-      {resultStr &&
-        (isLongResult ? (
-          <p className="text-foreground">{resultStr}</p>
-        ) : (
-          <p className="text-muted-foreground">
-            Result: <span className="text-foreground font-medium">{resultStr}</span>
-          </p>
-        ))}
+
+      {/* Description */}
+      {evaluation.description && (
+        <p className="text-muted-foreground/80 leading-relaxed">{evaluation.description}</p>
+      )}
+
+      {/* Result - pending message style */}
+      {isPendingMessage && (
+        <div className="flex items-center gap-2 rounded-md bg-amber-500/5 border border-amber-200/50 px-2.5 py-1.5 text-amber-700 dark:text-amber-400">
+          <Clock className="h-3.5 w-3.5 shrink-0" />
+          <span className="text-[11px]">{resultStr}</span>
+        </div>
+      )}
+
+      {/* Result - numeric/short result */}
+      {showResult && !isLongResult && (
+        <div className="flex items-center gap-1.5">
+          {isNumeric(resultStr) && (
+            <span className="p-1 rounded-md bg-primary/5 text-primary">
+              <IndianRupee className="h-3 w-3" />
+            </span>
+          )}
+          <span className="text-muted-foreground/70">
+            Result:{' '}
+            <span
+              className={`font-semibold text-foreground ${isNumeric(resultStr) ? 'text-base' : ''}`}
+            >
+              {isNumeric(resultStr) ? (
+                <>
+                  <span className="text-xs text-muted-foreground mr-0.5">₹</span>
+                  {formatAmount(resultStr)}
+                </>
+              ) : (
+                resultStr
+              )}
+            </span>
+          </span>
+        </div>
+      )}
+
+      {/* Result - long result */}
+      {showResult && isLongResult && <p className="text-foreground leading-relaxed">{resultStr}</p>}
+
+      {/* Chip items */}
       {chipItems.length > 0 && (
         <div className="flex flex-wrap gap-1.5 pt-0.5">
           {chipItems.map((d) => (
             <span
               key={d.key}
-              className="rounded-full border border-border/60 bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground"
+              className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-background/80 px-2 py-1 text-[10px] text-muted-foreground"
             >
-              {d.label}: <span className="text-foreground">{d.rendered.text}</span>
+              <span className="font-medium">{d.label}:</span>
+              <span className="text-foreground">{d.rendered.text}</span>
             </span>
           ))}
         </div>
       )}
+
+      {/* Block items */}
       {blockItems.map((d) => (
-        <div key={d.key} className="pt-0.5">
-          <p className="text-[10px] font-medium text-muted-foreground mb-0.5">{d.label}</p>
+        <div key={d.key} className="pt-1">
+          <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider mb-1">
+            {d.label}
+          </p>
           {d.rendered.kind === 'checklist' ? (
-            <div className="rounded-md border border-border/50 bg-background/60 divide-y divide-border/40 overflow-hidden">
+            <div className="rounded-lg border border-border/50 bg-background/60 divide-y divide-border/30 overflow-hidden">
               {d.rendered.items.map((item) => (
                 <label
                   key={item.label}
-                  className="flex items-center justify-between gap-2 px-2 py-1 cursor-not-allowed"
+                  className="flex items-center justify-between gap-2 px-3 py-1.5 cursor-not-allowed hover:bg-muted/20"
                 >
-                  <span className="text-foreground">{item.label}</span>
+                  <span className="text-xs text-foreground">{item.label}</span>
                   <input
                     type="checkbox"
                     checked={item.ok}
                     disabled
-                    className="h-3 w-3 accent-primary disabled:opacity-100"
+                    className="h-3.5 w-3.5 accent-primary disabled:opacity-100"
                   />
                 </label>
               ))}
             </div>
+          ) : d.rendered.kind === 'payment-block' ? (
+            <div className="rounded-lg border border-border/50 bg-background/60 px-3 py-2 space-y-1">
+              {d.rendered.refundable && (
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-muted-foreground">Amount</span>
+                  <span className="text-sm font-bold text-foreground">
+                    <span className="text-xs text-muted-foreground mr-0.5">₹</span>
+                    {d.rendered.amount}
+                  </span>
+                </div>
+              )}
+              {d.rendered.description && (
+                <p className="text-[11px] text-muted-foreground/70">{d.rendered.description}</p>
+              )}
+              {d.rendered.refundable && (
+                <div className="flex justify-between items-center pt-0.5 border-t border-border/30">
+                  <span className="text-[10px] text-muted-foreground">Refundable</span>
+                  <span
+                    className={`text-[10px] font-medium ${d.rendered.refundable === 'Yes' || d.rendered.refundable === 'true' ? 'text-emerald-600' : 'text-red-500'}`}
+                  >
+                    {d.rendered.refundable}
+                  </span>
+                </div>
+              )}
+            </div>
           ) : d.rendered.kind === 'block' ? (
-            <div className="rounded-md border border-border/50 bg-background/60 px-2 py-1.5 space-y-0.5">
-              {d.rendered.rows.map(([k, v]) => (
-                <div key={k} className="flex items-center justify-between gap-2">
-                  <span className="text-muted-foreground">{k}</span>
-                  <span className="text-foreground font-medium">{v}</span>
+            <div className="rounded-lg border border-border/50 bg-background/60 divide-y divide-border/30 overflow-hidden">
+              {d.rendered.rows.map(([k, v, desc]) => (
+                <div key={k} className="flex items-center justify-between gap-3 px-3 py-1.5">
+                  <span className="text-[10px] text-muted-foreground font-medium">
+                    {fmtLabel(k)}
+                  </span>
+                  <div className="text-right">
+                    <span className="text-xs font-semibold text-foreground">{v}</span>
+                    {desc && <p className="text-[10px] text-muted-foreground/60">{desc}</p>}
+                  </div>
                 </div>
               ))}
             </div>
+          ) : d.rendered.kind === 'date-chip' ? (
+            <span className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-background/80 px-2 py-1 text-[10px] text-muted-foreground">
+              {d.rendered.text}
+            </span>
           ) : (
-            <p className="text-foreground">{d.rendered.text}</p>
+            <p className="text-xs text-foreground leading-relaxed">{d.rendered.text}</p>
           )}
         </div>
       ))}
@@ -247,22 +421,21 @@ export function EvaluationList({
   const entries = Object.entries(evaluations ?? {});
   if (entries.length === 0) {
     if (!loading) return null;
-    return <p className="text-[11px] text-muted-foreground italic">Evaluating…</p>;
+    return (
+      <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+        <Clock className="h-3 w-3 animate-pulse" />
+        <span className="italic">Evaluating policies...</span>
+      </div>
+    );
   }
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       {entries.map(([name, evaluation]) => (
         <EvaluationCard key={name} name={name} evaluation={evaluation} showStatus={showStatus} />
       ))}
     </div>
   );
 }
-
-// ── Reusable "evaluate-only" policy card ────────────────────────────────────────
-// Shows a saved policy's name/type plus its evaluation results (never raw form
-// fields), with an optional edit pencil and delete button. Shared between the
-// auction edit-policies page and the workflow step view so both read-only
-// surfaces look and behave identically.
 
 export function PolicyItemCard({
   auctionId,
@@ -279,13 +452,11 @@ export function PolicyItemCard({
   deleteConfirmDescription,
 }: {
   auctionId: string;
-  /** The saved policy's id. Required for delete; edit is delegated to `onEdit`. */
   policyId?: string;
   name?: string;
   type?: unknown;
   evaluations?: PolicyEvaluationMap | null;
   loadingEvaluation?: boolean;
-  /** Set to false to hide each evaluation's status/condition badges. */
   showStatus?: boolean;
   editable?: boolean;
   onEdit?: () => void;
@@ -313,10 +484,10 @@ export function PolicyItemCard({
   };
 
   return (
-    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-1.5">
+    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-2">
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
-          <span className="text-sm font-medium text-foreground truncate">
+          <span className="text-sm font-semibold text-foreground truncate">
             {name || fmtLabel(type) || 'Policy'}
           </span>
           {type != null && (

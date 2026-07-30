@@ -39,12 +39,11 @@ const groupBadgeStyles: CSSProperties = {
  * value is in `lockedValues` — used to keep auto-filled tags/categories
  * (derived from a selected listing) from being manually removed.
  */
-export function createLockedMultiValueRemove<OptionT extends { value: string }>(
-  lockedValues: string[],
-) {
-  return function LockedMultiValueRemove(
-    props: MultiValueRemoveProps<OptionT, true, GroupBase<OptionT>>,
-  ) {
+export function createLockedMultiValueRemove<
+  OptionT extends { value: string },
+  GroupT extends GroupBase<OptionT> = GroupBase<OptionT>,
+>(lockedValues: string[]) {
+  return function LockedMultiValueRemove(props: MultiValueRemoveProps<OptionT, true, GroupT>) {
     if (lockedValues.includes(props.data.value)) return null;
     return <components.MultiValueRemove {...props} />;
   };
@@ -225,7 +224,9 @@ export function GroupedSubcategorySelect(props: GroupedSubcategorySelectProps) {
         noOptionsMessage={() => noOptionsMessage}
         components={
           lockedValues.length
-            ? { MultiValueRemove: createLockedMultiValueRemove<Option>(lockedValues) }
+            ? {
+                MultiValueRemove: createLockedMultiValueRemove<Option, GroupedOption>(lockedValues),
+              }
             : undefined
         }
       />

@@ -60,6 +60,8 @@ export interface PropertyDef {
   validators?: ValidatorDef[];
   subProperties?: PropertyDef; // single nested definition for COMPOSITE
   attributes?: Record<string, string>;
+  /** Present on properties embedded in a saved workflow step (as opposed to a managed-type definition). */
+  required?: boolean;
 }
 
 export interface ManagedTypeVM {

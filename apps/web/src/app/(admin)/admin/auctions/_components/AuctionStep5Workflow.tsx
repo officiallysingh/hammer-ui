@@ -21,7 +21,13 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Button, Label, DateTimePicker } from '@repo/ui';
-import { auctionsApi, AuctionWorkflowStep, PolicyItemRQ, PolicyEvaluationMap } from '@repo/api';
+import {
+  auctionsApi,
+  AuctionWorkflowStep,
+  PolicyItemRQ,
+  PolicyEvaluationMap,
+  PropertyDef,
+} from '@repo/api';
 import { DismissibleError, FieldError } from './AuctionShared';
 import { SELECT_CLS, resolveStr, fmtLabel } from './PolicyShared';
 import { PolicyItemCard } from './PolicyEvaluationDisplay';
@@ -156,6 +162,51 @@ function BankDetailsPreview() {
           <Upload className="h-3.5 w-3.5" />
           Cancelled cheque image upload
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Custom form step (view-only) — properties collected by FORM_STEP ──────────
+
+function propertyPlaceholder(prop: PropertyDef): string {
+  switch (resolveStr(prop.dataType)) {
+    case 'ADDRESS':
+      return 'Postal address';
+    case 'COORDINATES':
+      return 'Latitude, longitude';
+    case 'BOOLEAN':
+      return 'Yes / No';
+    case 'LOCAL_DATE':
+    case 'LOCAL_DATE_TIME':
+    case 'ZONED_DATE_TIME':
+    case 'INSTANT':
+      return 'Date';
+    case 'FILE':
+      return 'File upload';
+    default:
+      return `Enter ${prop.label.toLowerCase()}`;
+  }
+}
+
+function FormStepPropertiesPreview({ properties }: { properties: PropertyDef[] }) {
+  return (
+    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3 text-xs">
+      <p className="text-muted-foreground">
+        Participant fills in the following details for this step.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {properties.map((prop) => (
+          <div key={prop.name} className="space-y-1">
+            <span className="text-[11px] font-medium text-muted-foreground">
+              {prop.label}
+              {prop.required && <span className="text-destructive ml-0.5">*</span>}
+            </span>
+            <div className="rounded-md border border-dashed border-border bg-muted/30 px-2.5 py-1.5 text-muted-foreground/70">
+              {propertyPlaceholder(prop)}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -332,17 +383,34 @@ function WorkflowStepCard({
             </div>
           )}
 
+          {/* Custom form step — properties embedded on the step itself, view-only */}
+          {resolveStr(step.type) === 'FORM_STEP' &&
+            (step.embedded?.properties?.length ?? 0) > 0 && (
+              <div className="mt-1.5 space-y-1">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                  Form Fields
+                </p>
+                <FormStepPropertiesPreview properties={step.embedded!.properties!} />
+              </div>
+            )}
+
           {/* Step-level policies — payment/participation steps fall back to the auction's
               pre-payment / participation policies when the step itself doesn't carry an
-              embedded policies list. */}
+              embedded policy. */}
           {(() => {
             const isPaymentStep = resolveStr(step.type) === 'PAYMENT_STEP';
             const isParticipationStep =
               resolveStr(step.type) === 'PARTICIPATION_STEP' ||
               (participationPolicies ?? []).some((p) => p.name && p.name === step.name);
-            const policiesToShow =
+            const embeddedPolicies =
               step.policies && step.policies.length > 0
                 ? step.policies
+                : step.policy
+                  ? [step.policy]
+                  : [];
+            const policiesToShow =
+              embeddedPolicies.length > 0
+                ? embeddedPolicies
                 : isPaymentStep
                   ? (prePaymentPolicies ?? [])
                   : isParticipationStep
