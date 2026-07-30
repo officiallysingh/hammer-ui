@@ -498,7 +498,7 @@ function BankDetailsSection() {
 
   // Auto-set primary when only one record
   useEffect(() => {
-    if (details.length === 1 && !details[0].primary) {
+    if (details.length === 1 && details[0] && !details[0].primary) {
       bankDetailsApi
         .update(details[0].id, { primary: true })
         .then(load)

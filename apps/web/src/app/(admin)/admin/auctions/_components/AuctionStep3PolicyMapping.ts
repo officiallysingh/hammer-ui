@@ -85,12 +85,13 @@ export function buildPaymentPolicyItem(
   };
 }
 
-export function buildPreconditionItem(p: PreconditionItem): PolicyItemRQ | null {
+export function buildPreconditionItem(p: PreconditionItem, priority: number): PolicyItemRQ | null {
   if (!p.type) return null;
   const item: PolicyItemRQ = {
     type: p.type,
     name: p.name || undefined,
     description: p.description || undefined,
+    priority,
   };
   if (p.type === 'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY') {
     item.count = parseInt(p.count, 10);
@@ -200,7 +201,7 @@ export function buildPolicies(
   }
 
   const preconditionItems = step3.preconditions
-    .map(buildPreconditionItem)
+    .map((p, i) => buildPreconditionItem(p, i + 1))
     .filter((item): item is PolicyItemRQ => item !== null);
   if (preconditionItems.length > 0) policies['PRECONDITION'] = preconditionItems;
 
@@ -338,6 +339,28 @@ export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partia
 
 // ─── validation ────────────────────────────────────────────────────────────────
 
+/** Marks every duplicate occurrence of a name (by lowercase/trim) with the given error message. */
+function markDuplicateNames(
+  errs: Record<string, string>,
+  items: { name: string }[],
+  keyFor: (i: number) => string,
+  message: string,
+) {
+  const seen = new Map<string, number[]>();
+  items.forEach((item, i) => {
+    const key = item.name.trim().toLowerCase();
+    if (!key) return;
+    seen.set(key, [...(seen.get(key) ?? []), i]);
+  });
+  for (const indices of seen.values()) {
+    if (indices.length > 1) {
+      indices.forEach((i) => {
+        errs[keyFor(i)] = message;
+      });
+    }
+  }
+}
+
 export function validatePolicies(step3: Step3State): Record<string, string> {
   const errs: Record<string, string> = {};
 
@@ -367,6 +390,12 @@ export function validatePolicies(step3: Step3State): Record<string, string> {
       }
     });
   });
+  markDuplicateNames(
+    errs,
+    step3.paymentPolicies,
+    (i) => `payment_name_${i}`,
+    'Payment policy name must be unique.',
+  );
 
   step3.preconditions.forEach((pc, i) => {
     if (!pc.type) {
@@ -378,6 +407,12 @@ export function validatePolicies(step3: Step3State): Record<string, string> {
       errs[`precondition_count_${i}`] = 'Minimum participants must be at least 1.';
     }
   });
+  markDuplicateNames(
+    errs,
+    step3.preconditions,
+    (i) => `precondition_name_${i}`,
+    'Precondition name must be unique.',
+  );
 
   step3.priceChangePolicies.forEach((p, i) => {
     if (!p.type) {
@@ -388,6 +423,12 @@ export function validatePolicies(step3: Step3State): Record<string, string> {
       errs[`priceChange_value_${i}`] = 'A positive step value is required.';
     }
   });
+  markDuplicateNames(
+    errs,
+    step3.priceChangePolicies,
+    (i) => `priceChange_name_${i}`,
+    'Price progression window name must be unique.',
+  );
 
   return errs;
 }

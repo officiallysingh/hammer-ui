@@ -8,6 +8,7 @@ import type { GroupBase } from 'react-select';
 import { Label } from '@repo/ui';
 import {
   GroupedSubcategorySelect,
+  createLockedMultiValueRemove,
   makeReactSelectStyles,
 } from '@/components/common/admin/GroupedSubcategorySelect';
 
@@ -25,9 +26,19 @@ interface Option {
 interface Props {
   value: TagsCategoryValue;
   onChange: (patch: Partial<TagsCategoryValue>) => void;
+  /** Auto-filled from a selected listing — not user-removable */
+  lockedCategories?: string[];
+  lockedSubCategories?: string[];
+  lockedTags?: string[];
 }
 
-export function TagsCategorySection({ value, onChange }: Props) {
+export function TagsCategorySection({
+  value,
+  onChange,
+  lockedCategories = [],
+  lockedSubCategories = [],
+  lockedTags = [],
+}: Props) {
   const [allCategories, setAllCategories] = useState<CategoryVM[]>([]);
 
   // Load all categories with subcategories eagerly
@@ -69,7 +80,9 @@ export function TagsCategorySection({ value, onChange }: Props) {
           options={categoryOptions}
           value={selectedCategoryOpts}
           onChange={(selected) => {
-            const newCatIds = (selected ?? []).map((o) => o.value);
+            const newCatIds = Array.from(
+              new Set([...lockedCategories, ...(selected ?? []).map((o) => o.value)]),
+            );
             // Remove subcategories belonging to deselected categories
             const removedSubIds = allCategories
               .filter((c) => !newCatIds.includes(c.id) && value.categories.includes(c.id))
@@ -83,6 +96,11 @@ export function TagsCategorySection({ value, onChange }: Props) {
           styles={catStyles}
           menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
           noOptionsMessage={() => 'No categories found'}
+          components={
+            lockedCategories.length
+              ? { MultiValueRemove: createLockedMultiValueRemove<Option>(lockedCategories) }
+              : undefined
+          }
         />
       </div>
 
@@ -93,6 +111,7 @@ export function TagsCategorySection({ value, onChange }: Props) {
           isMulti
           categories={filteredCategories}
           value={value.subCategories}
+          lockedValues={lockedSubCategories}
           onChange={(ids) => onChange({ subCategories: ids })}
           placeholder={
             value.categories.length === 0
@@ -113,13 +132,23 @@ export function TagsCategorySection({ value, onChange }: Props) {
         <CreatableSelect<Option, true, GroupBase<Option>>
           isMulti
           value={selectedTagOpts}
-          onChange={(selected) => onChange({ tags: (selected ?? []).map((o) => o.value) })}
+          onChange={(selected) => {
+            const newTags = Array.from(
+              new Set([...lockedTags, ...(selected ?? []).map((o) => o.value)]),
+            );
+            onChange({ tags: newTags });
+          }}
           placeholder="Type and press Enter to add tags..."
           formatCreateLabel={(input) => `Add "${input}"`}
           styles={tagStyles}
           menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
           noOptionsMessage={() => 'Type to create a tag'}
-          components={{ DropdownIndicator: null }}
+          components={{
+            DropdownIndicator: null,
+            ...(lockedTags.length
+              ? { MultiValueRemove: createLockedMultiValueRemove<Option>(lockedTags) }
+              : {}),
+          }}
         />
       </div>
     </div>

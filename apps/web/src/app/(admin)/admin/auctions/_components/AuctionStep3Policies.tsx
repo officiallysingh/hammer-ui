@@ -343,7 +343,7 @@ export function AuctionStep3Policies({
     }));
     const preconditionTasks = form.preconditions.map((p, i) => ({
       label: p.name || `Precondition ${i + 1}`,
-      item: buildPreconditionItem(p),
+      item: buildPreconditionItem(p, i + 1),
     }));
 
     const [
@@ -681,7 +681,7 @@ export function AuctionStep3Policies({
                           <SaveCancelBar
                             saving={savingItem}
                             error={itemError}
-                            onSave={() => runSave(p.id, buildPreconditionItem(p))}
+                            onSave={() => runSave(p.id, buildPreconditionItem(p, i + 1))}
                             onCancel={cancelEdit}
                           />
                         </div>

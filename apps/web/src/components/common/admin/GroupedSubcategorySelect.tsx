@@ -1,8 +1,8 @@
 'use client';
 
 import { CSSProperties } from 'react';
-import Select from 'react-select';
-import type { StylesConfig, GroupBase } from 'react-select';
+import Select, { components } from 'react-select';
+import type { StylesConfig, GroupBase, MultiValueRemoveProps } from 'react-select';
 import type { CategoryVM } from '@repo/api';
 
 interface Option {
@@ -33,6 +33,22 @@ const groupBadgeStyles: CSSProperties = {
   padding: '0.16em 0.5em',
   textAlign: 'center',
 };
+
+/**
+ * Builds a MultiValueRemove component that hides the "x" for options whose
+ * value is in `lockedValues` — used to keep auto-filled tags/categories
+ * (derived from a selected listing) from being manually removed.
+ */
+export function createLockedMultiValueRemove<OptionT extends { value: string }>(
+  lockedValues: string[],
+) {
+  return function LockedMultiValueRemove(
+    props: MultiValueRemoveProps<OptionT, true, GroupBase<OptionT>>,
+  ) {
+    if (lockedValues.includes(props.data.value)) return null;
+    return <components.MultiValueRemove {...props} />;
+  };
+}
 
 function formatGroupLabel(group: GroupedOption) {
   return (
@@ -153,6 +169,8 @@ type MultiProps = {
   isMulti: true;
   value: string[];
   onChange: (ids: string[]) => void;
+  /** Values that were auto-filled from a selected listing — not user-removable */
+  lockedValues?: string[];
 };
 
 type SingleProps = {
@@ -189,18 +207,27 @@ export function GroupedSubcategorySelect(props: GroupedSubcategorySelectProps) {
 
   if (props.isMulti) {
     const selectedOpts = allOptions.filter((o) => props.value.includes(o.value));
+    const lockedValues = props.lockedValues ?? [];
     return (
       <Select<Option, true, GroupedOption>
         isMulti
         options={groupedOptions}
         value={selectedOpts}
-        onChange={(selected) => props.onChange((selected ?? []).map((o) => o.value))}
+        onChange={(selected) => {
+          const selectedIds = (selected ?? []).map((o) => o.value);
+          props.onChange(Array.from(new Set([...lockedValues, ...selectedIds])));
+        }}
         formatGroupLabel={formatGroupLabel}
         placeholder={placeholder ?? 'Select sub-categories...'}
         isDisabled={disabled}
         styles={styles}
         menuPortalTarget={portalTarget}
         noOptionsMessage={() => noOptionsMessage}
+        components={
+          lockedValues.length
+            ? { MultiValueRemove: createLockedMultiValueRemove<Option>(lockedValues) }
+            : undefined
+        }
       />
     );
   }

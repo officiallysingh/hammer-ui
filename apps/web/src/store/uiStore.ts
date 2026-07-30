@@ -8,9 +8,11 @@ export interface UIState {
 
   // Sidebar
   sidebarOpen: boolean;
+  sidebarCollapsed: boolean;
   toggleSidebar: () => void;
   openSidebar: () => void;
   closeSidebar: () => void;
+  toggleSidebarCollapsed: () => void;
 
   // Loading states
   globalLoading: boolean;
@@ -54,9 +56,11 @@ export const useUIStore = create<UIState>()(
 
       // Sidebar
       sidebarOpen: false,
+      sidebarCollapsed: false,
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       openSidebar: () => set({ sidebarOpen: true }),
       closeSidebar: () => set({ sidebarOpen: false }),
+      toggleSidebarCollapsed: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
       // Loading states
       globalLoading: false,

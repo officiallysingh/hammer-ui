@@ -51,10 +51,11 @@ export function PreconditionFields({
       <NameDescriptionFields
         name={precondition.name}
         description={precondition.description}
-        nameId={`pc_name_${index}`}
-        descId={`pc_desc_${index}`}
+        nameId={`precondition_name_${index}`}
+        descId={`precondition_desc_${index}`}
         onNameChange={(v) => onChange({ name: v })}
         onDescriptionChange={(v) => onChange({ description: v })}
+        nameError={fieldErrors[`precondition_name_${index}`]}
       />
 
       <div className="space-y-1.5">

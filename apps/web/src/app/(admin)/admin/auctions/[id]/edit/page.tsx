@@ -195,6 +195,9 @@ export default function EditAuctionPage() {
               categories: [],
               subCategories: [],
               tags: [],
+              lockedCategories: [],
+              lockedSubCategories: [],
+              lockedTags: [],
             });
             origStep2Ref.current = {
               unitType,
@@ -221,6 +224,9 @@ export default function EditAuctionPage() {
               categories: [],
               subCategories: [],
               tags: [],
+              lockedCategories: [],
+              lockedSubCategories: [],
+              lockedTags: [],
             });
             origStep2Ref.current = { unitType, openingPrice, item: '', items: itemIds };
           }

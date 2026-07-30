@@ -37,6 +37,10 @@ export interface Step2State {
   categories: string[];
   subCategories: string[];
   tags: string[];
+  // Ids/values auto-filled from a selected listing — not user-removable
+  lockedCategories: string[];
+  lockedSubCategories: string[];
+  lockedTags: string[];
 }
 
 export const initialStep2: Step2State = {
@@ -57,6 +61,9 @@ export const initialStep2: Step2State = {
   categories: [],
   subCategories: [],
   tags: [],
+  lockedCategories: [],
+  lockedSubCategories: [],
+  lockedTags: [],
 };
 
 /** Derives the real AuctionUnitType from the atomic item list length */
@@ -140,12 +147,18 @@ export function AuctionStep2Units({
         let cats = [...form.categories];
         let subCats = [...form.subCategories];
         let tags = [...form.tags];
+        let lockedCats = [...form.lockedCategories];
+        let lockedSubCats = [...form.lockedSubCategories];
+        let lockedTags = [...form.lockedTags];
 
         missing.forEach(({ i }, fi) => {
           const { summary, listing } = results[fi]!;
           newSummaries[i] = summary;
           newNames[i] = summary.name;
-          if (listing.category?.id) cats = [...new Set([...cats, listing.category.id])];
+          if (listing.category?.id) {
+            cats = [...new Set([...cats, listing.category.id])];
+            lockedCats = [...new Set([...lockedCats, listing.category.id])];
+          }
           const subCat = listing.subCategory;
           const subCatId =
             typeof subCat === 'object' && subCat
@@ -153,8 +166,12 @@ export function AuctionStep2Units({
               : typeof subCat === 'string'
                 ? subCat
                 : '';
-          if (subCatId) subCats = [...new Set([...subCats, subCatId])];
+          if (subCatId) {
+            subCats = [...new Set([...subCats, subCatId])];
+            lockedSubCats = [...new Set([...lockedSubCats, subCatId])];
+          }
           tags = [...new Set([...tags, ...(listing.tags ?? [])])];
+          lockedTags = [...new Set([...lockedTags, ...(listing.tags ?? [])])];
         });
 
         onChange({
@@ -164,6 +181,9 @@ export function AuctionStep2Units({
           categories: cats,
           subCategories: subCats,
           tags,
+          lockedCategories: lockedCats,
+          lockedSubCategories: lockedSubCats,
+          lockedTags,
         });
       })
       .catch(() => {});
@@ -188,14 +208,24 @@ export function AuctionStep2Units({
     let cats = [...form.categories];
     let subCats = [...form.subCategories];
     let tags = [...form.tags];
+    let lockedCats = [...form.lockedCategories];
+    let lockedSubCats = [...form.lockedSubCategories];
+    let lockedTags = [...form.lockedTags];
     try {
       const listing = await listingsApi.getListingById(id);
-      if (listing.category?.id) cats = [...new Set([...cats, listing.category.id])];
+      if (listing.category?.id) {
+        cats = [...new Set([...cats, listing.category.id])];
+        lockedCats = [...new Set([...lockedCats, listing.category.id])];
+      }
       const subCat = listing.subCategory;
       const subCatId =
         typeof subCat === 'object' && subCat ? subCat.id : typeof subCat === 'string' ? subCat : '';
-      if (subCatId) subCats = [...new Set([...subCats, subCatId])];
+      if (subCatId) {
+        subCats = [...new Set([...subCats, subCatId])];
+        lockedSubCats = [...new Set([...lockedSubCats, subCatId])];
+      }
       tags = [...new Set([...tags, ...(listing.tags ?? [])])];
+      lockedTags = [...new Set([...lockedTags, ...(listing.tags ?? [])])];
     } catch {}
 
     onChange({
@@ -211,6 +241,9 @@ export function AuctionStep2Units({
       categories: cats,
       subCategories: subCats,
       tags,
+      lockedCategories: lockedCats,
+      lockedSubCategories: lockedSubCats,
+      lockedTags,
     });
   };
 
@@ -240,14 +273,24 @@ export function AuctionStep2Units({
     let cats = [...form.categories];
     let subCats = [...form.subCategories];
     let tags = [...form.tags];
+    let lockedCats = [...form.lockedCategories];
+    let lockedSubCats = [...form.lockedSubCategories];
+    let lockedTags = [...form.lockedTags];
     try {
       const listing = await listingsApi.getListingById(id);
-      if (listing.category?.id) cats = [...new Set([...cats, listing.category.id])];
+      if (listing.category?.id) {
+        cats = [...new Set([...cats, listing.category.id])];
+        lockedCats = [...new Set([...lockedCats, listing.category.id])];
+      }
       const subCat = listing.subCategory;
       const subCatId =
         typeof subCat === 'object' && subCat ? subCat.id : typeof subCat === 'string' ? subCat : '';
-      if (subCatId) subCats = [...new Set([...subCats, subCatId])];
+      if (subCatId) {
+        subCats = [...new Set([...subCats, subCatId])];
+        lockedSubCats = [...new Set([...lockedSubCats, subCatId])];
+      }
       tags = [...new Set([...tags, ...(listing.tags ?? [])])];
+      lockedTags = [...new Set([...lockedTags, ...(listing.tags ?? [])])];
     } catch {}
 
     onChange({
@@ -257,6 +300,9 @@ export function AuctionStep2Units({
       categories: cats,
       subCategories: subCats,
       tags,
+      lockedCategories: lockedCats,
+      lockedSubCategories: lockedSubCats,
+      lockedTags,
     });
   };
 
@@ -568,6 +614,9 @@ export function AuctionStep2Units({
             subCategories: form.subCategories,
             tags: form.tags,
           }}
+          lockedCategories={form.lockedCategories}
+          lockedSubCategories={form.lockedSubCategories}
+          lockedTags={form.lockedTags}
           onChange={(patch) => onChange(patch)}
         />
 

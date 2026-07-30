@@ -163,10 +163,11 @@ export function PolicyPriceProgressionSection({
                 <NameDescriptionFields
                   name={pc.name}
                   description={pc.description}
-                  nameId={`pc_name_${i}`}
-                  descId={`pc_desc_${i}`}
+                  nameId={`priceChange_name_${i}`}
+                  descId={`priceChange_desc_${i}`}
                   onNameChange={(v) => update(i, { name: v })}
                   onDescriptionChange={(v) => update(i, { description: v })}
+                  nameError={fieldErrors[`priceChange_name_${i}`]}
                 />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

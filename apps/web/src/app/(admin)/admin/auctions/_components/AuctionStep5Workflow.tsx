@@ -170,6 +170,7 @@ function WorkflowStepCard({
   dragHandleProps,
   isDragTarget,
   prePaymentPolicies,
+  participationPolicies,
   evaluationsByPolicyId,
   onEdit,
   onDelete,
@@ -180,6 +181,7 @@ function WorkflowStepCard({
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
   isDragTarget?: boolean;
   prePaymentPolicies?: PolicyItemRQ[];
+  participationPolicies?: PolicyItemRQ[];
   evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
   onEdit?: () => void;
   onDelete?: () => void;
@@ -330,16 +332,22 @@ function WorkflowStepCard({
             </div>
           )}
 
-          {/* Step-level policies — payment steps fall back to the auction's pre-payment
-              policies when the step itself doesn't carry an embedded policies list. */}
+          {/* Step-level policies — payment/participation steps fall back to the auction's
+              pre-payment / participation policies when the step itself doesn't carry an
+              embedded policies list. */}
           {(() => {
             const isPaymentStep = resolveStr(step.type) === 'PAYMENT_STEP';
+            const isParticipationStep =
+              resolveStr(step.type) === 'PARTICIPATION_STEP' ||
+              (participationPolicies ?? []).some((p) => p.name && p.name === step.name);
             const policiesToShow =
               step.policies && step.policies.length > 0
                 ? step.policies
                 : isPaymentStep
                   ? (prePaymentPolicies ?? [])
-                  : [];
+                  : isParticipationStep
+                    ? (participationPolicies ?? [])
+                    : [];
             if (policiesToShow.length === 0) return null;
             return (
               <div className="mt-1.5 space-y-1">
@@ -462,6 +470,7 @@ export function AuctionStep5Workflow({
   const [workflow, setWorkflow] = useState<AuctionWorkflowStep[]>([]);
   const [postPaymentPolicies, setPostPaymentPolicies] = useState<PolicyItemRQ[]>([]);
   const [prePaymentPolicies, setPrePaymentPolicies] = useState<PolicyItemRQ[]>([]);
+  const [participationPolicies, setParticipationPolicies] = useState<PolicyItemRQ[]>([]);
   const [evaluationsByPolicyId, setEvaluationsByPolicyId] = useState<
     Record<string, PolicyEvaluationMap>
   >({});
@@ -511,6 +520,10 @@ export function AuctionStep5Workflow({
         const allItems = Object.values(pol ?? {}).flat();
         setPostPaymentPolicies(allItems.filter((item) => item.postPayment === true));
         setPrePaymentPolicies(allItems.filter((item) => item.prePayment === true));
+        // The implicit Participation step doesn't embed its own policy on the workflow
+        // step object — fall back to the PARTICIPATION group from the policies endpoint,
+        // same as pre/post payment above.
+        setParticipationPolicies(pol?.['PARTICIPATION'] ?? []);
 
         // Evaluate every saved policy (workflow-embedded + pre/post payment) by id.
         const policyIds = Array.from(
@@ -732,6 +745,7 @@ export function AuctionStep5Workflow({
                     index={i}
                     isDragTarget={dragOverIdx === i}
                     prePaymentPolicies={prePaymentPolicies}
+                    participationPolicies={participationPolicies}
                     evaluationsByPolicyId={evaluationsByPolicyId}
                     onEdit={() => setEditingStep(step)}
                     onDelete={() => setDeletingStep(step)}

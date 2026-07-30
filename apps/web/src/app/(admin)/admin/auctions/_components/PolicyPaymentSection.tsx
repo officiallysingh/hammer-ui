@@ -68,6 +68,7 @@ export function PaymentPolicyFields({
         descId={`payment_desc_${index}`}
         onNameChange={(v) => onChange({ name: v })}
         onDescriptionChange={(v) => onChange({ description: v })}
+        nameError={fieldErrors[`payment_name_${index}`]}
       />
 
       <DayHourDropdowns

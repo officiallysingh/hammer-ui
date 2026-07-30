@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle2, Circle, Clock, Pencil, Trash2, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, Pencil, Trash2, XCircle } from 'lucide-react';
 import { auctionsApi, type PolicyEvaluation, type PolicyEvaluationMap } from '@repo/api';
 import { Badge, Button } from '@repo/ui';
 import Tip from '@/components/common/admin/Tip';
@@ -151,11 +151,12 @@ export function EvaluationCard({
   const isLongResult = resultStr.length > 50;
 
   const detailItems = buildDetailItems(evaluation.details);
-  const chipItems = detailItems.filter(
-    (d): d is { key: string; label: string; rendered: { kind: 'chip'; text: string } } =>
-      d.rendered.kind === 'chip',
-  );
-  const blockItems = detailItems.filter((d) => d.rendered.kind !== 'chip');
+  const isShortChip = (
+    d: (typeof detailItems)[number],
+  ): d is { key: string; label: string; rendered: { kind: 'chip'; text: string } } =>
+    d.rendered.kind === 'chip' && d.rendered.text.length <= 40;
+  const chipItems = detailItems.filter(isShortChip);
+  const blockItems = detailItems.filter((d) => !isShortChip(d));
 
   return (
     <div className="rounded-md border border-dashed border-border/60 bg-muted/20 p-2 space-y-1 text-[11px]">
@@ -200,23 +201,20 @@ export function EvaluationCard({
         <div key={d.key} className="pt-0.5">
           <p className="text-[10px] font-medium text-muted-foreground mb-0.5">{d.label}</p>
           {d.rendered.kind === 'checklist' ? (
-            <div className="flex flex-wrap gap-1">
+            <div className="rounded-md border border-border/50 bg-background/60 divide-y divide-border/40 overflow-hidden">
               {d.rendered.items.map((item) => (
-                <span
+                <label
                   key={item.label}
-                  className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] ${
-                    item.ok
-                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600'
-                      : 'border-border/60 bg-background text-muted-foreground'
-                  }`}
+                  className="flex items-center justify-between gap-2 px-2 py-1 cursor-not-allowed"
                 >
-                  {item.ok ? (
-                    <CheckCircle2 className="h-2.5 w-2.5" />
-                  ) : (
-                    <Circle className="h-2.5 w-2.5" />
-                  )}
-                  {item.label}
-                </span>
+                  <span className="text-foreground">{item.label}</span>
+                  <input
+                    type="checkbox"
+                    checked={item.ok}
+                    disabled
+                    className="h-3 w-3 accent-primary disabled:opacity-100"
+                  />
+                </label>
               ))}
             </div>
           ) : d.rendered.kind === 'block' ? (
@@ -228,7 +226,9 @@ export function EvaluationCard({
                 </div>
               ))}
             </div>
-          ) : null}
+          ) : (
+            <p className="text-foreground">{d.rendered.text}</p>
+          )}
         </div>
       ))}
     </div>
