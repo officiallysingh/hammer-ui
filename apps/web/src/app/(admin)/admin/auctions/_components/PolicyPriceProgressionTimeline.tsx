@@ -52,8 +52,8 @@ export function PriceProgressionTimeline({
     <div className="relative">
       <div className="flex gap-4 overflow-x-auto pb-2 pt-1 -mx-1 px-1">
         {nodes.map(({ w, i, rangeLabel }, idx) => (
-          <div key={i} className="flex items-start shrink-0">
-            <div className="flex flex-col items-center w-60">
+          <div key={i} className="flex items-start flex-1 min-w-[16rem]">
+            <div className="flex flex-col items-center w-full">
               <div className="flex items-center gap-1.5 mb-2">
                 <span className="h-5 w-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center shrink-0">
                   {i + 1}
