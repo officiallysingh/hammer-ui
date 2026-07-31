@@ -50,7 +50,7 @@ export function PriceProgressionTimeline({
 
   return (
     <div className="relative">
-      <div className="flex gap-4 items-center overflow-x-auto pb-2 pt-1 -mx-1 px-1">
+      <div className="flex gap-4 items-start overflow-x-auto pb-2 pt-1 -mx-1 px-1">
         {nodes.flatMap(({ w, i, rangeLabel }, idx) => [
           <div
             key={`node-${i}`}
@@ -100,10 +100,8 @@ export function PriceProgressionTimeline({
           idx < nodes.length - 1 ? (
             <div
               key={`connector-${i}`}
-              className="flex-1 min-w-[3rem] flex items-center justify-center"
-            >
-              <div className="h-0.5 w-full bg-gradient-to-r from-primary/50 to-primary/10 rounded-full" />
-            </div>
+              className="flex-1 min-w-[3rem] h-0.5 mt-[9px] shrink-0 bg-primary/30 rounded-full"
+            />
           ) : null,
         ])}
       </div>
