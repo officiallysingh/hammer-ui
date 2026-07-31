@@ -181,9 +181,10 @@ function PolicyGroupSection({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
           {items.map((item, i) => {
+            const isLastOfOdd = i === items.length - 1 && items.length % 2 === 1;
             if (item.priceChangePolicies?.length) {
               return (
-                <div key={i} className="space-y-2">
+                <div key={i} className={`space-y-2 ${isLastOfOdd ? 'sm:col-span-2' : ''}`}>
                   <PolicyItemCard
                     auctionId={auctionId}
                     policyId={item.id}
@@ -208,15 +209,16 @@ function PolicyGroupSection({
               );
             }
             return (
-              <PolicyItemCard
-                key={i}
-                auctionId={auctionId}
-                policyId={item.id}
-                name={item.name}
-                type={item.type}
-                evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
-                showStatus={true}
-              />
+              <div key={i} className={isLastOfOdd ? 'sm:col-span-2' : ''}>
+                <PolicyItemCard
+                  auctionId={auctionId}
+                  policyId={item.id}
+                  name={item.name}
+                  type={item.type}
+                  evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
+                  showStatus={true}
+                />
+              </div>
             );
           })}
         </div>
@@ -862,13 +864,13 @@ export default function AuctionViewPage() {
         {/* TAB 3: POLICIES */}
         <TabsContent value="policies" className="space-y-4 outline-none">
           <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
-            <div className="flex items-center justify-between px-5 py-4 bg-muted/30 border-b border-border gap-3">
-              <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-start justify-between px-5 py-4 bg-muted/30 border-b border-border gap-3">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
                 <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0">
                   <Settings2 className="h-5 w-5" />
                 </div>
-                <div className="min-w-0">
-                  <h3 className="text-sm font-bold text-foreground">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-bold text-foreground truncate">
                     Auction Policies & Evaluation Rules
                   </h3>
                   <p className="text-xs text-muted-foreground truncate">
