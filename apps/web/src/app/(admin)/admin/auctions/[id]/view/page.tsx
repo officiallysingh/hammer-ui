@@ -13,6 +13,8 @@ import {
   PolicyEvaluationMap,
 } from '@repo/api';
 import { PolicyItemCard } from '../../_components/PolicyEvaluationDisplay';
+import { splitPolicyGroups } from '../../_components/policyGroups';
+import { PriceProgressionTimeline } from '../../_components/PolicyPriceProgressionTimeline';
 import {
   ArrowLeft,
   Loader2,
@@ -31,7 +33,6 @@ import {
   Clock,
   ShieldCheck,
   Sparkles,
-  Activity,
   ChevronRight,
   TrendingUp,
 } from 'lucide-react';
@@ -48,7 +49,7 @@ import {
   CardContent,
   toast,
 } from '@repo/ui';
-import PageHeader from '@/components/common/admin/PageHeader';
+import { StatusBadge } from '@/components/common/admin/AuctionStatusBadge';
 import { ListingViewDialog } from '../../../listings/_components/ListingViewDialog';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -88,52 +89,6 @@ function formatDateTime(iso?: string): string {
   }
 }
 
-// ── Status badge ──────────────────────────────────────────────────────────────
-
-function StatusBadge({ value }: { value?: unknown }) {
-  const str = resolveStr(value);
-  if (!str) return <span className="text-xs text-muted-foreground">—</span>;
-
-  const colorMap: Record<string, { bg: string; icon: React.ElementType; animate?: boolean }> = {
-    CREATED: {
-      bg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30',
-      icon: Info,
-    },
-    SCHEDULED: {
-      bg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30',
-      icon: Clock,
-    },
-    RUNNING: {
-      bg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
-      icon: Activity,
-      animate: true,
-    },
-    COMPLETED: {
-      bg: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30',
-      icon: ShieldCheck,
-    },
-    CANCELLED: {
-      bg: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30',
-      icon: AlertCircle,
-    },
-  };
-
-  const config: { bg: string; icon: React.ElementType; animate?: boolean } = colorMap[str] ?? {
-    bg: 'bg-muted text-muted-foreground border-border',
-    icon: Info,
-  };
-  const Icon = config.icon;
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${config.bg}`}
-    >
-      <Icon className={`h-3.5 w-3.5 ${config.animate ? 'animate-pulse' : ''}`} />
-      {formatLabel(str)}
-    </span>
-  );
-}
-
 // ── Detail row ────────────────────────────────────────────────────────────────
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -171,6 +126,21 @@ function SectionCard({
 
 // ── Policy group ──────────────────────────────────────────────────────────────
 
+const POLICY_GROUP_DESCRIPTIONS: Record<string, string> = {
+  'Pre Payment': 'Collected from participants before the auction starts',
+  'Post Payment': 'Collected from winners after the auction closes',
+  PARTICIPATION: 'Rules governing who can register and how their eligibility is verified',
+  PRECONDITION: 'Conditions that must hold for the auction to proceed',
+  PRICE_PROGRESSION: 'How the bid price moves over the lifetime of the auction',
+  EXTENSION: 'How the end time extends when late bids arrive',
+  WINNER_DETERMINATION: 'How the winning bid is selected',
+  WINNER_PRICE_DETERMINATION: 'How the final price paid by the winner is calculated',
+};
+
+function descriptionForGroup(key: string): string | undefined {
+  return POLICY_GROUP_DESCRIPTIONS[key] ?? POLICY_GROUP_DESCRIPTIONS[key.toUpperCase()];
+}
+
 function PolicyGroupSection({
   auctionId,
   groupKey,
@@ -182,22 +152,64 @@ function PolicyGroupSection({
   items: PolicyItemRQ[];
   evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
 }) {
+  const description = descriptionForGroup(groupKey);
+  const isPriceProgression = groupKey.toUpperCase() === 'PRICE_PROGRESSION';
   return (
     <div className="px-5 py-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-          {formatLabel(groupKey)}
-        </span>
-        <Badge variant="outline" className="text-[10px]">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <span className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+            {groupKey}
+          </span>
+          {description && <p className="mt-1 text-[11px] text-muted-foreground">{description}</p>}
+        </div>
+        <Badge variant="outline" className="text-[10px] shrink-0">
           {items.length} policy item{items.length !== 1 ? 's' : ''}
         </Badge>
       </div>
-      <div className="space-y-2.5">
-        {items.map((item, i) => {
-          if (item.priceChangePolicies?.length) {
+      {isPriceProgression ? (
+        <div className="space-y-4">
+          {items.map((wrapper, i) => (
+            <PriceProgressionTimeline
+              key={i}
+              wrapper={wrapper}
+              evaluationsByPolicyId={evaluationsByPolicyId}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
+          {items.map((item, i) => {
+            const isLastOfOdd = i === items.length - 1 && items.length % 2 === 1;
+            if (item.priceChangePolicies?.length) {
+              return (
+                <div key={i} className={`space-y-2 ${isLastOfOdd ? 'sm:col-span-2' : ''}`}>
+                  <PolicyItemCard
+                    auctionId={auctionId}
+                    policyId={item.id}
+                    name={item.name}
+                    type={item.type}
+                    evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
+                    showStatus={true}
+                  />
+                  {item.priceChangePolicies.map((nested, j) => (
+                    <div key={j} className="pl-4 border-l-2 border-primary/20">
+                      <PolicyItemCard
+                        auctionId={auctionId}
+                        policyId={nested.id}
+                        name={nested.name}
+                        type={nested.type}
+                        evaluations={nested.id ? evaluationsByPolicyId?.[nested.id] : undefined}
+                        showStatus={true}
+                      />
+                    </div>
+                  ))}
+                </div>
+              );
+            }
             return (
-              <div key={i} className="space-y-2">
+              <div key={i} className={isLastOfOdd ? 'sm:col-span-2' : ''}>
                 <PolicyItemCard
                   auctionId={auctionId}
                   policyId={item.id}
@@ -206,34 +218,11 @@ function PolicyGroupSection({
                   evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
                   showStatus={true}
                 />
-                {item.priceChangePolicies.map((nested, j) => (
-                  <div key={j} className="pl-4 border-l-2 border-primary/20">
-                    <PolicyItemCard
-                      auctionId={auctionId}
-                      policyId={nested.id}
-                      name={nested.name}
-                      type={nested.type}
-                      evaluations={nested.id ? evaluationsByPolicyId?.[nested.id] : undefined}
-                      showStatus={true}
-                    />
-                  </div>
-                ))}
               </div>
             );
-          }
-          return (
-            <PolicyItemCard
-              key={i}
-              auctionId={auctionId}
-              policyId={item.id}
-              name={item.name}
-              type={item.type}
-              evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
-              showStatus={true}
-            />
-          );
-        })}
-      </div>
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -483,6 +472,9 @@ export default function AuctionViewPage() {
   const [evaluationsByPolicyId, setEvaluationsByPolicyId] = useState<
     Record<string, PolicyEvaluationMap>
   >({});
+  // When we last fetched evaluations — shown to admins so they know whether the
+  // "Re-evaluate All" badge result is fresh or stale.
+  const [evaluationsEvaluatedAt, setEvaluationsEvaluatedAt] = useState<Date | null>(null);
 
   const fetchEvaluations = async (polGroup: AuctionPoliciesGroupRQ | null) => {
     if (!polGroup) return;
@@ -507,20 +499,37 @@ export default function AuctionViewPage() {
       if (res) map[policyId] = res;
     }
     setEvaluationsByPolicyId(map);
+    setEvaluationsEvaluatedAt(new Date());
   };
 
   useEffect(() => {
+    let cancelled = false;
     Promise.all([
       auctionsApi.getAuctionById(id),
       auctionsApi.getAuctionPolicies(id).catch(() => null),
     ])
       .then(([a, pol]) => {
+        if (cancelled) return;
         setAuction(a);
         setPolicies(pol);
-        return fetchEvaluations(pol);
+        // Only auto-evaluate on first load when the auction is in a state where
+        // evaluation results could have moved (SCHEDULED / RUNNING). For CREATED
+        // / COMPLETED / CANCELLED, evaluations are stable — skip the N+1 to
+        // save server round-trips and let the admin click Re-evaluate when needed.
+        const status = resolveStr(a.status);
+        const live = status === 'SCHEDULED' || status === 'RUNNING';
+        if (live) {
+          return fetchEvaluations(pol);
+        }
+        return null;
       })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   const handleRefreshPolicies = async () => {
@@ -576,31 +585,14 @@ export default function AuctionViewPage() {
   const format = formatLabel(auction.format);
   const auctionType = formatLabel(auction.type);
 
-  // Policy Group entries split pre / post payment
-  const policyEntries = ((): [string, PolicyItemRQ[]][] => {
-    if (!policies) return [];
-    const rawEntries = Object.entries(policies).filter(([, items]) => items.length > 0);
-
-    const paymentKey = Object.keys(policies).find((k) => k.toUpperCase() === 'PAYMENT');
-    if (!paymentKey) return rawEntries;
-
-    const paymentItems = policies[paymentKey] ?? [];
-    const preItems = paymentItems.filter((item) => {
-      const ref = item.schedule?.reference;
-      const refStr = typeof ref === 'string' ? ref : ref ? Object.keys(ref as object)[0] : '';
-      return refStr !== 'AUCTION_END_TIME';
-    });
-    const postItems = paymentItems.filter((item) => {
-      const ref = item.schedule?.reference;
-      const refStr = typeof ref === 'string' ? ref : ref ? Object.keys(ref as object)[0] : '';
-      return refStr === 'AUCTION_END_TIME';
-    });
-    const others = rawEntries.filter(([key]) => key.toUpperCase() !== 'PAYMENT');
-
+  // Policy Group entries split pre / post payment. Single source of truth is
+  // policyGroups.splitPolicyGroups so the view and the workflow editor can't drift.
+  const split = splitPolicyGroups(policies);
+  const policyEntries: [string, PolicyItemRQ[]][] = (() => {
     const ordered: [string, PolicyItemRQ[]][] = [];
-    if (preItems.length > 0) ordered.push(['Pre Payment', preItems]);
-    ordered.push(...others);
-    if (postItems.length > 0) ordered.push(['Post Payment', postItems]);
+    if (split.prePayment.length > 0) ordered.push(['Pre Payment', split.prePayment]);
+    ordered.push(...split.others);
+    if (split.postPayment.length > 0) ordered.push(['Post Payment', split.postPayment]);
     return ordered;
   })();
 
@@ -872,17 +864,23 @@ export default function AuctionViewPage() {
         {/* TAB 3: POLICIES */}
         <TabsContent value="policies" className="space-y-4 outline-none">
           <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
-            <div className="flex items-center justify-between px-5 py-4 bg-muted/30 border-b border-border">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-primary/10 text-primary">
+            <div className="flex items-start justify-between px-5 py-4 bg-muted/30 border-b border-border gap-3">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0">
                   <Settings2 className="h-5 w-5" />
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-foreground">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-bold text-foreground truncate">
                     Auction Policies & Evaluation Rules
                   </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Rule conditions, parameters, and live status evaluation results
+                  <p className="text-xs text-muted-foreground truncate">
+                    {evaluationsEvaluatedAt
+                      ? `Last evaluated ${evaluationsEvaluatedAt.toLocaleTimeString(undefined, {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                        })} — click Re-evaluate to refresh.`
+                      : 'Click Re-evaluate to fetch live evaluation results from the rule engine.'}
                   </p>
                 </div>
               </div>
@@ -891,8 +889,8 @@ export default function AuctionViewPage() {
                 variant="outline"
                 size="sm"
                 onClick={handleRefreshPolicies}
-                disabled={reloadingPolicies}
-                className="gap-2 text-xs rounded-xl"
+                disabled={reloadingPolicies || policyEntries.length === 0}
+                className="gap-2 text-xs rounded-xl shrink-0"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${reloadingPolicies ? 'animate-spin' : ''}`} />
                 <span>Re-evaluate All</span>
@@ -900,9 +898,27 @@ export default function AuctionViewPage() {
             </div>
 
             {policyEntries.length === 0 ? (
-              <p className="text-sm text-muted-foreground px-5 py-8 text-center">
-                No policy groups configured for this auction.
-              </p>
+              <div className="flex flex-col items-center justify-center text-center px-5 py-10 gap-3">
+                <div className="p-3 rounded-full bg-muted text-muted-foreground">
+                  <ShieldCheck className="h-6 w-6" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-foreground">No policies configured</p>
+                  <p className="text-xs text-muted-foreground max-w-sm">
+                    This auction doesn&apos;t have any policy groups yet. Add participation,
+                    payment, and winner-determination rules so the auction knows how to run.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push(`/admin/auctions/${id}/edit`)}
+                  className="gap-1.5 text-xs"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Configure policies
+                </Button>
+              </div>
             ) : (
               <div className="divide-y divide-border/50">
                 {policyEntries.map(([key, items]) => (
@@ -925,76 +941,82 @@ export default function AuctionViewPage() {
             <CardHeader className="border-b border-border bg-muted/30 p-5">
               <CardTitle className="text-base font-bold flex items-center gap-2.5">
                 <Clock className="h-5 w-5 text-primary" />
-                <span>Auction Event Lifecycle</span>
+                <span>Schedule</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
-              <div className="relative pl-6 border-l-2 border-primary/20 space-y-8">
-                {/* Event 1 */}
-                <div className="relative">
-                  <div className="absolute -left-[31px] top-0 h-4 w-4 rounded-full bg-primary ring-4 ring-background" />
+              {!auction.schedule?.startTime && !auction.schedule?.endTime ? (
+                <div className="flex flex-col items-center justify-center text-center py-6 gap-3">
+                  <div className="p-3 rounded-full bg-muted text-muted-foreground">
+                    <Calendar className="h-6 w-6" />
+                  </div>
                   <div className="space-y-1">
-                    <p className="text-xs font-bold text-primary uppercase tracking-wider">
-                      Step 1
-                    </p>
-                    <p className="text-sm font-semibold text-foreground">
-                      Auction Created & Configured
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Basic information, unit selection, and policy mappings assigned.
+                    <p className="text-sm font-semibold text-foreground">Not scheduled yet</p>
+                    <p className="text-xs text-muted-foreground max-w-sm">
+                      This auction doesn&apos;t have a start or end time. Schedule it from the edit
+                      page to make it visible to participants.
                     </p>
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push(`/admin/auctions/${id}/edit`)}
+                    className="gap-1.5 text-xs"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Schedule auction
+                  </Button>
                 </div>
+              ) : (
+                <div className="relative pl-6 border-l-2 border-primary/20 space-y-8">
+                  <div className="relative">
+                    <div className="absolute -left-[31px] top-0 h-4 w-4 rounded-full bg-blue-500 ring-4 ring-background" />
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                        Created
+                      </p>
+                      <p className="text-sm font-semibold text-foreground">Auction created</p>
+                      <p className="text-xs text-muted-foreground">
+                        Configuration, units, and policies assigned.
+                      </p>
+                    </div>
+                  </div>
 
-                {/* Event 2 */}
-                <div className="relative">
-                  <div className="absolute -left-[31px] top-0 h-4 w-4 rounded-full bg-amber-500 ring-4 ring-background" />
-                  <div className="space-y-1">
-                    <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-                      Step 2
-                    </p>
-                    <p className="text-sm font-semibold text-foreground">
-                      Pre-payment & Participation Verification
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Evaluation of pre-payment deposits, registration checklist, and participant
-                      eligibility.
-                    </p>
-                  </div>
-                </div>
+                  {auction.schedule?.startTime && (
+                    <div className="relative">
+                      <div className="absolute -left-[31px] top-0 h-4 w-4 rounded-full bg-emerald-500 ring-4 ring-background" />
+                      <div className="space-y-1">
+                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                          Start
+                        </p>
+                        <p className="text-sm font-semibold text-foreground">
+                          Auction opens — {formatDateTime(auction.schedule.startTime)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Bidding becomes available to participants.
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
-                {/* Event 3 */}
-                <div className="relative">
-                  <div className="absolute -left-[31px] top-0 h-4 w-4 rounded-full bg-emerald-500 ring-4 ring-background" />
-                  <div className="space-y-1">
-                    <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-                      Step 3
-                    </p>
-                    <p className="text-sm font-semibold text-foreground">
-                      Auction Start ({formatDateTime(auction.schedule?.startTime)})
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Bidding opens according to format progression settings.
-                    </p>
-                  </div>
+                  {auction.schedule?.endTime && (
+                    <div className="relative">
+                      <div className="absolute -left-[31px] top-0 h-4 w-4 rounded-full bg-indigo-500 ring-4 ring-background" />
+                      <div className="space-y-1">
+                        <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                          End
+                        </p>
+                        <p className="text-sm font-semibold text-foreground">
+                          Auction closes — {formatDateTime(auction.schedule.endTime)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Winner is determined and post-payment is triggered.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-
-                {/* Event 4 */}
-                <div className="relative">
-                  <div className="absolute -left-[31px] top-0 h-4 w-4 rounded-full bg-indigo-500 ring-4 ring-background" />
-                  <div className="space-y-1">
-                    <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                      Step 4
-                    </p>
-                    <p className="text-sm font-semibold text-foreground">
-                      Auction Closing & Post-Payment ({formatDateTime(auction.schedule?.endTime)})
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Winner evaluation, standing price finalization, and post-payment settlement.
-                    </p>
-                  </div>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

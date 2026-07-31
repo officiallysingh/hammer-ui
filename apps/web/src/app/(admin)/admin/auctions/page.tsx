@@ -27,6 +27,7 @@ import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
+import { StatusBadge } from '@/components/common/admin/AuctionStatusBadge';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -61,27 +62,6 @@ function formatDate(iso?: string): string {
   } catch {
     return iso;
   }
-}
-
-// ── Status badge ──────────────────────────────────────────────────────────────
-
-function StatusBadge({ value }: { value?: unknown }) {
-  const str = resolveStr(value);
-  if (!str) return <span className="text-xs text-muted-foreground">—</span>;
-  const map: Record<string, string> = {
-    CREATED: 'bg-blue-500/10 text-blue-600 border-blue-500/30',
-    SCHEDULED: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
-    RUNNING: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30',
-    COMPLETED: 'bg-slate-500/10 text-slate-600 border-slate-500/30',
-    CANCELLED: 'bg-red-500/10 text-red-600 border-red-500/30',
-  };
-  return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${map[str] ?? 'bg-muted text-muted-foreground border-border'}`}
-    >
-      {formatLabel(str)}
-    </span>
-  );
 }
 
 // ── Direction icon with tooltip ───────────────────────────────────────────────
@@ -343,7 +323,7 @@ export default function AuctionsPage() {
     {
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ row }) => <StatusBadge value={row.original.status} />,
+      cell: ({ row }) => <StatusBadge value={row.original.status} size="sm" showIcon={false} />,
     },
     {
       id: 'actions',
