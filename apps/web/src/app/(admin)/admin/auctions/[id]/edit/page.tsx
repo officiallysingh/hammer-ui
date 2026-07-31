@@ -84,6 +84,9 @@ export default function EditAuctionPage() {
   const [step3Errors, setStep3Errors] = useState<Record<string, string>>({});
   const [step3GeneralError, setStep3GeneralError] = useState<string | null>(null);
   const [savingStep3, setSavingStep3] = useState(false);
+  // Snapshot of step3 as loaded from the API — used to detect whether the admin
+  // has actually changed anything before deciding to offer a Skip affordance.
+  const [originalStep3, setOriginalStep3] = useState<Step3State | null>(null);
   // Model options
   const [formats, setFormats] = useState<SelectOption[]>([]);
   const [accessibilityTypes, setAccessibilityTypes] = useState<SelectOption[]>([]);
@@ -233,7 +236,9 @@ export default function EditAuctionPage() {
         }
 
         if (savedPolicies && Object.keys(savedPolicies).length > 0) {
-          setStep3((prev) => ({ ...prev, ...mapSavedPolicies(savedPolicies) }));
+          const loaded = { ...initialStep3, ...mapSavedPolicies(savedPolicies) };
+          setStep3(loaded);
+          setOriginalStep3(loaded);
         }
       })
       .catch(() => setStep1GeneralError('Failed to load auction.'))
@@ -464,6 +469,7 @@ export default function EditAuctionPage() {
               onCancel={() => router.push('/admin/auctions')}
               onSkip={!hasStep1Changes ? () => setStep(2) : undefined}
               submitLabel="Save & Next"
+              lockedFields={['format', 'dimension', 'priceProgression', 'direction']}
             />
           );
         })()}
@@ -497,7 +503,8 @@ export default function EditAuctionPage() {
 
       {step === 3 &&
         (() => {
-          const hasStep3Changes = JSON.stringify(step3) !== JSON.stringify(initialStep3);
+          const hasStep3Changes =
+            !originalStep3 || JSON.stringify(step3) !== JSON.stringify(originalStep3);
           return (
             <AuctionStep3Policies
               auctionId={id}

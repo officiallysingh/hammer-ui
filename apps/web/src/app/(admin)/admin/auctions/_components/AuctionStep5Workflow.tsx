@@ -33,6 +33,7 @@ import { SELECT_CLS, resolveStr, fmtLabel } from './PolicyShared';
 import { PolicyItemCard } from './PolicyEvaluationDisplay';
 import { AddStepDialog } from './AddStepDialog';
 import { EditStepDialog } from './EditStepDialog';
+import { isPostPayment, isPrePayment } from './policyGroups';
 import Tip from '@/components/common/admin/Tip';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import { parseApiError } from '@/lib/api-errors';
@@ -586,8 +587,8 @@ export function AuctionStep5Workflow({
         // Policies flagged postPayment: true are collected after the auction ends —
         // shown in a trailing block regardless of which group they belong to.
         const allItems = Object.values(pol ?? {}).flat();
-        setPostPaymentPolicies(allItems.filter((item) => item.postPayment === true));
-        setPrePaymentPolicies(allItems.filter((item) => item.prePayment === true));
+        setPostPaymentPolicies(allItems.filter(isPostPayment));
+        setPrePaymentPolicies(allItems.filter(isPrePayment));
         // The implicit Participation step doesn't embed its own policy on the workflow
         // step object — fall back to the PARTICIPATION group from the policies endpoint,
         // same as pre/post payment above.
