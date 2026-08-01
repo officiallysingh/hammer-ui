@@ -7,6 +7,7 @@ import { Badge, Button } from '@repo/ui';
 import Tip from '@/components/common/admin/Tip';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import { fmtLabel, resolveStr } from './PolicyShared';
+import { formatDateTime } from '@/components/common/admin/format';
 
 function statusStyle(statusType: string): { className: string; Icon: typeof Clock } {
   switch (statusType) {
@@ -68,21 +69,6 @@ function formatValue(value: unknown): string {
     return str || '';
   }
   return String(value);
-}
-
-function formatDateTime(iso?: string): string {
-  if (!iso) return '';
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
 }
 
 type DetailRender =

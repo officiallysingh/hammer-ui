@@ -28,41 +28,7 @@ import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
 import { StatusBadge } from '@/components/common/admin/AuctionStatusBadge';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function resolveStr(value?: unknown): string {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>);
-    if (entries.length > 0) return String(entries[0]![0]);
-  }
-  return String(value);
-}
-
-function formatLabel(value?: unknown): string {
-  const str = resolveStr(value);
-  if (!str) return '—';
-  return str
-    .toLowerCase()
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
-}
-
-function formatDate(iso?: string): string {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  } catch {
-    return iso;
-  }
-}
+import { formatDate, formatLabel, resolveStr } from '@/components/common/admin/format';
 
 // ── Direction icon with tooltip ───────────────────────────────────────────────
 
