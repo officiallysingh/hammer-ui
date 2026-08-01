@@ -16,6 +16,7 @@ import {
 } from '@repo/ui';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { parseApiError } from '@/lib/api-errors';
+import { resolvesExists } from '@/lib/exists-check';
 
 // ── Shared form fields ────────────────────────────────────────────────────────
 
@@ -33,6 +34,7 @@ function PermissionFields({
   descId,
   readOnly = false,
   nameLocked = false,
+  onNameExists,
 }: {
   name: string;
   onName: (v: string) => void;
@@ -48,6 +50,8 @@ function PermissionFields({
   readOnly?: boolean;
   /** Locks just the Name field (e.g. while editing — the key can't change after creation). */
   nameLocked?: boolean;
+  /** Called when the Name field loses focus and the entered value is already taken. */
+  onNameExists?: () => void;
 }) {
   const nameDisabled = readOnly || nameLocked;
   return (
@@ -62,6 +66,13 @@ function PermissionFields({
           onChange={(e) => {
             onName(e.target.value);
             clearErr('name');
+          }}
+          onBlur={async (e) => {
+            if (nameDisabled) return;
+            const value = e.target.value.trim();
+            if (!value) return;
+            const taken = await resolvesExists(adminApi.checkPermissionNameExists(value));
+            if (taken) onNameExists?.();
           }}
           placeholder="admin.users.create"
           autoComplete="off"
@@ -219,6 +230,9 @@ export function CreatePermissionDialog({
             nameId="cp-name"
             labelId="cp-label"
             descId="cp-desc"
+            onNameExists={() =>
+              setFieldErrors((p) => ({ ...p, name: 'This name is already in use.' }))
+            }
           />
           {error && <ErrorAlert message={error} />}
           <DialogFooter>

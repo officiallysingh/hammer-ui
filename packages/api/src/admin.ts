@@ -53,6 +53,11 @@ export const adminApi = {
     return response.data;
   },
 
+  checkRoleNameExists: async (name: string) => {
+    const response = await apiClient.get(`/api/v1/roles/name/${name}/exists`);
+    return response.data;
+  },
+
   createRole: async (data: RoleCreationReq): Promise<void> => {
     await apiClient.post('/api/v1/roles', data);
   },
@@ -75,6 +80,11 @@ export const adminApi = {
 
   getPermissionsByRole: async (roleId: string): Promise<PermissionVM[]> => {
     const response = await apiClient.get(`/api/v1/roles/${roleId}/permissions`);
+    return response.data;
+  },
+
+  checkPermissionNameExists: async (name: string) => {
+    const response = await apiClient.get(`/api/v1/permissions/name/${name}/exists`);
     return response.data;
   },
 

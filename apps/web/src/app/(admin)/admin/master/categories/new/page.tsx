@@ -10,6 +10,7 @@ import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import EmojiPicker from '@/components/common/EmojiPicker';
 import { parseApiError } from '@/lib/api-errors';
+import { resolvesExists } from '@/lib/exists-check';
 
 interface NewCategoryFormValues {
   name: string;
@@ -81,6 +82,12 @@ export default function NewCategoryPage() {
                   delete n.name;
                   return n;
                 });
+              }}
+              onBlur={async (e) => {
+                const value = e.target.value.trim();
+                if (!value) return;
+                const taken = await resolvesExists(masterApi.checkCategoryNameExists(value));
+                if (taken) setFieldErrors((p) => ({ ...p, name: 'This name is already in use.' }));
               }}
               placeholder="Electronics"
               autoComplete="off"
