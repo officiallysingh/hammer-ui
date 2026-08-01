@@ -14,20 +14,12 @@ import {
   ChevronDown,
   Settings,
 } from 'lucide-react';
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@repo/ui';
+import { Button, DropdownMenuItem, DropdownMenuSeparator } from '@repo/ui';
 import { useAuthStore } from '@/store/authStore';
 import { authApi } from '@repo/api';
 import { ThemeToggle } from '@/components/common/Header/ThemeToggle';
 import { UserAvatar } from '@/components/common/admin/UserAvatar';
+import { UserMenu } from '@/components/admin/UserMenu';
 
 const navLinks = [
   { label: 'Live Auctions', href: '#auctions' },
@@ -93,44 +85,13 @@ const AuctionNavbar = () => {
               >
                 <Bell className="h-5 w-5" />
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-secondary transition-colors outline-none">
-                    <UserAvatar
-                      src={userInfo?.profilePicture}
-                      firstName={userInfo?.firstName}
-                      lastName={userInfo?.lastName}
-                      username={user?.username}
-                      size={32}
-                    />
-                    <span className="hidden lg:block text-sm font-medium text-foreground max-w-[100px] truncate">
-                      {displayName}
-                    </span>
-                    <ChevronDown className="hidden lg:block h-3.5 w-3.5 text-muted-foreground" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex items-center gap-3 py-1">
-                      <UserAvatar
-                        src={userInfo?.profilePicture}
-                        firstName={userInfo?.firstName}
-                        lastName={userInfo?.lastName}
-                        username={user?.username}
-                        size={36}
-                      />
-                      <div className="flex flex-col min-w-0">
-                        <span className="font-body text-sm font-semibold text-foreground truncate">
-                          {displayName}
-                        </span>
-                        <span className="font-body text-xs text-muted-foreground">
-                          {isAdmin() ? 'Administrator' : 'Member'}
-                        </span>
-                      </div>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuGroup>
+              <UserMenu
+                username={displayName}
+                userInfo={userInfo}
+                roleLabel={isAdmin() ? 'Administrator' : 'Member'}
+                onSignOut={handleSignOut}
+                extraItems={
+                  <>
                     <DropdownMenuItem asChild className="gap-2 cursor-pointer">
                       <Link href="/profile">
                         <User className="h-4 w-4 text-muted-foreground" />
@@ -154,17 +115,24 @@ const AuctionNavbar = () => {
                         </DropdownMenuItem>
                       </>
                     )}
-                  </DropdownMenuGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="gap-2 cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
-                    onClick={handleSignOut}
-                  >
-                    <LogOut className="h-4 w-4" />
-                    <span>Sign out</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  </>
+                }
+                trigger={
+                  <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-secondary transition-colors outline-none">
+                    <UserAvatar
+                      src={userInfo?.profilePicture}
+                      firstName={userInfo?.firstName}
+                      lastName={userInfo?.lastName}
+                      username={user?.username}
+                      size={32}
+                    />
+                    <span className="hidden lg:block text-sm font-medium text-foreground max-w-[100px] truncate">
+                      {displayName}
+                    </span>
+                    <ChevronDown className="hidden lg:block h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                }
+              />
             </>
           ) : (
             <>

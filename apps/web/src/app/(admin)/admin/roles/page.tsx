@@ -1,19 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import React from 'react';
 import { adminApi, RoleVM, PermissionVM } from '@repo/api';
-import { Loader2, Trash2, RefreshCw, Plus, Pencil } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
-import { Button } from '@repo/ui';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/common/data-table';
 import PageHeader from '@/components/common/admin/PageHeader';
 import { PhraseSearchBar } from '@/components/common/admin/PhraseSearchBar';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
-import Tip from '@/components/common/admin/Tip';
 import { TagList } from '@/components/common/admin/TagList';
+import { ListToolbarActions } from '@/components/common/admin/ListToolbarActions';
+import { RowActions } from '@/components/common/admin/RowActions';
 import { RoleFormDialog, EditRoleDialog } from './_components/RoleFormDialog';
 
 // Extend RoleVM locally to cache fetched permissions
@@ -114,33 +112,13 @@ export default function RolesPage() {
       id: 'actions',
       header: 'Actions',
       cell: ({ row }) => (
-        <div className="flex items-center gap-0.5">
-          <Tip label="Edit role">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
-              onClick={() => setEditRole(row.original)}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-          </Tip>
-          <Tip label="Delete role">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={() => setConfirmId(row.original.id)}
-              disabled={deletingId === row.original.id}
-            >
-              {deletingId === row.original.id ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="h-3.5 w-3.5" />
-              )}
-            </Button>
-          </Tip>
-        </div>
+        <RowActions
+          editLabel="Edit role"
+          deleteLabel="Delete role"
+          deleting={deletingId === row.original.id}
+          onEdit={() => setEditRole(row.original)}
+          onDelete={() => setConfirmId(row.original.id)}
+        />
       ),
     },
   ];
@@ -151,21 +129,12 @@ export default function RolesPage() {
         title="Roles"
         description="Manage roles and their assigned permissions"
         actions={
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => setIsCreateOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add role
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fetchGroups(phrases.length ? phrases : undefined)}
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          </div>
+          <ListToolbarActions
+            onAdd={() => setIsCreateOpen(true)}
+            addLabel="Add role"
+            onRefresh={() => fetchGroups(phrases.length ? phrases : undefined)}
+            refreshing={isLoading}
+          />
         }
       />
 

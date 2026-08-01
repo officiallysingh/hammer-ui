@@ -1,17 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import React from 'react';
 import { adminApi, PermissionVM } from '@repo/api';
-import { Pencil, RefreshCw, Plus, Trash2, Loader2 } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
-import { Button } from '@repo/ui';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/common/data-table';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
-import Tip from '@/components/common/admin/Tip';
+import { ListToolbarActions } from '@/components/common/admin/ListToolbarActions';
+import { RowActions } from '@/components/common/admin/RowActions';
 import { CreatePermissionDialog, EditPermissionDialog } from './_components/PermissionFormDialog';
 import { PhraseSearchBar } from '@/components/common/admin/PhraseSearchBar';
 
@@ -93,33 +91,13 @@ export default function PermissionsPage() {
       id: 'actions',
       header: 'Actions',
       cell: ({ row }) => (
-        <div className="flex items-center gap-0.5">
-          <Tip label="Edit permission">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
-              onClick={() => setEditPerm(row.original)}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-          </Tip>
-          <Tip label="Delete permission">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={() => setConfirmId(row.original.id)}
-              disabled={deletingId === row.original.id}
-            >
-              {deletingId === row.original.id ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="h-3.5 w-3.5" />
-              )}
-            </Button>
-          </Tip>
-        </div>
+        <RowActions
+          editLabel="Edit permission"
+          deleteLabel="Delete permission"
+          deleting={deletingId === row.original.id}
+          onEdit={() => setEditPerm(row.original)}
+          onDelete={() => setConfirmId(row.original.id)}
+        />
       ),
     },
   ];
@@ -130,21 +108,12 @@ export default function PermissionsPage() {
         title="Permissions"
         description="Manage permissions and access rights across the system"
         actions={
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => setIsCreateOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add permission
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fetchPermissions(phrases.length ? phrases : undefined)}
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          </div>
+          <ListToolbarActions
+            onAdd={() => setIsCreateOpen(true)}
+            addLabel="Add permission"
+            onRefresh={() => fetchPermissions(phrases.length ? phrases : undefined)}
+            refreshing={isLoading}
+          />
         }
       />
 
