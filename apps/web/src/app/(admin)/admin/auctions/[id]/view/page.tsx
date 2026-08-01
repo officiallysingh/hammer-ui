@@ -154,6 +154,8 @@ function PolicyGroupSection({
 }) {
   const description = descriptionForGroup(groupKey);
   const isPriceProgression = groupKey.toUpperCase() === 'PRICE_PROGRESSION';
+  const isWinnerGroup = groupKey.toUpperCase().startsWith('WINNER');
+  const resultLabel = isWinnerGroup ? 'Criteria' : 'Result';
   return (
     <div className="px-5 py-4 space-y-3">
       <div className="flex items-center justify-between gap-3">
@@ -192,6 +194,7 @@ function PolicyGroupSection({
                     type={item.type}
                     evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
                     showStatus={true}
+                    resultLabel={resultLabel}
                   />
                   {item.priceChangePolicies.map((nested, j) => (
                     <div key={j} className="pl-4 border-l-2 border-primary/20">
@@ -870,9 +873,7 @@ export default function AuctionViewPage() {
                   <Settings2 className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-bold text-foreground truncate">
-                    Auction Policies & Evaluation Rules
-                  </h3>
+                  <h3 className="text-sm font-bold text-foreground truncate">Policies</h3>
                   <p className="text-xs text-muted-foreground truncate">
                     {evaluationsEvaluatedAt
                       ? `Last evaluated ${evaluationsEvaluatedAt.toLocaleTimeString(undefined, {

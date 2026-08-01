@@ -228,10 +228,12 @@ export function EvaluationCard({
   name,
   evaluation,
   showStatus = true,
+  resultLabel = 'Result',
 }: {
   name: string;
   evaluation: PolicyEvaluation;
   showStatus?: boolean;
+  resultLabel?: string;
 }) {
   const statusType = showStatus ? resolveStr(evaluation.status?.type) : '';
   const { className, Icon } = statusStyle(statusType);
@@ -299,7 +301,7 @@ export function EvaluationCard({
             </span>
           )}
           <span className="text-muted-foreground/70">
-            Result:{' '}
+            {resultLabel}:{' '}
             <span
               className={`font-semibold text-foreground ${isNumeric(resultStr) ? 'text-base' : ''}`}
             >
@@ -413,10 +415,12 @@ export function EvaluationList({
   evaluations,
   loading,
   showStatus = true,
+  resultLabel = 'Result',
 }: {
   evaluations?: PolicyEvaluationMap | null;
   loading?: boolean;
   showStatus?: boolean;
+  resultLabel?: string;
 }) {
   const entries = Object.entries(evaluations ?? {});
   if (entries.length === 0) {
@@ -431,7 +435,13 @@ export function EvaluationList({
   return (
     <div className="space-y-2">
       {entries.map(([name, evaluation]) => (
-        <EvaluationCard key={name} name={name} evaluation={evaluation} showStatus={showStatus} />
+        <EvaluationCard
+          key={name}
+          name={name}
+          evaluation={evaluation}
+          showStatus={showStatus}
+          resultLabel={resultLabel}
+        />
       ))}
     </div>
   );
@@ -445,6 +455,7 @@ export function PolicyItemCard({
   evaluations,
   loadingEvaluation,
   showStatus = true,
+  resultLabel = 'Result',
   editable,
   onEdit,
   deletable,
@@ -458,6 +469,7 @@ export function PolicyItemCard({
   evaluations?: PolicyEvaluationMap | null;
   loadingEvaluation?: boolean;
   showStatus?: boolean;
+  resultLabel?: string;
   editable?: boolean;
   onEdit?: () => void;
   deletable?: boolean;
@@ -534,6 +546,7 @@ export function PolicyItemCard({
         evaluations={evaluations}
         loading={loadingEvaluation}
         showStatus={showStatus}
+        resultLabel={resultLabel}
       />
 
       <ConfirmDialog
