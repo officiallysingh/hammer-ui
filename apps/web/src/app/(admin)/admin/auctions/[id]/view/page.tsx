@@ -56,6 +56,7 @@ export default function AuctionViewPage() {
   const [loading, setLoading] = useState(true);
   const [reloadingPolicies, setReloadingPolicies] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
   const [auction, setAuction] = useState<AuctionVM | null>(null);
   const [policies, setPolicies] = useState<AuctionPoliciesGroupRQ | null>(null);
   const [evaluationsByPolicyId, setEvaluationsByPolicyId] = useState<
@@ -94,7 +95,7 @@ export default function AuctionViewPage() {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      auctionsApi.getAuctionById(id),
+      auctionsApi.getAuctionById(id, ['*']),
       auctionsApi.getAuctionPolicies(id).catch(() => null),
     ])
       .then(([a, pol]) => {
@@ -132,6 +133,18 @@ export default function AuctionViewPage() {
       toast?.error?.('Failed to re-evaluate policies');
     } finally {
       setReloadingPolicies(false);
+    }
+  };
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    // Evaluations only auto-fetch on mount for SCHEDULED/RUNNING auctions (see
+    // above). For every other status, the first visit to the Policies tab is
+    // what should trigger the fetch, instead of leaving it blank until the
+    // admin clicks "Re-evaluate All".
+    if (value === 'policies' && !evaluationsEvaluatedAt && !reloadingPolicies) {
+      setReloadingPolicies(true);
+      fetchEvaluations(policies).finally(() => setReloadingPolicies(false));
     }
   };
 
@@ -181,6 +194,123 @@ export default function AuctionViewPage() {
   })();
 
   const totalPolicyCount = policyEntries.reduce((sum, [, items]) => sum + items.length, 0);
+
+  // Policies timeline: fold the flat group list into ordered auction-lifecycle
+  // stages (pre-payment → start → running → complete → winner → post-payment)
+  // so the tab reads like the auction's actual sequence of events.
+  const byUpperKey =
+    (keys: string[]) =>
+    ([key]: [string, PolicyItemRQ[]]) =>
+      keys.includes(key.toUpperCase());
+
+  const prePaymentGroups = policyEntries.filter(byUpperKey(['PRE PAYMENT']));
+  const auctionStartGroups = policyEntries.filter(byUpperKey(['PARTICIPATION', 'PRECONDITION']));
+  const auctionRunningGroups = policyEntries.filter(byUpperKey(['EXTENSION', 'PRICE_PROGRESSION']));
+  const winnerGroups = policyEntries.filter(
+    byUpperKey(['WINNER_DETERMINATION', 'WINNER_PRICE_DETERMINATION']),
+  );
+  const postPaymentGroups = policyEntries.filter(byUpperKey(['POST PAYMENT']));
+
+  const placedKeys = new Set(
+    [
+      ...prePaymentGroups,
+      ...auctionStartGroups,
+      ...auctionRunningGroups,
+      ...winnerGroups,
+      ...postPaymentGroups,
+    ].map(([key]) => key),
+  );
+  const otherGroups = policyEntries.filter(([key]) => !placedKeys.has(key));
+
+  interface PolicyStage {
+    id: string;
+    label: string;
+    dotClassName: string;
+    textClassName: string;
+    dateLine?: string;
+    subLine?: string;
+    groups: [string, PolicyItemRQ[]][];
+  }
+
+  const policyStages: PolicyStage[] = [];
+
+  if (prePaymentGroups.length > 0) {
+    policyStages.push({
+      id: 'pre-payment',
+      label: 'Pre Payment',
+      dotClassName: 'bg-amber-500',
+      textClassName: 'text-amber-600 dark:text-amber-400',
+      subLine: 'Collected from participants before the auction starts.',
+      groups: prePaymentGroups,
+    });
+  }
+
+  if (auction.schedule?.startTime || auctionStartGroups.length > 0) {
+    policyStages.push({
+      id: 'auction-start',
+      label: 'Auction Start',
+      dotClassName: 'bg-emerald-500',
+      textClassName: 'text-emerald-600 dark:text-emerald-400',
+      dateLine: auction.schedule?.startTime
+        ? `Auction opens — ${formatDateTime(auction.schedule.startTime)}`
+        : undefined,
+      groups: auctionStartGroups,
+    });
+  }
+
+  if (auctionRunningGroups.length > 0) {
+    policyStages.push({
+      id: 'auction-running',
+      label: 'Auction Running',
+      dotClassName: 'bg-blue-500',
+      textClassName: 'text-blue-600 dark:text-blue-400',
+      subLine: 'Extension and price-progression rules apply while bidding is open.',
+      groups: auctionRunningGroups,
+    });
+  }
+
+  // Auction Complete only appears once the auction actually has an end time scheduled.
+  if (auction.schedule?.endTime) {
+    policyStages.push({
+      id: 'auction-complete',
+      label: 'Auction Complete',
+      dotClassName: 'bg-indigo-500',
+      textClassName: 'text-indigo-600 dark:text-indigo-400',
+      dateLine: `Auction closes — ${formatDateTime(auction.schedule.endTime)}`,
+      groups: [],
+    });
+  }
+
+  if (winnerGroups.length > 0) {
+    policyStages.push({
+      id: 'winner',
+      label: 'Winner',
+      dotClassName: 'bg-violet-500',
+      textClassName: 'text-violet-600 dark:text-violet-400',
+      groups: winnerGroups,
+    });
+  }
+
+  if (postPaymentGroups.length > 0) {
+    policyStages.push({
+      id: 'post-payment',
+      label: 'Post Payment',
+      dotClassName: 'bg-rose-500',
+      textClassName: 'text-rose-600 dark:text-rose-400',
+      subLine: 'Collected from the winner after the auction closes.',
+      groups: postPaymentGroups,
+    });
+  }
+
+  if (otherGroups.length > 0) {
+    policyStages.push({
+      id: 'other',
+      label: 'Other Policies',
+      dotClassName: 'bg-muted-foreground',
+      textClassName: 'text-muted-foreground',
+      groups: otherGroups,
+    });
+  }
 
   return (
     <div className="space-y-6 pb-12 max-w-7xl mx-auto">
@@ -333,7 +463,7 @@ export default function AuctionViewPage() {
       </div>
 
       {/* Main Tabbed Interface */}
-      <Tabs defaultValue="overview" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4 rounded-xl p-1 bg-muted/60">
           <TabsTrigger value="overview" className="rounded-lg text-xs font-semibold gap-2 py-2">
             <Info className="h-3.5 w-3.5" />
@@ -502,16 +632,42 @@ export default function AuctionViewPage() {
                 </Button>
               </div>
             ) : (
-              <div className="divide-y divide-border/50">
-                {policyEntries.map(([key, items]) => (
-                  <PolicyGroupSection
-                    key={key}
-                    auctionId={id}
-                    groupKey={key}
-                    items={items}
-                    evaluationsByPolicyId={evaluationsByPolicyId}
-                  />
-                ))}
+              <div className="p-5">
+                <div className="relative pl-6 border-l-2 border-primary/20 space-y-8">
+                  {policyStages.map((stage) => (
+                    <div key={stage.id} className="relative">
+                      <div
+                        className={`absolute -left-[31px] top-0 h-4 w-4 rounded-full ${stage.dotClassName} ring-4 ring-background`}
+                      />
+                      <div className="space-y-2">
+                        <p
+                          className={`text-xs font-bold uppercase tracking-wider ${stage.textClassName}`}
+                        >
+                          {stage.label}
+                        </p>
+                        {stage.dateLine && (
+                          <p className="text-sm font-semibold text-foreground">{stage.dateLine}</p>
+                        )}
+                        {stage.subLine && (
+                          <p className="text-xs text-muted-foreground">{stage.subLine}</p>
+                        )}
+                        {stage.groups.length > 0 && (
+                          <div className="rounded-xl border border-border divide-y divide-border/50 overflow-hidden">
+                            {stage.groups.map(([key, items]) => (
+                              <PolicyGroupSection
+                                key={key}
+                                auctionId={id}
+                                groupKey={key}
+                                items={items}
+                                evaluationsByPolicyId={evaluationsByPolicyId}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
