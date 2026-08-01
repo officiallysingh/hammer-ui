@@ -1,6 +1,7 @@
 'use client';
 
 import { Activity, AlertCircle, Clock, Info, ShieldCheck, type LucideIcon } from 'lucide-react';
+import { formatLabel, resolveStr } from './format';
 
 /** Unified auction-status visual mapping shared by the list, view, and step
  *  pages. The colors here are the single source of truth — keep them in sync
@@ -22,26 +23,6 @@ const STATUS_CONFIG: Record<
   },
   CANCELLED: { bg: 'bg-rose-500/10 text-rose-600 border-rose-500/30', icon: AlertCircle },
 };
-
-function resolveStr(value?: unknown): string {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>);
-    if (entries.length > 0) return String(entries[0]![0]);
-  }
-  return String(value);
-}
-
-function formatLabel(value?: unknown): string {
-  const str = resolveStr(value);
-  if (!str) return '—';
-  return str
-    .toLowerCase()
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
-}
 
 /** Shared auction-status badge. Use `size="sm"` for table cells, `"md"` for
  *  headers (default), and pass `showIcon={false}` to render text-only. */

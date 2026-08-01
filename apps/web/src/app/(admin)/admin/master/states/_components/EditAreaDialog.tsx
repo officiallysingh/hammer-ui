@@ -51,15 +51,29 @@ export function EditAreaDialog({ area, states, onClose, onUpdated }: EditAreaDia
   const pendingCityIdRef = useRef('');
 
   useEffect(() => {
-    if (area) {
-      setName(area.name);
-      setPinCode(area.pinCode ?? '');
-      setCoordinates({ latitude: area.latitude, longitude: area.longitude });
-      setFieldErrors({});
-      setError(null);
-      pendingCityIdRef.current = area.city?.id ?? '';
-      setStateId(area.city?.state?.id ?? '');
-    }
+    if (!area) return;
+    setName(area.name);
+    setPinCode(area.pinCode ?? '');
+    setCoordinates({ latitude: area.latitude, longitude: area.longitude });
+    setFieldErrors({});
+    setError(null);
+    pendingCityIdRef.current = area.city?.id ?? '';
+    setStateId(area.city?.state?.id ?? '');
+
+    // The areas list only expands `city`, not `city.state` — fetch the area
+    // fresh with a full expand so the State dropdown can be pre-selected correctly.
+    let cancelled = false;
+    masterApi
+      .getAreaById(area.id, ['*'])
+      .then((full) => {
+        if (cancelled) return;
+        if (full.city?.id) pendingCityIdRef.current = full.city.id;
+        if (full.city?.state?.id) setStateId(full.city.state.id);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [area]);
 
   useEffect(() => {

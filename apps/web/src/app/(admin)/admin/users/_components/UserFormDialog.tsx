@@ -20,6 +20,7 @@ import {
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { AvatarUpload } from '@/components/common/admin/AvatarUpload';
 import { parseApiError } from '@/lib/api-errors';
+import { resolvesExists } from '@/lib/exists-check';
 
 function initialsOf(firstName: string, lastName: string) {
   return `${firstName.trim()[0] ?? ''}${lastName.trim()[0] ?? ''}`.toUpperCase() || undefined;
@@ -37,6 +38,7 @@ function FieldInput({
   label,
   value,
   onChange,
+  onBlur,
   placeholder,
   type = 'text',
   error,
@@ -48,6 +50,7 @@ function FieldInput({
   label: string;
   value: string;
   onChange: (v: string) => void;
+  onBlur?: (v: string) => void;
   placeholder?: string;
   type?: string;
   error?: string;
@@ -81,6 +84,7 @@ function FieldInput({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur ? (e) => onBlur(e.target.value) : undefined}
         placeholder={placeholder}
         autoComplete="off"
         className={error ? 'border-destructive focus-visible:ring-destructive' : ''}
@@ -252,6 +256,12 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
               setField('username', v);
               clearErr('username');
             }}
+            onBlur={async (v) => {
+              const value = v.trim();
+              if (!value) return;
+              const taken = await resolvesExists(usersApi.checkUsernameExists(value));
+              if (taken) setFieldErrors((p) => ({ ...p, username: 'This username is taken.' }));
+            }}
             placeholder="rajveer.singh"
             error={fieldErrors.username}
             tip={USERNAME_RULES}
@@ -265,6 +275,13 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
             onChange={(v) => {
               setField('email', v);
               clearErr('emailId');
+            }}
+            onBlur={async (v) => {
+              const value = v.trim();
+              if (!value) return;
+              const taken = await resolvesExists(usersApi.checkEmailExists(value));
+              if (taken)
+                setFieldErrors((p) => ({ ...p, emailId: 'This email is already registered.' }));
             }}
             placeholder="abc@xyz.com"
             error={fieldErrors.emailId}
@@ -302,6 +319,16 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
             onChange={(v) => {
               setField('mobile', v);
               clearErr('mobileNo');
+            }}
+            onBlur={async (v) => {
+              const value = v.trim();
+              if (!value) return;
+              const taken = await resolvesExists(usersApi.checkMobileExists(value));
+              if (taken)
+                setFieldErrors((p) => ({
+                  ...p,
+                  mobileNo: 'This mobile number is already in use.',
+                }));
             }}
             placeholder="7082690057"
             error={fieldErrors.mobileNo}
@@ -475,6 +502,13 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
               setField('email', v);
               clearErr('emailId');
             }}
+            onBlur={async (v) => {
+              const value = v.trim();
+              if (!value || value === (user?.emailId ?? '')) return;
+              const taken = await resolvesExists(usersApi.checkEmailExists(value));
+              if (taken)
+                setFieldErrors((p) => ({ ...p, emailId: 'This email is already registered.' }));
+            }}
             placeholder="abc@xyz.com"
             error={fieldErrors.emailId}
           />
@@ -509,6 +543,16 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
             onChange={(v) => {
               setField('mobile', v);
               clearErr('mobileNo');
+            }}
+            onBlur={async (v) => {
+              const value = v.trim();
+              if (!value || value === (user?.mobileNo ?? '')) return;
+              const taken = await resolvesExists(usersApi.checkMobileExists(value));
+              if (taken)
+                setFieldErrors((p) => ({
+                  ...p,
+                  mobileNo: 'This mobile number is already in use.',
+                }));
             }}
             placeholder="7082690057"
             error={fieldErrors.mobileNo}

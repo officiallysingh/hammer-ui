@@ -16,6 +16,7 @@ import {
 } from '@repo/ui';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { parseApiError } from '@/lib/api-errors';
+import { resolvesExists } from '@/lib/exists-check';
 import {
   STATE_NAME_PATTERN,
   STATE_NAME_ERROR,
@@ -102,6 +103,12 @@ export function AddStateDialog({ open, onOpenChange, onCreated }: AddStateDialog
               onChange={(e) => {
                 setCode(e.target.value.toUpperCase());
                 clearErr('code');
+              }}
+              onBlur={async (e) => {
+                const value = e.target.value.trim();
+                if (!STATE_CODE_PATTERN.test(value)) return;
+                const taken = await resolvesExists(masterApi.checkStateCodeExists(value));
+                if (taken) setFieldErrors((p) => ({ ...p, code: 'This code is already in use.' }));
               }}
               placeholder="MH"
               maxLength={2}

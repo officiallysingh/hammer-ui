@@ -173,6 +173,11 @@ export const masterApi = {
     return response.data;
   },
 
+  checkStateCodeExists: async (code: string) => {
+    const response = await apiClient.get(`/api/v1/master/states/code/${code}/exists`);
+    return response.data;
+  },
+
   createState: async (data: StateCreationRQ): Promise<void> => {
     await apiClient.post('/api/v1/master/states', data);
   },
@@ -221,6 +226,13 @@ export const masterApi = {
   getAreasByPinCode: async (pinCode: string): Promise<AreaVM[]> => {
     const response = await apiClient.get(`/api/v1/master/areas/pin-code/${pinCode}`, {
       headers: { 'x-expand': 'city' },
+    });
+    return response.data;
+  },
+
+  getAreaById: async (id: string, expand?: ('city' | '*')[]): Promise<AreaVM> => {
+    const response = await apiClient.get(`/api/v1/master/areas/${id}`, {
+      headers: expand?.length ? { 'x-expand': expand.join(',') } : undefined,
     });
     return response.data;
   },
@@ -303,6 +315,11 @@ export const masterApi = {
     return response.data;
   },
 
+  checkCategoryNameExists: async (name: string) => {
+    const response = await apiClient.get(`/api/v1/master/categories/name/${name}/exists`);
+    return response.data;
+  },
+
   createCategory: async (data: CategoryCreationRQ): Promise<void> => {
     await apiClient.post('/api/v1/master/categories', data);
   },
@@ -323,6 +340,11 @@ export const masterApi = {
     const response = await apiClient.get(`/api/v1/master/categories/${categoryId}/sub-categories`, {
       headers: { 'x-expand': includeCategory },
     });
+    return response.data;
+  },
+
+  checkSubCategoryNameExists: async (name: string) => {
+    const response = await apiClient.get(`/api/v1/master/sub-categories/name/${name}/exists`);
     return response.data;
   },
 

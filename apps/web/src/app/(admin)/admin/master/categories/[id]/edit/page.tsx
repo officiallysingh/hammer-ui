@@ -11,6 +11,7 @@ import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import EmojiPicker from '@/components/common/EmojiPicker';
 import { parseApiError } from '@/lib/api-errors';
+import { resolvesExists } from '@/lib/exists-check';
 
 export default function EditCategoryPage() {
   const router = useRouter();
@@ -104,6 +105,14 @@ export default function EditCategoryPage() {
                     delete n.name;
                     return n;
                   });
+                }}
+                onBlur={async (e) => {
+                  const value = e.target.value.trim();
+                  if (!value || value === (originalRef.current?.name ?? '')) return;
+                  const taken = await resolvesExists(masterApi.checkCategoryNameExists(value));
+                  if (taken) {
+                    setFieldErrors((p) => ({ ...p, name: 'This name is already in use.' }));
+                  }
                 }}
                 placeholder="Electronics"
                 autoComplete="off"

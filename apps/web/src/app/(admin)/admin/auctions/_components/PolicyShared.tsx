@@ -3,16 +3,11 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
+import { resolveStr as resolveStrShared } from '@/components/common/admin/format';
 
-export function resolveStr(value?: unknown): string {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>);
-    if (entries.length > 0) return String(entries[0]![0]);
-  }
-  return String(value);
-}
+// Re-export the shared resolveStr under the same local name so existing
+// `import { resolveStr } from './PolicyShared'` callers keep working.
+export const resolveStr = resolveStrShared;
 
 /** Title-cases an enum code, snake_case key, or camelCase key alike (e.g.
  *  "MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY" / "deadlineDescription" / "Aadhar Card"

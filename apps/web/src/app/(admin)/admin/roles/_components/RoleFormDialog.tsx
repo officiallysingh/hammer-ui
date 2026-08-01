@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import React from 'react';
 import { adminApi, RoleVM, PermissionVM } from '@repo/api';
-import { Loader2 } from 'lucide-react';
+import { Loader2, HelpCircle } from 'lucide-react';
 import {
   Button,
   Input,
@@ -14,10 +14,43 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from '@repo/ui';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import { MultiSelect } from '@/components/common/admin/MultiSelect';
 import { parseApiError } from '@/lib/api-errors';
+import { resolvesExists } from '@/lib/exists-check';
+import { ROLE_NAME_PATTERN, ROLE_NAME_ERROR, ROLE_NAME_TIP } from '@/lib/validation';
+
+/** Uppercases, strips disallowed characters, and removes a leading ROLE_
+ *  (the backend prefixes it automatically — typing it would double it up). */
+function sanitizeRoleName(raw: string): string {
+  let value = raw.toUpperCase().replace(/[^A-Z0-9_]/g, '');
+  while (value.startsWith('ROLE_')) value = value.slice(5);
+  return value;
+}
+
+function RoleNameLabel({ htmlFor, error }: { htmlFor: string; error?: string }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <Label htmlFor={htmlFor} className={error ? 'text-destructive' : ''}>
+        Name <span className="text-destructive">*</span>
+      </Label>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button type="button" className="text-muted-foreground hover:text-foreground">
+            <HelpCircle className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs text-xs">
+          {ROLE_NAME_TIP}
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
 
 // ── Create ────────────────────────────────────────────────────────────────────
 
@@ -77,6 +110,10 @@ export function RoleFormDialog({
     e.preventDefault();
     setError(null);
     setFieldErrors({});
+    if (!ROLE_NAME_PATTERN.test(form.name.trim())) {
+      setFieldErrors({ name: ROLE_NAME_ERROR });
+      return;
+    }
     setSaving(true);
     try {
       await adminApi.createRole({
@@ -106,21 +143,23 @@ export function RoleFormDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <Label htmlFor="cr-name" className={fieldErrors.name ? 'text-destructive' : ''}>
-              Name <span className="text-destructive">*</span>
-            </Label>
+            <RoleNameLabel htmlFor="cr-name" error={fieldErrors.name} />
             <Input
               id="cr-name"
               value={form.name}
               onChange={(e) => {
-                setField('name', e.target.value);
+                setField('name', sanitizeRoleName(e.target.value));
                 clearErr('name');
               }}
-              placeholder="admin"
+              onBlur={async (e) => {
+                const value = e.target.value.trim();
+                if (!ROLE_NAME_PATTERN.test(value)) return;
+                const taken = await resolvesExists(adminApi.checkRoleNameExists(value));
+                if (taken) setFieldErrors((p) => ({ ...p, name: 'This name is already in use.' }));
+              }}
+              placeholder="ADMIN"
               autoComplete="off"
-              className={
-                fieldErrors.name ? 'border-destructive focus-visible:ring-destructive' : ''
-              }
+              className={`font-mono ${fieldErrors.name ? 'border-destructive focus-visible:ring-destructive' : ''}`}
             />
             {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
           </div>
@@ -258,6 +297,11 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
     setError(null);
     setFieldErrors({});
 
+    if (!ROLE_NAME_PATTERN.test(form.name.trim())) {
+      setFieldErrors({ name: ROLE_NAME_ERROR });
+      return;
+    }
+
     const orig = origRef.current;
     const patch: Parameters<typeof adminApi.updateRole>[1] = {};
     if (form.name.trim() !== orig.name) patch.name = form.name.trim() || undefined;
@@ -305,21 +349,24 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <Label htmlFor="er-name" className={fieldErrors.name ? 'text-destructive' : ''}>
-              Name <span className="text-destructive">*</span>
-            </Label>
+            <RoleNameLabel htmlFor="er-name" error={fieldErrors.name} />
             <Input
               id="er-name"
               value={form.name}
               onChange={(e) => {
-                setField('name', e.target.value);
+                setField('name', sanitizeRoleName(e.target.value));
                 clearErr('name');
               }}
-              placeholder="admin"
+              onBlur={async (e) => {
+                const value = e.target.value.trim();
+                if (!ROLE_NAME_PATTERN.test(value) || value === (origRef.current?.name ?? ''))
+                  return;
+                const taken = await resolvesExists(adminApi.checkRoleNameExists(value));
+                if (taken) setFieldErrors((p) => ({ ...p, name: 'This name is already in use.' }));
+              }}
+              placeholder="ADMIN"
               autoComplete="off"
-              className={
-                fieldErrors.name ? 'border-destructive focus-visible:ring-destructive' : ''
-              }
+              className={`font-mono ${fieldErrors.name ? 'border-destructive focus-visible:ring-destructive' : ''}`}
             />
             {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
           </div>

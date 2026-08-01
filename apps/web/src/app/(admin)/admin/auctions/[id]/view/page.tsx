@@ -4,28 +4,22 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   auctionsApi,
-  listingsApi,
-  blobsApi,
   AuctionVM,
-  AuctionUnitVM,
   PolicyItemRQ,
   AuctionPoliciesGroupRQ,
   PolicyEvaluationMap,
 } from '@repo/api';
-import { PolicyItemCard } from '../../_components/PolicyEvaluationDisplay';
+import { PolicyGroupSection } from '../../_components/AuctionPolicyGroupSection';
+import { AuctionUnitSection } from '../../_components/AuctionUnitSection';
 import { splitPolicyGroups } from '../../_components/policyGroups';
-import { PriceProgressionTimeline } from '../../_components/PolicyPriceProgressionTimeline';
 import {
   ArrowLeft,
-  Loader2,
   Pencil,
   Calendar,
   DollarSign,
   Settings2,
   Layers,
   AlertCircle,
-  Eye,
-  Package,
   Info,
   Copy,
   Check,
@@ -50,413 +44,8 @@ import {
   toast,
 } from '@repo/ui';
 import { StatusBadge } from '@/components/common/admin/AuctionStatusBadge';
-import { ListingViewDialog } from '../../../listings/_components/ListingViewDialog';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function resolveStr(value?: unknown): string {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>);
-    if (entries.length > 0) return String(entries[0]![1] ?? entries[0]![0]);
-  }
-  return String(value);
-}
-
-function formatLabel(value?: unknown): string {
-  const str = resolveStr(value);
-  if (!str) return '—';
-  return str
-    .toLowerCase()
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
-}
-
-function formatDateTime(iso?: string): string {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
-}
-
-// ── Detail row ────────────────────────────────────────────────────────────────
-
-function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-4 px-4 py-3 even:bg-muted/15 hover:bg-muted/30 transition-colors">
-      <span className="text-xs font-medium text-muted-foreground shrink-0">{label}</span>
-      <span className="text-sm font-medium text-foreground text-right">{children}</span>
-    </div>
-  );
-}
-
-// ── Section card ──────────────────────────────────────────────────────────────
-
-function SectionCard({
-  title,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  icon: React.ElementType;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden transition-all duration-200 hover:shadow-md">
-      <div className="flex items-center gap-2.5 px-4 py-3.5 bg-muted/30 border-b border-border">
-        <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-          <Icon className="h-4 w-4" />
-        </div>
-        <span className="text-sm font-bold text-foreground tracking-tight">{title}</span>
-      </div>
-      <div className="divide-y divide-border/40">{children}</div>
-    </div>
-  );
-}
-
-// ── Policy group ──────────────────────────────────────────────────────────────
-
-const POLICY_GROUP_DESCRIPTIONS: Record<string, string> = {
-  'Pre Payment': 'Collected from participants before the auction starts',
-  'Post Payment': 'Collected from winners after the auction closes',
-  PARTICIPATION: 'Rules governing who can register and how their eligibility is verified',
-  PRECONDITION: 'Conditions that must hold for the auction to proceed',
-  PRICE_PROGRESSION: 'How the bid price moves over the lifetime of the auction',
-  EXTENSION: 'How the end time extends when late bids arrive',
-  WINNER_DETERMINATION: 'How the winning bid is selected',
-  WINNER_PRICE_DETERMINATION: 'How the final price paid by the winner is calculated',
-};
-
-function descriptionForGroup(key: string): string | undefined {
-  return POLICY_GROUP_DESCRIPTIONS[key] ?? POLICY_GROUP_DESCRIPTIONS[key.toUpperCase()];
-}
-
-function PolicyGroupSection({
-  auctionId,
-  groupKey,
-  items,
-  evaluationsByPolicyId,
-}: {
-  auctionId: string;
-  groupKey: string;
-  items: PolicyItemRQ[];
-  evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
-}) {
-  const description = descriptionForGroup(groupKey);
-  const isPriceProgression = groupKey.toUpperCase() === 'PRICE_PROGRESSION';
-  return (
-    <div className="px-5 py-4 space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <span className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-            {groupKey}
-          </span>
-          {description && <p className="mt-1 text-[11px] text-muted-foreground">{description}</p>}
-        </div>
-        <Badge variant="outline" className="text-[10px] shrink-0">
-          {items.length} policy item{items.length !== 1 ? 's' : ''}
-        </Badge>
-      </div>
-      {isPriceProgression ? (
-        <div className="space-y-4">
-          {items.map((wrapper, i) => (
-            <PriceProgressionTimeline
-              key={i}
-              wrapper={wrapper}
-              evaluationsByPolicyId={evaluationsByPolicyId}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
-          {items.map((item, i) => {
-            const isLastOfOdd = i === items.length - 1 && items.length % 2 === 1;
-            if (item.priceChangePolicies?.length) {
-              return (
-                <div key={i} className={`space-y-2 ${isLastOfOdd ? 'sm:col-span-2' : ''}`}>
-                  <PolicyItemCard
-                    auctionId={auctionId}
-                    policyId={item.id}
-                    name={item.name}
-                    type={item.type}
-                    evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
-                    showStatus={true}
-                  />
-                  {item.priceChangePolicies.map((nested, j) => (
-                    <div key={j} className="pl-4 border-l-2 border-primary/20">
-                      <PolicyItemCard
-                        auctionId={auctionId}
-                        policyId={nested.id}
-                        name={nested.name}
-                        type={nested.type}
-                        evaluations={nested.id ? evaluationsByPolicyId?.[nested.id] : undefined}
-                        showStatus={true}
-                      />
-                    </div>
-                  ))}
-                </div>
-              );
-            }
-            return (
-              <div key={i} className={isLastOfOdd ? 'sm:col-span-2' : ''}>
-                <PolicyItemCard
-                  auctionId={auctionId}
-                  policyId={item.id}
-                  name={item.name}
-                  type={item.type}
-                  evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
-                  showStatus={true}
-                />
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Unit item row ─────────────────────────────────────────────────────────────
-
-interface UnitItemRow {
-  id: string;
-  name: string;
-  description?: string;
-  quantity?: number;
-  thumbnailId?: string | null;
-}
-
-function extractUnitItems(
-  unit: AuctionUnitVM | undefined,
-): { id: string; name?: string; description?: string; quantity?: number }[] {
-  if (!unit) return [];
-  const raw = unit.items ?? (unit.item ? [unit.item] : []);
-  return raw.map((it) =>
-    typeof it === 'object' && it !== null
-      ? { id: it.id, name: it.name, description: it.description, quantity: it.quantity }
-      : { id: it },
-  );
-}
-
-// ── Auction Unit section ──────────────────────────────────────────────────────
-
-function AuctionUnitSection({ auction }: { auction: AuctionVM }) {
-  const unit = auction.unit;
-  const baseItems = extractUnitItems(unit);
-  const baseItemsKey = baseItems.map((it) => it.id).join(',');
-
-  const [rows, setRows] = useState<UnitItemRow[]>(
-    baseItems.map((it) => ({
-      id: it.id,
-      name: it.name ?? it.id,
-      description: it.description,
-      quantity: it.quantity,
-    })),
-  );
-  const [viewListingId, setViewListingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!baseItemsKey) return;
-    let cancelled = false;
-    Promise.all(
-      baseItems.map((it) =>
-        listingsApi
-          .getListingById(it.id)
-          .then((listing) => {
-            const thumb =
-              listing.blobs?.find((b) => b.metadata?.['thumbnail'] === 'true') ??
-              listing.blobs?.[0];
-            const row: UnitItemRow = {
-              id: it.id,
-              name: it.name ?? listing.name,
-              description: it.description ?? listing.description,
-              quantity: it.quantity,
-              thumbnailId: thumb?.id ?? null,
-            };
-            return row;
-          })
-          .catch(
-            (): UnitItemRow => ({
-              id: it.id,
-              name: it.name ?? it.id,
-              description: it.description,
-              quantity: it.quantity,
-            }),
-          ),
-      ),
-    ).then((results) => {
-      if (!cancelled) setRows(results);
-    });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseItemsKey]);
-
-  const unitType = resolveStr(unit?.type);
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
-        <div className="flex items-center justify-between px-5 py-4 bg-muted/30 border-b border-border">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-primary/10 text-primary">
-              <Layers className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-foreground">Auction Unit Details</h3>
-              <p className="text-xs text-muted-foreground">Pricing and associated items</p>
-            </div>
-          </div>
-          {unitType && (
-            <Badge variant="secondary" className="font-semibold text-xs">
-              {formatLabel(unitType)}
-            </Badge>
-          )}
-        </div>
-
-        {!unit ? (
-          <p className="text-sm text-muted-foreground px-5 py-6 text-center">
-            No unit configured for this auction.
-          </p>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border/50 bg-card border-b border-border">
-              <div className="p-4 flex flex-col justify-center">
-                <span className="text-xs text-muted-foreground font-medium">Opening Price</span>
-                <span className="text-lg font-bold text-foreground mt-0.5">
-                  {unit.openingPrice != null ? (
-                    <>
-                      {auction.monetaryOptions?.currencyUnit
-                        ? `${resolveStr(auction.monetaryOptions.currencyUnit)} `
-                        : ''}
-                      {unit.openingPrice.toLocaleString()}
-                    </>
-                  ) : (
-                    '—'
-                  )}
-                </span>
-              </div>
-              <div className="p-4 flex flex-col justify-center">
-                <span className="text-xs text-muted-foreground font-medium">Standing Price</span>
-                <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
-                  {unit.standingPrice != null ? (
-                    <>
-                      {auction.monetaryOptions?.currencyUnit
-                        ? `${resolveStr(auction.monetaryOptions.currencyUnit)} `
-                        : ''}
-                      {unit.standingPrice.toLocaleString()}
-                    </>
-                  ) : (
-                    '—'
-                  )}
-                </span>
-              </div>
-              <div className="p-4 flex flex-col justify-center">
-                <span className="text-xs text-muted-foreground font-medium">Total Quantity</span>
-                <span className="text-lg font-bold text-foreground mt-0.5">
-                  {unit.quantity ?? rows.length ?? '—'}
-                </span>
-              </div>
-            </div>
-
-            {rows.length > 0 && (
-              <div className="p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Included Listings ({rows.length})
-                  </h4>
-                </div>
-
-                <div className="rounded-xl border border-border overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/40 text-left">
-                        <th className="px-4 py-3 text-xs font-bold text-muted-foreground w-12" />
-                        <th className="px-4 py-3 text-xs font-bold text-muted-foreground">Name</th>
-                        <th className="px-4 py-3 text-xs font-bold text-muted-foreground hidden md:table-cell">
-                          Description
-                        </th>
-                        <th className="px-4 py-3 text-xs font-bold text-muted-foreground text-center w-20">
-                          Qty
-                        </th>
-                        <th className="px-4 py-3 text-xs font-bold text-muted-foreground text-right w-24">
-                          Action
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/50">
-                      {rows.map((row) => (
-                        <tr key={row.id} className="hover:bg-muted/20 transition-colors">
-                          <td className="px-4 py-3">
-                            {row.thumbnailId ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={blobsApi.getDownloadUrl(row.thumbnailId)}
-                                alt=""
-                                className="w-10 h-10 rounded-lg object-cover border border-border shadow-xs"
-                              />
-                            ) : (
-                              <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center border border-border text-muted-foreground">
-                                <Package className="h-5 w-5" />
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <p className="font-semibold text-foreground truncate max-w-[220px]">
-                              {row.name}
-                            </p>
-                            <p className="text-[11px] text-muted-foreground font-mono mt-0.5">
-                              ID: {row.id.slice(-8)}
-                            </p>
-                          </td>
-                          <td className="px-4 py-3 hidden md:table-cell">
-                            <p className="text-xs text-muted-foreground line-clamp-2 max-w-[320px]">
-                              {row.description ?? '—'}
-                            </p>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted text-foreground">
-                              {row.quantity ?? 1}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setViewListingId(row.id)}
-                              className="gap-1.5 text-xs h-8"
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                              <span>View</span>
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      <ListingViewDialog listingId={viewListingId} onClose={() => setViewListingId(null)} />
-    </div>
-  );
-}
+import { formatDateTime, formatLabel, resolveStr } from '@/components/common/admin/format';
+import { DetailRow, PageLoading, SectionCard } from '@/components/common/admin/SectionCard';
 
 // ── Main Auction View Page ─────────────────────────────────────────────────────
 
@@ -467,6 +56,7 @@ export default function AuctionViewPage() {
   const [loading, setLoading] = useState(true);
   const [reloadingPolicies, setReloadingPolicies] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
   const [auction, setAuction] = useState<AuctionVM | null>(null);
   const [policies, setPolicies] = useState<AuctionPoliciesGroupRQ | null>(null);
   const [evaluationsByPolicyId, setEvaluationsByPolicyId] = useState<
@@ -505,7 +95,7 @@ export default function AuctionViewPage() {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      auctionsApi.getAuctionById(id),
+      auctionsApi.getAuctionById(id, ['*']),
       auctionsApi.getAuctionPolicies(id).catch(() => null),
     ])
       .then(([a, pol]) => {
@@ -546,6 +136,18 @@ export default function AuctionViewPage() {
     }
   };
 
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    // Evaluations only auto-fetch on mount for SCHEDULED/RUNNING auctions (see
+    // above). For every other status, the first visit to the Policies tab is
+    // what should trigger the fetch, instead of leaving it blank until the
+    // admin clicks "Re-evaluate All".
+    if (value === 'policies' && !evaluationsEvaluatedAt && !reloadingPolicies) {
+      setReloadingPolicies(true);
+      fetchEvaluations(policies).finally(() => setReloadingPolicies(false));
+    }
+  };
+
   const handleCopyId = () => {
     if (id) {
       navigator.clipboard.writeText(id);
@@ -556,12 +158,7 @@ export default function AuctionViewPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="text-sm font-medium">Loading auction details...</span>
-      </div>
-    );
+    return <PageLoading message="Loading auction details..." />;
   }
 
   if (!auction) {
@@ -597,6 +194,123 @@ export default function AuctionViewPage() {
   })();
 
   const totalPolicyCount = policyEntries.reduce((sum, [, items]) => sum + items.length, 0);
+
+  // Policies timeline: fold the flat group list into ordered auction-lifecycle
+  // stages (pre-payment → start → running → complete → winner → post-payment)
+  // so the tab reads like the auction's actual sequence of events.
+  const byUpperKey =
+    (keys: string[]) =>
+    ([key]: [string, PolicyItemRQ[]]) =>
+      keys.includes(key.toUpperCase());
+
+  const prePaymentGroups = policyEntries.filter(byUpperKey(['PRE PAYMENT']));
+  const auctionStartGroups = policyEntries.filter(byUpperKey(['PARTICIPATION', 'PRECONDITION']));
+  const auctionRunningGroups = policyEntries.filter(byUpperKey(['EXTENSION', 'PRICE_PROGRESSION']));
+  const winnerGroups = policyEntries.filter(
+    byUpperKey(['WINNER_DETERMINATION', 'WINNER_PRICE_DETERMINATION']),
+  );
+  const postPaymentGroups = policyEntries.filter(byUpperKey(['POST PAYMENT']));
+
+  const placedKeys = new Set(
+    [
+      ...prePaymentGroups,
+      ...auctionStartGroups,
+      ...auctionRunningGroups,
+      ...winnerGroups,
+      ...postPaymentGroups,
+    ].map(([key]) => key),
+  );
+  const otherGroups = policyEntries.filter(([key]) => !placedKeys.has(key));
+
+  interface PolicyStage {
+    id: string;
+    label: string;
+    dotClassName: string;
+    textClassName: string;
+    dateLine?: string;
+    subLine?: string;
+    groups: [string, PolicyItemRQ[]][];
+  }
+
+  const policyStages: PolicyStage[] = [];
+
+  if (prePaymentGroups.length > 0) {
+    policyStages.push({
+      id: 'pre-payment',
+      label: 'Pre Payment',
+      dotClassName: 'bg-amber-500',
+      textClassName: 'text-amber-600 dark:text-amber-400',
+      subLine: 'Collected from participants before the auction starts.',
+      groups: prePaymentGroups,
+    });
+  }
+
+  if (auction.schedule?.startTime || auctionStartGroups.length > 0) {
+    policyStages.push({
+      id: 'auction-start',
+      label: 'Auction Start',
+      dotClassName: 'bg-emerald-500',
+      textClassName: 'text-emerald-600 dark:text-emerald-400',
+      dateLine: auction.schedule?.startTime
+        ? `Auction opens — ${formatDateTime(auction.schedule.startTime)}`
+        : undefined,
+      groups: auctionStartGroups,
+    });
+  }
+
+  if (auctionRunningGroups.length > 0) {
+    policyStages.push({
+      id: 'auction-running',
+      label: 'Auction Running',
+      dotClassName: 'bg-blue-500',
+      textClassName: 'text-blue-600 dark:text-blue-400',
+      subLine: 'Extension and price-progression rules apply while bidding is open.',
+      groups: auctionRunningGroups,
+    });
+  }
+
+  // Auction Complete only appears once the auction actually has an end time scheduled.
+  if (auction.schedule?.endTime) {
+    policyStages.push({
+      id: 'auction-complete',
+      label: 'Auction Complete',
+      dotClassName: 'bg-indigo-500',
+      textClassName: 'text-indigo-600 dark:text-indigo-400',
+      dateLine: `Auction closes — ${formatDateTime(auction.schedule.endTime)}`,
+      groups: [],
+    });
+  }
+
+  if (winnerGroups.length > 0) {
+    policyStages.push({
+      id: 'winner',
+      label: 'Winner',
+      dotClassName: 'bg-violet-500',
+      textClassName: 'text-violet-600 dark:text-violet-400',
+      groups: winnerGroups,
+    });
+  }
+
+  if (postPaymentGroups.length > 0) {
+    policyStages.push({
+      id: 'post-payment',
+      label: 'Post Payment',
+      dotClassName: 'bg-rose-500',
+      textClassName: 'text-rose-600 dark:text-rose-400',
+      subLine: 'Collected from the winner after the auction closes.',
+      groups: postPaymentGroups,
+    });
+  }
+
+  if (otherGroups.length > 0) {
+    policyStages.push({
+      id: 'other',
+      label: 'Other Policies',
+      dotClassName: 'bg-muted-foreground',
+      textClassName: 'text-muted-foreground',
+      groups: otherGroups,
+    });
+  }
 
   return (
     <div className="space-y-6 pb-12 max-w-7xl mx-auto">
@@ -749,7 +463,7 @@ export default function AuctionViewPage() {
       </div>
 
       {/* Main Tabbed Interface */}
-      <Tabs defaultValue="overview" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4 rounded-xl p-1 bg-muted/60">
           <TabsTrigger value="overview" className="rounded-lg text-xs font-semibold gap-2 py-2">
             <Info className="h-3.5 w-3.5" />
@@ -870,9 +584,7 @@ export default function AuctionViewPage() {
                   <Settings2 className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-bold text-foreground truncate">
-                    Auction Policies & Evaluation Rules
-                  </h3>
+                  <h3 className="text-sm font-bold text-foreground truncate">Policies</h3>
                   <p className="text-xs text-muted-foreground truncate">
                     {evaluationsEvaluatedAt
                       ? `Last evaluated ${evaluationsEvaluatedAt.toLocaleTimeString(undefined, {
@@ -920,16 +632,42 @@ export default function AuctionViewPage() {
                 </Button>
               </div>
             ) : (
-              <div className="divide-y divide-border/50">
-                {policyEntries.map(([key, items]) => (
-                  <PolicyGroupSection
-                    key={key}
-                    auctionId={id}
-                    groupKey={key}
-                    items={items}
-                    evaluationsByPolicyId={evaluationsByPolicyId}
-                  />
-                ))}
+              <div className="p-5">
+                <div className="relative pl-6 border-l-2 border-primary/20 space-y-8">
+                  {policyStages.map((stage) => (
+                    <div key={stage.id} className="relative">
+                      <div
+                        className={`absolute -left-[31px] top-0 h-4 w-4 rounded-full ${stage.dotClassName} ring-4 ring-background`}
+                      />
+                      <div className="space-y-2">
+                        <p
+                          className={`text-xs font-bold uppercase tracking-wider ${stage.textClassName}`}
+                        >
+                          {stage.label}
+                        </p>
+                        {stage.dateLine && (
+                          <p className="text-sm font-semibold text-foreground">{stage.dateLine}</p>
+                        )}
+                        {stage.subLine && (
+                          <p className="text-xs text-muted-foreground">{stage.subLine}</p>
+                        )}
+                        {stage.groups.length > 0 && (
+                          <div className="rounded-xl border border-border divide-y divide-border/50 overflow-hidden">
+                            {stage.groups.map(([key, items]) => (
+                              <PolicyGroupSection
+                                key={key}
+                                auctionId={id}
+                                groupKey={key}
+                                items={items}
+                                evaluationsByPolicyId={evaluationsByPolicyId}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
