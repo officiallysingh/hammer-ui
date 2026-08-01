@@ -193,7 +193,7 @@ function PolicyGroupSection({
                     name={item.name}
                     type={item.type}
                     evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
-                    showStatus={true}
+                    showStatus={false}
                     resultLabel={resultLabel}
                   />
                   {item.priceChangePolicies.map((nested, j) => (
@@ -204,7 +204,8 @@ function PolicyGroupSection({
                         name={nested.name}
                         type={nested.type}
                         evaluations={nested.id ? evaluationsByPolicyId?.[nested.id] : undefined}
-                        showStatus={true}
+                        showStatus={false}
+                        resultLabel={resultLabel}
                       />
                     </div>
                   ))}
@@ -219,7 +220,8 @@ function PolicyGroupSection({
                   name={item.name}
                   type={item.type}
                   evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
-                  showStatus={true}
+                  showStatus={false}
+                  resultLabel={resultLabel}
                 />
               </div>
             );

@@ -93,7 +93,7 @@ export function PriceProgressionTimeline({
                 )}
               </div>
               {w.id && evaluationsByPolicyId?.[w.id] && (
-                <EvaluationList evaluations={evaluationsByPolicyId[w.id]} />
+                <EvaluationList evaluations={evaluationsByPolicyId[w.id]} showStatus={false} />
               )}
             </div>
           </div>,
