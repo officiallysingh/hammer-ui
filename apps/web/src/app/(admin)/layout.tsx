@@ -317,18 +317,28 @@ function SidebarContent({
         {/* Brand Header */}
         <div className="h-16 flex items-center justify-between px-3.5 border-b border-border/60 shrink-0">
           <Link href="/admin" className="flex items-center gap-3 overflow-hidden py-1">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-primary via-primary/95 to-primary/80 flex items-center justify-center text-primary-foreground font-bold text-lg shadow-sm shadow-primary/20 shrink-0">
-              O
-            </div>
-            {!collapsed && (
-              <div className="flex flex-col truncate">
-                <span className="font-extrabold tracking-tight text-foreground text-base leading-tight">
-                  OXNEER
-                </span>
-                <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-                  Admin Portal
-                </span>
+            {collapsed ? (
+              <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-primary via-primary/95 to-primary/80 flex items-center justify-center text-primary-foreground font-bold text-lg shadow-sm shadow-primary/20 shrink-0">
+                O
               </div>
+            ) : (
+              <>
+                <img
+                  src="/oxneer_logo_light.svg"
+                  alt="Oxneer"
+                  className="h-8 w-auto shrink-0 dark:hidden"
+                />
+                <img
+                  src="/oxneer_logo_dark.svg"
+                  alt="Oxneer"
+                  className="h-8 w-auto shrink-0 hidden dark:block"
+                />
+                <div className="flex flex-col truncate">
+                  <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
+                    Admin Portal
+                  </span>
+                </div>
+              </>
             )}
           </Link>
 
