@@ -7,6 +7,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
 import { parseApiError } from '@/lib/api-errors';
+import { resolveStr } from '@/components/common/admin/format';
 import { SelectOption } from '../../_components/AuctionShared';
 import { AuctionStepIndicator } from '../../_components/AuctionStepIndicator';
 import { AuctionStep1Details, Step1State } from '../../_components/AuctionStep1Details';
@@ -19,17 +20,6 @@ import {
   validatePolicies,
 } from '../../_components/AuctionStep3PolicyMapping';
 import { AuctionStep5Workflow } from '../../_components/AuctionStep5Workflow';
-
-/** Normalises API fields that arrive as either a plain string or { KEY: "Label" } */
-function resolveStr(value: unknown): string {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>);
-    if (entries.length > 0) return String(entries[0]![0]);
-  }
-  return String(value);
-}
 
 /** Derives the UI priceProgression value from the stored auction type key */
 function derivePriceProgression(auctionType: string): string {
