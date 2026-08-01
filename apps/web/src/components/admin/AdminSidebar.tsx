@@ -69,22 +69,22 @@ export function AdminSidebar({
                   alt="Oxneer"
                   className="h-8 w-auto shrink-0 hidden dark:block"
                 />
-                <div className="flex flex-col truncate">
+                {/* <div className="flex flex-col truncate">
                   <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
                     Admin Portal
                   </span>
-                </div>
+                </div> */}
               </>
             )}
           </Link>
 
-          {onToggleCollapse && (
+          {/* {onToggleCollapse && (
             <SidebarToggle
               collapsed={collapsed}
               onClick={onToggleCollapse}
               className="hidden md:flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
             />
-          )}
+          )} */}
         </div>
 
         {/* Navigation List */}

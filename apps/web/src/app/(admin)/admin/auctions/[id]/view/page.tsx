@@ -17,6 +17,7 @@ import {
   Pencil,
   Calendar,
   DollarSign,
+  IndianRupee,
   Settings2,
   Layers,
   AlertCircle,
@@ -416,7 +417,7 @@ export default function AuctionViewPage() {
               </p>
             </div>
             <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600">
-              <DollarSign className="h-5 w-5" />
+              <IndianRupee className="h-5 w-5" />
             </div>
           </CardContent>
         </Card>
