@@ -1,42 +1,33 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { masterApi, BankVM } from '@repo/api';
-import { Loader2, Trash2, RefreshCw, Plus, Pencil, Landmark } from 'lucide-react';
-import { Button } from '@repo/ui';
-import { SearchInput } from '@/components/common/admin/SearchInput';
+import { Landmark } from 'lucide-react';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
-import Tip from '@/components/common/admin/Tip';
+import { SearchInput } from '@/components/common/admin/SearchInput';
+import { ListToolbarActions } from '@/components/common/admin/ListToolbarActions';
+import { LoadingBlock, EmptyState } from '@/components/common/admin/ListState';
+import { RowActions } from '@/components/common/admin/RowActions';
+import { useFetchList } from '@/components/common/admin/useFetchList';
 import { AddBankDialog, EditBankDialog } from './_components/BankFormDialog';
 
 export default function BanksPage() {
-  const [banks, setBanks] = useState<BankVM[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data: banks,
+    setData: setBanks,
+    isLoading,
+    error,
+    setError,
+    refresh,
+  } = useFetchList<BankVM>(() => masterApi.getBanks(), { errorMessage: 'Failed to load banks.' });
   const [search, setSearch] = useState('');
 
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<BankVM | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
-
-  const fetchBanks = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      setBanks(await masterApi.getBanks());
-    } catch {
-      setError('Failed to load banks.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchBanks();
-  }, []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -65,16 +56,12 @@ export default function BanksPage() {
         title="Banks"
         description="Manage bank accounts"
         actions={
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => setAddOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add bank
-            </Button>
-            <Button variant="outline" size="sm" onClick={fetchBanks} disabled={isLoading}>
-              <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          </div>
+          <ListToolbarActions
+            onAdd={() => setAddOpen(true)}
+            addLabel="Add bank"
+            onRefresh={refresh}
+            refreshing={isLoading}
+          />
         }
       />
 
@@ -88,15 +75,9 @@ export default function BanksPage() {
       />
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="text-sm">Loading banks...</span>
-        </div>
+        <LoadingBlock message="Loading banks..." />
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
-          <Landmark className="h-10 w-10 opacity-30" />
-          <p className="text-sm">No banks found.</p>
-        </div>
+        <EmptyState icon={Landmark} message="No banks found." />
       ) : (
         <div className="rounded-lg border border-border bg-card overflow-hidden divide-y divide-border">
           {filtered.map((bank) => (
@@ -111,45 +92,22 @@ export default function BanksPage() {
                   {bank.ifscPrefix}
                 </span>
               </div>
-              <div className="flex items-center gap-0.5 shrink-0">
-                <Tip label="Edit bank">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
-                    onClick={() => setEditTarget(bank)}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                </Tip>
-                <Tip label="Delete bank">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => setConfirmId(bank.id)}
-                    disabled={deletingId === bank.id}
-                  >
-                    {deletingId === bank.id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                </Tip>
-              </div>
+              <RowActions
+                size="sm"
+                editLabel="Edit bank"
+                deleteLabel="Delete bank"
+                deleting={deletingId === bank.id}
+                onEdit={() => setEditTarget(bank)}
+                onDelete={() => setConfirmId(bank.id)}
+              />
             </div>
           ))}
         </div>
       )}
 
-      <AddBankDialog open={addOpen} onOpenChange={setAddOpen} onCreated={fetchBanks} />
+      <AddBankDialog open={addOpen} onOpenChange={setAddOpen} onCreated={refresh} />
 
-      <EditBankDialog
-        bank={editTarget}
-        onClose={() => setEditTarget(null)}
-        onUpdated={fetchBanks}
-      />
+      <EditBankDialog bank={editTarget} onClose={() => setEditTarget(null)} onUpdated={refresh} />
 
       <ConfirmDialog
         open={confirmId !== null}
