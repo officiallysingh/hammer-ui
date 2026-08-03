@@ -171,6 +171,9 @@ export const usersApi = {
   deleteUser: async (id: string): Promise<void> => {
     await apiClient.delete(`/api/v1/users/${id}`);
   },
+  resetPassword: async (id: string): Promise<void> => {
+    await apiClient.patch(`/api/v1/users/${id}/reset-password`);
+  },
   updateSelf: async (data: SelfUpdateReq): Promise<void> => {
     await apiClient.patch('/api/v1/users/me/update-profile', data);
   },

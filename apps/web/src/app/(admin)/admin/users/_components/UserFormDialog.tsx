@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { usersApi, UserCreationReq, UserDetailVM } from '@repo/api';
-import { Loader2, HelpCircle } from 'lucide-react';
+import { Loader2, HelpCircle, Eye, EyeOff } from 'lucide-react';
 import {
   Button,
   Input,
@@ -580,3 +580,170 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
 }
 
 export { PWD_RULES };
+
+// ── Change Password Dialog ─────────────────────────────────────────────────────
+
+interface ChangePasswordDialogProps {
+  user: UserDetailVM | null;
+  onClose: () => void;
+}
+
+export function ChangePasswordDialog({ user, onClose }: ChangePasswordDialogProps) {
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const reset = () => {
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowNew(false);
+    setShowConfirm(false);
+    setError(null);
+    setSaving(false);
+  };
+
+  const handleOpenChange = (o: boolean) => {
+    if (!o) {
+      reset();
+      onClose();
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!user) return;
+
+    const passwordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)[A-Za-z\d@$!%*?&^]{6,12}$/;
+    if (!passwordRegex.test(newPassword)) {
+      setError(
+        'Password must be 6–12 characters with at least 1 uppercase, 1 lowercase, and 1 digit.',
+      );
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await usersApi.resetPassword(user.id);
+      reset();
+      onClose();
+    } catch (err) {
+      const parsed = parseApiError(err);
+      setError(parsed.general ?? 'Failed to reset password.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!user} onOpenChange={handleOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Change password</DialogTitle>
+          <DialogDescription>
+            Reset the password for{' '}
+            <span className="font-medium text-foreground">{user?.username ?? user?.emailId}</span>
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="cp-new">
+                New password<span className="text-destructive ml-0.5">*</span>
+              </Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button type="button" className="text-muted-foreground hover:text-foreground">
+                    <HelpCircle className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs text-xs">
+                  {PWD_RULES}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <div className="relative">
+              <Input
+                id="cp-new"
+                type={showNew ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => {
+                  setNewPassword(e.target.value);
+                  setError(null);
+                }}
+                placeholder="6–12 chars, uppercase, lowercase, digit"
+                autoComplete="new-password"
+                className="pr-10"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowNew((s) => !s)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                tabIndex={-1}
+              >
+                {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="cp-confirm">
+              Confirm new password<span className="text-destructive ml-0.5">*</span>
+            </Label>
+            <div className="relative">
+              <Input
+                id="cp-confirm"
+                type={showConfirm ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  setError(null);
+                }}
+                placeholder="Re-enter new password"
+                autoComplete="new-password"
+                className="pr-10"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirm((s) => !s)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                tabIndex={-1}
+              >
+                {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          {error && <ErrorAlert message={error} />}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                  Saving
+                </>
+              ) : (
+                'Change password'
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
