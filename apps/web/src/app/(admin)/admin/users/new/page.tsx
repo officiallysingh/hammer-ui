@@ -1,109 +1,23 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { usersApi, UserCreationReq, adminApi, RoleVM, PermissionVM } from '@repo/api';
-import { Loader2, ArrowLeft, HelpCircle } from 'lucide-react';
-import { Button, Input, Label, Tooltip, TooltipContent, TooltipTrigger } from '@repo/ui';
+import { usersApi, UserCreationReq, adminApi, type RoleVM, type PermissionVM } from '@repo/api';
+import { ArrowLeft } from 'lucide-react';
+import { Button, Label } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
+import { FormField } from '@/components/common/admin/FormField';
+import { ToggleField } from '@/components/common/admin/ToggleField';
+import { SaveButton } from '@/components/common/admin/SaveButton';
+import { useFieldErrors } from '@/components/common/admin/useFieldErrors';
 import { MultiSelect } from '@/components/common/admin/MultiSelect';
 import { AvatarUpload } from '@/components/common/admin/AvatarUpload';
 import { parseApiError } from '@/lib/api-errors';
+import { USERNAME_RULES } from '@/lib/validation';
 
-function initialsOf(firstName: string, lastName: string) {
+function initialsOf(firstName: string, lastName: string): string | undefined {
   return `${firstName.trim()[0] ?? ''}${lastName.trim()[0] ?? ''}`.toUpperCase() || undefined;
-}
-
-const USERNAME_RULES =
-  '2–100 characters · lowercase letters and digits only · cannot start with a digit · at most one dot (.) and one underscore (_)';
-
-function Field({
-  id,
-  label,
-  value,
-  onChange,
-  placeholder,
-  type = 'text',
-  error,
-  optional,
-  required,
-  tip,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  type?: string;
-  error?: string;
-  optional?: boolean;
-  required?: boolean;
-  tip?: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-1.5">
-        <Label htmlFor={id} className={error ? 'text-destructive' : ''}>
-          {label}
-          {required && <span className="text-destructive ml-0.5">*</span>}
-          {optional && <span className="text-muted-foreground font-normal ml-1">(optional)</span>}
-        </Label>
-        {tip && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button type="button" className="text-muted-foreground hover:text-foreground">
-                <HelpCircle className="h-3.5 w-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-xs text-xs">
-              {tip}
-            </TooltipContent>
-          </Tooltip>
-        )}
-      </div>
-      <Input
-        id={id}
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        autoComplete="off"
-        className={error ? 'border-destructive focus-visible:ring-destructive' : ''}
-      />
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
-  );
-}
-
-function Toggle({
-  label,
-  description,
-  value,
-  onChange,
-}: {
-  label: string;
-  description?: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 py-2.5">
-      <div>
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
-      </div>
-      <button
-        type="button"
-        onClick={() => onChange(!value)}
-        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${value ? 'bg-primary' : 'bg-muted'}`}
-      >
-        <span
-          className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${value ? 'translate-x-4' : 'translate-x-0'}`}
-        />
-      </button>
-    </div>
-  );
 }
 
 interface NewUserFormValues {
@@ -121,7 +35,7 @@ interface NewUserFormValues {
   selectedPerms: string[];
 }
 
-const EMPTY_NEW_USER_FORM: NewUserFormValues = {
+const EMPTY_FORM: NewUserFormValues = {
   username: '',
   email: '',
   firstName: '',
@@ -138,10 +52,10 @@ const EMPTY_NEW_USER_FORM: NewUserFormValues = {
 
 export default function NewUserPage() {
   const router = useRouter();
-  const [form, setForm] = useState<NewUserFormValues>(EMPTY_NEW_USER_FORM);
+  const [form, setForm] = useState<NewUserFormValues>(EMPTY_FORM);
   const [allRoles, setAllRoles] = useState<RoleVM[]>([]);
   const [availablePerms, setAvailablePerms] = useState<PermissionVM[]>([]);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { fieldErrors, setFieldErrors, clearErr, resetFieldErrors } = useFieldErrors();
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -155,26 +69,14 @@ export default function NewUserPage() {
         setAvailablePerms(permissions);
       })
       .catch(() => {
-        setAllRoles([]);
-        setAvailablePerms([]);
+        /* roles/perms are optional — page still usable */
       });
   }, []);
-
-  const handleRolesChange = (roles: string[]) => {
-    setForm((prev) => ({ ...prev, selectedRoles: roles }));
-  };
-
-  const clearErr = (f: string) =>
-    setFieldErrors((p) => {
-      const n = { ...p };
-      delete n[f];
-      return n;
-    });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setFieldErrors({});
+    resetFieldErrors();
     setSaving(true);
     try {
       const payload: UserCreationReq = {
@@ -226,7 +128,7 @@ export default function NewUserPage() {
             onChange={(v) => setField('profilePicture', v)}
             fallbackText={initialsOf(form.firstName, form.lastName)}
           />
-          <Field
+          <FormField
             id="username"
             label="Username"
             required
@@ -239,7 +141,7 @@ export default function NewUserPage() {
             error={fieldErrors.username}
             tip={USERNAME_RULES}
           />
-          <Field
+          <FormField
             id="email"
             label="Email"
             type="email"
@@ -253,7 +155,7 @@ export default function NewUserPage() {
             error={fieldErrors.emailId}
           />
           <div className="grid grid-cols-2 gap-4">
-            <Field
+            <FormField
               id="firstName"
               label="First name"
               required
@@ -265,7 +167,7 @@ export default function NewUserPage() {
               placeholder="Rajveer"
               error={fieldErrors.firstName}
             />
-            <Field
+            <FormField
               id="lastName"
               label="Last name"
               required
@@ -278,7 +180,7 @@ export default function NewUserPage() {
               error={fieldErrors.lastName}
             />
           </div>
-          <Field
+          <FormField
             id="mobile"
             label="Mobile"
             value={form.mobile}
@@ -301,19 +203,17 @@ export default function NewUserPage() {
             <MultiSelect
               options={allRoles.map((r) => ({ value: r.id, label: r.label, sublabel: r.name }))}
               value={form.selectedRoles}
-              onChange={handleRolesChange}
+              onChange={(roles) => setField('selectedRoles', roles)}
               placeholder="Select roles..."
               searchPlaceholder="Search roles..."
               emptyMessage="No roles found"
             />
           </div>
           <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <Label>
-                Additional permissions
-                <span className="text-muted-foreground font-normal ml-1">(optional)</span>
-              </Label>
-            </div>
+            <Label>
+              Additional permissions{' '}
+              <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
             <MultiSelect
               options={availablePerms.map((p) => ({
                 value: p.id,
@@ -321,7 +221,7 @@ export default function NewUserPage() {
                 sublabel: p.name,
               }))}
               value={form.selectedPerms}
-              onChange={(ids) => setForm((prev) => ({ ...prev, selectedPerms: ids }))}
+              onChange={(ids) => setField('selectedPerms', ids)}
               placeholder="Select permissions..."
               searchPlaceholder="Search permissions..."
               emptyMessage="No permissions found"
@@ -331,43 +231,34 @@ export default function NewUserPage() {
 
         <div className="rounded-xl border border-border bg-card px-6 divide-y divide-border">
           <h3 className="text-sm font-semibold text-foreground py-4">Account settings</h3>
-          <Toggle
+          <ToggleField
             label="Enabled"
             description="User can log in"
             value={form.enabled}
-            onChange={(value) => setField('enabled', value)}
+            onChange={(v) => setField('enabled', v)}
           />
-          <Toggle
+          <ToggleField
             label="Ask to verify email"
             value={form.askToVerifyEmail}
-            onChange={(value) => setField('askToVerifyEmail', value)}
+            onChange={(v) => setField('askToVerifyEmail', v)}
           />
-          <Toggle
+          <ToggleField
             label="Ask to verify mobile"
             value={form.askToVerifyMobile}
-            onChange={(value) => setField('askToVerifyMobile', value)}
+            onChange={(v) => setField('askToVerifyMobile', v)}
           />
-          <Toggle
+          <ToggleField
             label="Prompt change password"
             description="User must set a new password on next login"
             value={form.promptChangePwd}
-            onChange={(value) => setField('promptChangePwd', value)}
+            onChange={(v) => setField('promptChangePwd', v)}
           />
         </div>
 
         {error && <ErrorAlert message={error} />}
 
         <div className="flex gap-3">
-          <Button type="submit" disabled={saving} className="gap-2">
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              'Create user'
-            )}
-          </Button>
+          <SaveButton saving={saving} label="Create user" savingLabel="Saving..." />
           <Button
             type="button"
             variant="outline"

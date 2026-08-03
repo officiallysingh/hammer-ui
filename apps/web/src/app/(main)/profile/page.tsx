@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { usersApi, authApi, bankDetailsApi, masterApi } from '@repo/api';
-import type { UserInfo, BankDetailVM, BankVM } from '@repo/api';
+import type { BankDetailVM, BankVM } from '@repo/api';
 import { IFSC_REGEX, ACCOUNT_NO_REGEX } from '@repo/api';
 import { useAuthStore } from '@/store/authStore';
 import {
@@ -35,11 +35,9 @@ import {
   DialogFooter,
 } from '@repo/ui';
 import { parseApiError } from '@/lib/api-errors';
+import { PASSWORD_PATTERN, PASSWORD_RULES, PASSWORD_ERROR } from '@/lib/validation';
 import { AvatarUpload } from '@/components/common/admin/AvatarUpload';
 import { CancelChequeUpload } from '@/components/common/admin/CancelChequeUpload';
-
-const PWD_RULES =
-  '6–12 characters · at least 1 uppercase · 1 lowercase · 1 digit · allowed special: @$!%*?&^';
 
 // ── Field wrapper ─────────────────────────────────────────────────────────────
 
@@ -157,11 +155,9 @@ function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () =>
       setFieldErrors({ confirm: 'Passwords do not match.' });
       return;
     }
-    const pwdRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)[A-Za-z\d@$!%*?&^]{6,12}$/;
+    const pwdRegex = PASSWORD_PATTERN;
     if (!pwdRegex.test(next)) {
-      setFieldErrors({
-        newPassword: '6–12 chars, must include uppercase, lowercase and a number.',
-      });
+      setFieldErrors({ newPassword: PASSWORD_ERROR });
       return;
     }
     setSaving(true);
@@ -210,7 +206,7 @@ function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () =>
                 error={fieldErrors.currentPassword}
               />
             </Field>
-            <Field label="New password" error={fieldErrors.newPassword} tip={PWD_RULES}>
+            <Field label="New password" error={fieldErrors.newPassword} tip={PASSWORD_RULES}>
               <PasswordInput
                 id="cp-new"
                 value={next}

@@ -31,12 +31,11 @@ import { authApi, usersApi } from '@repo/api';
 import { useAuthStore } from '@/store/authStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { parseApiError } from '@/lib/api-errors';
+import { USERNAME_RULES, PASSWORD_PATTERN, PASSWORD_RULES, PASSWORD_ERROR } from '@/lib/validation';
 import { TextCaptcha, type TextCaptchaHandle } from './TextCaptcha';
 import { AvatarUpload } from '@/components/common/admin/AvatarUpload';
 
 const OTP_RESEND_COOLDOWN_SEC = 30;
-const USERNAME_RULES =
-  '2–100 characters · lowercase letters and digits only · cannot start with a digit · at most one dot (.) and one underscore (_)';
 
 const CAPTCHA_DISABLED = process.env.NEXT_PUBLIC_CAPTCHA_DISABLED === 'true';
 
@@ -396,11 +395,9 @@ export function AuthForm({ mode }: AuthFormProps) {
     setUsernameError(null);
     setPasswordError(null);
     setConfirmPasswordError(null);
-    const passwordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)[A-Za-z\d@$!%*?&^]{6,12}$/;
+    const passwordRegex = PASSWORD_PATTERN;
     if (!passwordRegex.test(signupPassword)) {
-      setPasswordError(
-        'Password must be 6–12 characters with at least 1 uppercase, 1 lowercase, and 1 digit.',
-      );
+      setPasswordError(PASSWORD_ERROR);
       return;
     }
     if (signupPassword !== confirmPassword) {
@@ -837,9 +834,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               {passwordError && (
                 <p className="text-sm font-medium text-destructive">{passwordError}</p>
               )}
-              <p className="text-xs text-muted-foreground">
-                6–12 chars · 1 uppercase · 1 lowercase · 1 digit
-              </p>
+              <p className="text-xs text-muted-foreground">{PASSWORD_RULES}</p>
             </div>
             <div className="space-y-1.5">
               <Label

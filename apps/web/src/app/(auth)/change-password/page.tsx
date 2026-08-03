@@ -20,6 +20,7 @@ import {
 import { authApi } from '@repo/api';
 import { useAuthStore } from '@/store/authStore';
 import { AuthIllustration } from '@/components/auth/AuthIllustration';
+import { PASSWORD_PATTERN, PASSWORD_ERROR, PASSWORD_RULES } from '@/lib/validation';
 
 export default function ChangePasswordPage() {
   const router = useRouter();
@@ -47,12 +48,8 @@ export default function ChangePasswordPage() {
     e.preventDefault();
     setError(null);
     setPasswordError(null);
-    // TO BE UPDATED
-    const passwordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)[A-Za-z\d@$!%*?&^]{6,12}$/;
-    if (!passwordRegex.test(newPassword)) {
-      setPasswordError(
-        'Password must be 6–12 characters with at least 1 uppercase, 1 lowercase, and 1 digit.',
-      );
+    if (!PASSWORD_PATTERN.test(newPassword)) {
+      setPasswordError(PASSWORD_ERROR);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -171,8 +168,7 @@ export default function ChangePasswordPage() {
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-xs text-xs">
-                        6–12 characters · at least 1 uppercase · 1 lowercase · 1 digit · allowed
-                        special: @$!%*?&^
+                        {PASSWORD_RULES}
                       </TooltipContent>
                     </Tooltip>
                   </div>

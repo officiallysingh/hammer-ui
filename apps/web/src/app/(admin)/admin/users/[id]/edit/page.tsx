@@ -1,94 +1,58 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { usersApi, adminApi, RoleVM, PermissionVM, UserDetailVM, UserUpdateReq } from '@repo/api';
-import { Loader2, ArrowLeft } from 'lucide-react';
-import { Button, Input, Label } from '@repo/ui';
+import {
+  usersApi,
+  adminApi,
+  type RoleVM,
+  type PermissionVM,
+  type UserDetailVM,
+  type UserUpdateReq,
+} from '@repo/api';
+import { ArrowLeft, Loader2 } from 'lucide-react';
+import { Button, Label } from '@repo/ui';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
+import { FormField } from '@/components/common/admin/FormField';
+import { ToggleField } from '@/components/common/admin/ToggleField';
+import { SaveButton } from '@/components/common/admin/SaveButton';
+import { useFieldErrors } from '@/components/common/admin/useFieldErrors';
 import { MultiSelect } from '@/components/common/admin/MultiSelect';
 import { AvatarUpload } from '@/components/common/admin/AvatarUpload';
 import { parseApiError } from '@/lib/api-errors';
 
-function initialsOf(firstName: string, lastName: string) {
+function initialsOf(firstName: string, lastName: string): string | undefined {
   return `${firstName.trim()[0] ?? ''}${lastName.trim()[0] ?? ''}`.toUpperCase() || undefined;
 }
 
-function Field({
-  id,
-  label,
-  value,
-  onChange,
-  placeholder,
-  type = 'text',
-  error,
-  optional,
-  disabled,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange?: (v: string) => void;
-  placeholder?: string;
-  type?: string;
-  error?: string;
-  optional?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label
-        htmlFor={id}
-        className={error ? 'text-destructive' : disabled ? 'text-muted-foreground' : ''}
-      >
-        {label}
-        {optional && <span className="text-muted-foreground font-normal ml-1">(optional)</span>}
-      </Label>
-      <Input
-        id={id}
-        type={type}
-        value={value}
-        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-        placeholder={placeholder}
-        autoComplete="off"
-        disabled={disabled}
-        className={`${error ? 'border-destructive focus-visible:ring-destructive' : ''} ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
-      />
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
-  );
+interface UserFormValues {
+  email: string;
+  firstName: string;
+  lastName: string;
+  mobile: string;
+  profilePicture: string | undefined;
+  enabled: boolean;
+  askToVerifyEmail: boolean;
+  askToVerifyMobile: boolean;
+  promptChangePwd: boolean;
+  selectedRoles: string[];
+  selectedPerms: string[];
 }
 
-function Toggle({
-  label,
-  description,
-  value,
-  onChange,
-}: {
-  label: string;
-  description?: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 py-2.5">
-      <div>
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
-      </div>
-      <button
-        type="button"
-        onClick={() => onChange(!value)}
-        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${value ? 'bg-primary' : 'bg-muted'}`}
-      >
-        <span
-          className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${value ? 'translate-x-4' : 'translate-x-0'}`}
-        />
-      </button>
-    </div>
-  );
-}
+const EMPTY_FORM: UserFormValues = {
+  email: '',
+  firstName: '',
+  lastName: '',
+  mobile: '',
+  profilePicture: undefined,
+  enabled: true,
+  askToVerifyEmail: false,
+  askToVerifyMobile: false,
+  promptChangePwd: false,
+  selectedRoles: [],
+  selectedPerms: [],
+};
 
 export default function EditUserPage() {
   const { id } = useParams<{ id: string }>();
@@ -99,48 +63,18 @@ export default function EditUserPage() {
   const originalRolesRef = useRef<string[]>([]);
   const originalPermsRef = useRef<string[]>([]);
 
-  type UserFormValues = {
-    email: string;
-    firstName: string;
-    lastName: string;
-    mobile: string;
-    profilePicture: string | undefined;
-    enabled: boolean;
-    askToVerifyEmail: boolean;
-    askToVerifyMobile: boolean;
-    promptChangePwd: boolean;
-    selectedRoles: string[];
-    selectedPerms: string[];
-  };
-
-  const EMPTY_USER_FORM: UserFormValues = {
-    email: '',
-    firstName: '',
-    lastName: '',
-    mobile: '',
-    profilePicture: undefined,
-    enabled: true,
-    askToVerifyEmail: false,
-    askToVerifyMobile: false,
-    promptChangePwd: false,
-    selectedRoles: [],
-    selectedPerms: [],
-  };
-
-  const [form, setForm] = useState<UserFormValues>(EMPTY_USER_FORM);
+  const [form, setForm] = useState<UserFormValues>(EMPTY_FORM);
   const setField = useCallback(
-    <K extends keyof UserFormValues>(field: K, value: UserFormValues[K]) =>
-      setForm((prev) => ({ ...prev, [field]: value })),
+    <K extends keyof UserFormValues>(key: K, value: UserFormValues[K]) =>
+      setForm((prev) => ({ ...prev, [key]: value })),
     [],
   );
 
   const [allRoles, setAllRoles] = useState<RoleVM[]>([]);
   const [availablePerms, setAvailablePerms] = useState<PermissionVM[]>([]);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { fieldErrors, setFieldErrors, clearErr, resetFieldErrors } = useFieldErrors();
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  // username is display-only
   const [username, setUsername] = useState('');
 
   useEffect(() => {
@@ -166,7 +100,7 @@ export default function EditUserPage() {
           askToVerifyMobile: !u.mobileNoVerified,
           promptChangePwd: u.promptChangePassword,
           selectedRoles: roleIds,
-          selectedPerms: permIds.filter((id) => permIdSet.has(id)),
+          selectedPerms: permIds.filter((pid) => permIdSet.has(pid)),
         });
         setAllRoles(roles);
         setAvailablePerms(permissions);
@@ -177,25 +111,13 @@ export default function EditUserPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const handleRolesChange = (roles: string[]) => {
-    setForm((prev) => ({ ...prev, selectedRoles: roles }));
-  };
-
-  const clearErr = (f: string) =>
-    setFieldErrors((p) => {
-      const n = { ...p };
-      delete n[f];
-      return n;
-    });
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setFieldErrors({});
+    resetFieldErrors();
     const orig = originalRef.current;
     if (!orig) return;
 
-    // Build patch with only changed fields
     const patch: UserUpdateReq = {};
     if (form.email.trim() !== (orig.emailId ?? '')) patch.emailId = form.email.trim() || undefined;
     if (form.firstName.trim() !== (orig.firstName ?? ''))
@@ -214,13 +136,11 @@ export default function EditUserPage() {
     if (form.promptChangePwd !== orig.promptChangePassword)
       patch.credentialsNonExpired = !form.promptChangePwd;
 
-    // Roles changed?
     const rolesChanged =
       form.selectedRoles.length !== originalRolesRef.current.length ||
       form.selectedRoles.some((r) => !originalRolesRef.current.includes(r));
     if (rolesChanged) patch.roles = form.selectedRoles;
 
-    // Perms changed?
     const permsChanged =
       form.selectedPerms.length !== originalPermsRef.current.length ||
       form.selectedPerms.some((p) => !originalPermsRef.current.includes(p));
@@ -274,8 +194,8 @@ export default function EditUserPage() {
             onChange={(v) => setField('profilePicture', v)}
             fallbackText={initialsOf(form.firstName, form.lastName)}
           />
-          <Field id="username" label="Username" value={username} disabled />
-          <Field
+          <FormField id="username" label="Username" value={username} disabled />
+          <FormField
             id="email"
             label="Email"
             type="email"
@@ -288,7 +208,7 @@ export default function EditUserPage() {
             error={fieldErrors.emailId}
           />
           <div className="grid grid-cols-2 gap-4">
-            <Field
+            <FormField
               id="firstName"
               label="First name"
               value={form.firstName}
@@ -299,7 +219,7 @@ export default function EditUserPage() {
               placeholder="Rajveer"
               error={fieldErrors.firstName}
             />
-            <Field
+            <FormField
               id="lastName"
               label="Last name"
               value={form.lastName}
@@ -311,7 +231,7 @@ export default function EditUserPage() {
               error={fieldErrors.lastName}
             />
           </div>
-          <Field
+          <FormField
             id="mobile"
             label="Mobile"
             value={form.mobile}
@@ -334,19 +254,17 @@ export default function EditUserPage() {
             <MultiSelect
               options={allRoles.map((r) => ({ value: r.id, label: r.label, sublabel: r.name }))}
               value={form.selectedRoles}
-              onChange={handleRolesChange}
+              onChange={(roles) => setField('selectedRoles', roles)}
               placeholder="Select roles..."
               searchPlaceholder="Search roles..."
               emptyMessage="No roles found"
             />
           </div>
           <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <Label>
-                Additional permissions{' '}
-                <span className="text-muted-foreground font-normal ml-1">(optional)</span>
-              </Label>
-            </div>
+            <Label>
+              Additional permissions{' '}
+              <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
             <MultiSelect
               options={availablePerms.map((p) => ({
                 value: p.id,
@@ -364,23 +282,23 @@ export default function EditUserPage() {
 
         <div className="rounded-xl border border-border bg-card px-6 divide-y divide-border">
           <h3 className="text-sm font-semibold text-foreground py-4">Account settings</h3>
-          <Toggle
+          <ToggleField
             label="Enabled"
             description="User can log in"
             value={form.enabled}
             onChange={(v) => setField('enabled', v)}
           />
-          <Toggle
+          <ToggleField
             label="Ask to verify email"
             value={form.askToVerifyEmail}
             onChange={(v) => setField('askToVerifyEmail', v)}
           />
-          <Toggle
+          <ToggleField
             label="Ask to verify mobile"
             value={form.askToVerifyMobile}
             onChange={(v) => setField('askToVerifyMobile', v)}
           />
-          <Toggle
+          <ToggleField
             label="Prompt change password"
             description="User must set a new password on next login"
             value={form.promptChangePwd}
@@ -391,16 +309,7 @@ export default function EditUserPage() {
         {error && <ErrorAlert message={error} />}
 
         <div className="flex gap-3">
-          <Button type="submit" disabled={saving} className="gap-2">
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              'Save changes'
-            )}
-          </Button>
+          <SaveButton saving={saving} label="Save changes" savingLabel="Saving..." />
           <Button
             type="button"
             variant="outline"

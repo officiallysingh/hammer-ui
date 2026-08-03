@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import React from 'react';
-import { adminApi, RoleVM, PermissionVM } from '@repo/api';
+import { adminApi, type RoleVM, type PermissionVM } from '@repo/api';
 import { Loader2, HelpCircle } from 'lucide-react';
 import {
   Button,
@@ -23,14 +23,6 @@ import { MultiSelect } from '@/components/common/admin/MultiSelect';
 import { parseApiError } from '@/lib/api-errors';
 import { resolvesExists } from '@/lib/exists-check';
 import { ROLE_NAME_PATTERN, ROLE_NAME_ERROR, ROLE_NAME_TIP } from '@/lib/validation';
-
-/** Uppercases, strips disallowed characters, and removes a leading ROLE_
- *  (the backend prefixes it automatically — typing it would double it up). */
-function sanitizeRoleName(raw: string): string {
-  let value = raw.toUpperCase().replace(/[^A-Z0-9_]/g, '');
-  while (value.startsWith('ROLE_')) value = value.slice(5);
-  return value;
-}
 
 function RoleNameLabel({ htmlFor, error }: { htmlFor: string; error?: string }) {
   return (
@@ -148,7 +140,7 @@ export function RoleFormDialog({
               id="cr-name"
               value={form.name}
               onChange={(e) => {
-                setField('name', sanitizeRoleName(e.target.value));
+                setField('name', e.target.value);
                 clearErr('name');
               }}
               onBlur={async (e) => {
@@ -157,9 +149,11 @@ export function RoleFormDialog({
                 const taken = await resolvesExists(adminApi.checkRoleNameExists(value));
                 if (taken) setFieldErrors((p) => ({ ...p, name: 'This name is already in use.' }));
               }}
-              placeholder="ADMIN"
+              placeholder="Auction-Manager"
               autoComplete="off"
-              className={`font-mono ${fieldErrors.name ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+              className={
+                fieldErrors.name ? 'border-destructive focus-visible:ring-destructive' : ''
+              }
             />
             {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
           </div>
@@ -354,7 +348,7 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
               id="er-name"
               value={form.name}
               onChange={(e) => {
-                setField('name', sanitizeRoleName(e.target.value));
+                setField('name', e.target.value);
                 clearErr('name');
               }}
               onBlur={async (e) => {
@@ -364,9 +358,11 @@ export function EditRoleDialog({ role, allPermissions, onClose, onUpdated }: Edi
                 const taken = await resolvesExists(adminApi.checkRoleNameExists(value));
                 if (taken) setFieldErrors((p) => ({ ...p, name: 'This name is already in use.' }));
               }}
-              placeholder="ADMIN"
+              placeholder="Auction-Manager"
               autoComplete="off"
-              className={`font-mono ${fieldErrors.name ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+              className={
+                fieldErrors.name ? 'border-destructive focus-visible:ring-destructive' : ''
+              }
             />
             {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
           </div>

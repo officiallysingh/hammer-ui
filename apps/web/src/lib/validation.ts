@@ -1,5 +1,33 @@
-// Client-side mirrors of backend validation patterns for master data (states/cities/areas).
-export const STATE_NAME_PATTERN = /^[\p{L} ]+$/u;
+/**
+ * Client-side validation patterns mirroring the backend
+ * `com.neolama.oxneer.common.core.RegularExpressions` class.
+ *
+ * Keep these in sync with the backend whenever the server-side patterns change.
+ * IFSC / Bank Account patterns live in `@repo/api` (bankDetails.ts) and are
+ * re-exported here for convenience.
+ */
+
+// ── Re-exports from @repo/api so consumers need only one import ───────────────
+export { IFSC_REGEX, ACCOUNT_NO_REGEX } from '@repo/api';
+
+// ── General ───────────────────────────────────────────────────────────────────
+export const ALPHABETS_PATTERN = /^[a-zA-Z]*$/;
+export const ALPHABETS_AND_SPACES_PATTERN = /^[a-zA-Z ]+$/;
+export const ALPHA_NUMERIC_PATTERN = /^[A-Za-z0-9]+$/;
+export const ALPHA_NUMERIC_CAPITAL_PATTERN = /^[A-Z0-9]+$/;
+export const PERSON_NAME_PATTERN = /^[A-Za-z]+(?: [A-Za-z]+)*$/;
+
+// ── Mobile ────────────────────────────────────────────────────────────────────
+/** Indian mobile: starts with 6-9, followed by exactly 9 digits. */
+export const MOBILE_PATTERN = /^[6-9]\d{9}$/;
+export const MOBILE_ERROR = 'Enter a valid 10-digit Indian mobile number.';
+
+// ── PAN ───────────────────────────────────────────────────────────────────────
+export const PAN_PATTERN = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+export const PAN_ERROR = 'Enter a valid PAN (e.g. ABCDE1234F).';
+
+// ── Master data ───────────────────────────────────────────────────────────────
+export const STATE_NAME_PATTERN = /^[a-zA-Z ]+$/;
 export const STATE_CODE_PATTERN = /^[A-Z]{2}$/;
 export const CITY_NAME_PATTERN = /^[\p{L}0-9 .,&()-]+$/u;
 export const AREA_NAME_PATTERN = /^[\p{L}\d .,&()'()/-]+$/u;
@@ -11,9 +39,50 @@ export const CITY_NAME_ERROR = 'Only letters, numbers, spaces and . , & ( ) - ar
 export const AREA_NAME_ERROR = "Only letters, numbers, spaces and . , & ( ) ' / - are allowed.";
 export const AREA_PIN_CODE_ERROR = 'Enter a valid 6-digit pin code.';
 
-// Role name: uppercase letters, numbers and underscore only — the `ROLE_` prefix
-// is added by the backend automatically and must not be typed by the admin.
-export const ROLE_NAME_PATTERN = /^[A-Z0-9_]+$/;
-export const ROLE_NAME_ERROR = 'Only uppercase letters, numbers and underscore are allowed.';
+// ── Role ──────────────────────────────────────────────────────────────────────
+/**
+ * Backend pattern: ^[a-zA-Z-&()]+$
+ * Letters, dash, ampersand, and parentheses only.
+ */
+export const ROLE_NAME_PATTERN = /^[a-zA-Z\-&()]+$/;
+export const ROLE_NAME_ERROR = 'Only letters, dash (-), ampersand (&) and parentheses are allowed.';
 export const ROLE_NAME_TIP =
-  "Uppercase letters, numbers and underscore only — no other special characters. Don't include the ROLE_ prefix, it's added automatically (e.g. AUCTION_MANAGER).";
+  'Letters, dash (-), ampersand (&) and parentheses only (e.g. Auction-Manager).';
+
+// ── Permission label ──────────────────────────────────────────────────────────
+export const PERMISSION_LABEL_PATTERN = /^[a-zA-Z.\-&()]+$/;
+export const PERMISSION_LABEL_ERROR = 'Only letters, dot, dash, & and ( ) are allowed.';
+
+// ── Username ──────────────────────────────────────────────────────────────────
+/**
+ * Backend pattern:
+ *   ^(?=.{2,100}$)(?!\d)(?=[a-z0-9._]*$)(?!.*\..*\.)(?!.*_.*_)[a-z][a-z0-9._]*$
+ *
+ * Rules:
+ * - 2–100 characters
+ * - Lowercase letters and digits only (plus . and _)
+ * - Cannot start with a digit
+ * - At most one dot and one underscore
+ */
+export const USERNAME_PATTERN =
+  /^(?=.{2,100}$)(?!\d)(?=[a-z0-9._]*$)(?!.*\..*\.)(?!.*_.*_)[a-z][a-z0-9._]*$/;
+export const USERNAME_RULES =
+  '2–100 characters · lowercase letters and digits only · cannot start with a digit · at most one dot (.) and one underscore (_)';
+export const USERNAME_ERROR =
+  'Username must be 2–100 lowercase characters, no leading digit, at most one dot and one underscore.';
+
+// ── Password ──────────────────────────────────────────────────────────────────
+/**
+ * Backend pattern:
+ *   ^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)[A-Za-z\d@$!%*?&^]{6,12}$
+ *
+ * Rules:
+ * - 6–12 characters
+ * - At least 1 uppercase, 1 lowercase, 1 digit
+ * - Allowed special characters: @ $ ! % * ? & ^
+ */
+export const PASSWORD_PATTERN = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)[A-Za-z\d@$!%*?&^]{6,12}$/;
+export const PASSWORD_RULES =
+  '6–12 characters · at least 1 uppercase · 1 lowercase · 1 digit · allowed special: @ $ ! % * ? & ^';
+export const PASSWORD_ERROR =
+  'Password must be 6–12 characters with at least 1 uppercase, 1 lowercase, and 1 digit.';

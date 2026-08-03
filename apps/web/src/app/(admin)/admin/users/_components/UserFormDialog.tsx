@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { usersApi, UserCreationReq, UserDetailVM } from '@repo/api';
-import { Loader2, HelpCircle, Eye, EyeOff } from 'lucide-react';
+import { usersApi, type UserDetailVM } from '@repo/api';
+import { Eye, EyeOff, HelpCircle } from 'lucide-react';
 import {
   Button,
   Input,
@@ -18,115 +18,19 @@ import {
   TooltipTrigger,
 } from '@repo/ui';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
+import { FormField } from '@/components/common/admin/FormField';
+import { ToggleField } from '@/components/common/admin/ToggleField';
+import { SaveButton } from '@/components/common/admin/SaveButton';
+import { useFieldErrors } from '@/components/common/admin/useFieldErrors';
 import { AvatarUpload } from '@/components/common/admin/AvatarUpload';
 import { parseApiError } from '@/lib/api-errors';
 import { resolvesExists } from '@/lib/exists-check';
+import { PASSWORD_RULES, PASSWORD_PATTERN, PASSWORD_ERROR } from '@/lib/validation';
 
-function initialsOf(firstName: string, lastName: string) {
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+function initialsOf(firstName: string, lastName: string): string | undefined {
   return `${firstName.trim()[0] ?? ''}${lastName.trim()[0] ?? ''}`.toUpperCase() || undefined;
-}
-
-const PWD_RULES =
-  '6–12 characters · at least 1 uppercase · 1 lowercase · 1 digit · allowed special: @$!%*?&^';
-const USERNAME_RULES =
-  '2–100 characters · lowercase letters and digits only · cannot start with a digit · at most one dot (.) and one underscore (_)';
-
-// ── Shared helpers ────────────────────────────────────────────────────────────
-
-function FieldInput({
-  id,
-  label,
-  value,
-  onChange,
-  onBlur,
-  placeholder,
-  type = 'text',
-  error,
-  optional,
-  required,
-  tip,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  onBlur?: (v: string) => void;
-  placeholder?: string;
-  type?: string;
-  error?: string;
-  optional?: boolean;
-  required?: boolean;
-  tip?: string;
-}) {
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-1.5">
-        <Label htmlFor={id} className={error ? 'text-destructive' : ''}>
-          {label}
-          {required && <span className="text-destructive ml-0.5">*</span>}
-          {optional && <span className="text-muted-foreground font-normal ml-1">(optional)</span>}
-        </Label>
-        {tip && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button type="button" className="text-muted-foreground hover:text-foreground">
-                <HelpCircle className="h-3.5 w-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-xs text-xs">
-              {tip}
-            </TooltipContent>
-          </Tooltip>
-        )}
-      </div>
-      <Input
-        id={id}
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur ? (e) => onBlur(e.target.value) : undefined}
-        placeholder={placeholder}
-        autoComplete="off"
-        className={error ? 'border-destructive focus-visible:ring-destructive' : ''}
-      />
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
-  );
-}
-
-/** Toggle pill — yes/no boolean field */
-function ToggleField({
-  label,
-  value,
-  onChange,
-  description,
-}: {
-  label: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
-  description?: string;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 py-1">
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-foreground leading-none">{label}</p>
-        {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
-      </div>
-      <button
-        type="button"
-        onClick={() => onChange(!value)}
-        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-          value ? 'bg-primary' : 'bg-muted'
-        }`}
-      >
-        <span
-          className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-lg transition-transform ${
-            value ? 'translate-x-4' : 'translate-x-0'
-          }`}
-        />
-      </button>
-    </div>
-  );
 }
 
 // ── Create Dialog ─────────────────────────────────────────────────────────────
@@ -150,7 +54,7 @@ interface CreateUserFormValues {
   promptChangePwd: boolean;
 }
 
-const EMPTY_CREATE_USER_FORM: CreateUserFormValues = {
+const EMPTY_CREATE_FORM: CreateUserFormValues = {
   username: '',
   email: '',
   firstName: '',
@@ -164,24 +68,17 @@ const EMPTY_CREATE_USER_FORM: CreateUserFormValues = {
 };
 
 export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDialogProps) {
-  const [form, setForm] = useState<CreateUserFormValues>(EMPTY_CREATE_USER_FORM);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [form, setForm] = useState<CreateUserFormValues>(EMPTY_CREATE_FORM);
+  const { fieldErrors, setFieldErrors, clearErr, resetFieldErrors } = useFieldErrors();
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const setField = <K extends keyof CreateUserFormValues>(key: K, value: CreateUserFormValues[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const clearErr = (f: string) =>
-    setFieldErrors((p) => {
-      const n = { ...p };
-      delete n[f];
-      return n;
-    });
-
   const reset = () => {
-    setForm(EMPTY_CREATE_USER_FORM);
-    setFieldErrors({});
+    setForm(EMPTY_CREATE_FORM);
+    resetFieldErrors();
     setError(null);
   };
 
@@ -193,7 +90,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setFieldErrors({});
+    resetFieldErrors();
     if (
       !form.username.trim() ||
       !form.email.trim() ||
@@ -205,7 +102,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
     }
     setSaving(true);
     try {
-      const payload: UserCreationReq = {
+      await usersApi.createUser({
         username: form.username.trim(),
         emailId: form.email.trim(),
         firstName: form.firstName.trim(),
@@ -215,13 +112,11 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
         enabled: form.enabled,
         emailIdVerified: !form.askToVerifyEmail,
         mobileNoVerified: !form.askToVerifyMobile,
-        // promptChangePassword=true means credentialsNonExpired=false
         credentialsNonExpired: !form.promptChangePwd,
         promptChangePassword: form.promptChangePwd,
         accountNonLocked: true,
         accountNonExpired: true,
-      };
-      await usersApi.createUser(payload);
+      });
       reset();
       onOpenChange(false);
       onCreated();
@@ -247,7 +142,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
             onChange={(v) => setField('profilePicture', v)}
             fallbackText={initialsOf(form.firstName, form.lastName)}
           />
-          <FieldInput
+          <FormField
             id="cu-username"
             label="Username"
             required
@@ -257,16 +152,14 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
               clearErr('username');
             }}
             onBlur={async (v) => {
-              const value = v.trim();
-              if (!value) return;
-              const taken = await resolvesExists(usersApi.checkUsernameExists(value));
+              if (!v.trim()) return;
+              const taken = await resolvesExists(usersApi.checkUsernameExists(v.trim()));
               if (taken) setFieldErrors((p) => ({ ...p, username: 'This username is taken.' }));
             }}
             placeholder="rajveer.singh"
             error={fieldErrors.username}
-            tip={USERNAME_RULES}
           />
-          <FieldInput
+          <FormField
             id="cu-email"
             label="Email"
             type="email"
@@ -277,9 +170,8 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
               clearErr('emailId');
             }}
             onBlur={async (v) => {
-              const value = v.trim();
-              if (!value) return;
-              const taken = await resolvesExists(usersApi.checkEmailExists(value));
+              if (!v.trim()) return;
+              const taken = await resolvesExists(usersApi.checkEmailExists(v.trim()));
               if (taken)
                 setFieldErrors((p) => ({ ...p, emailId: 'This email is already registered.' }));
             }}
@@ -287,7 +179,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
             error={fieldErrors.emailId}
           />
           <div className="grid grid-cols-2 gap-3">
-            <FieldInput
+            <FormField
               id="cu-first"
               label="First name"
               required
@@ -299,7 +191,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
               placeholder="Rajveer"
               error={fieldErrors.firstName}
             />
-            <FieldInput
+            <FormField
               id="cu-last"
               label="Last name"
               required
@@ -312,7 +204,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
               error={fieldErrors.lastName}
             />
           </div>
-          <FieldInput
+          <FormField
             id="cu-mobile"
             label="Mobile"
             value={form.mobile}
@@ -321,9 +213,8 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
               clearErr('mobileNo');
             }}
             onBlur={async (v) => {
-              const value = v.trim();
-              if (!value) return;
-              const taken = await resolvesExists(usersApi.checkMobileExists(value));
+              if (!v.trim()) return;
+              const taken = await resolvesExists(usersApi.checkMobileExists(v.trim()));
               if (taken)
                 setFieldErrors((p) => ({
                   ...p,
@@ -335,28 +226,27 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
             optional
           />
 
-          {/* Flags */}
           <div className="rounded-lg border border-border bg-muted/30 px-4 py-2 space-y-1 divide-y divide-border">
             <ToggleField
               label="Enabled"
               value={form.enabled}
-              onChange={(value) => setField('enabled', value)}
+              onChange={(v) => setField('enabled', v)}
               description="User can log in"
             />
             <ToggleField
               label="Ask to verify email"
               value={form.askToVerifyEmail}
-              onChange={(value) => setField('askToVerifyEmail', value)}
+              onChange={(v) => setField('askToVerifyEmail', v)}
             />
             <ToggleField
               label="Ask to verify mobile"
               value={form.askToVerifyMobile}
-              onChange={(value) => setField('askToVerifyMobile', value)}
+              onChange={(v) => setField('askToVerifyMobile', v)}
             />
             <ToggleField
               label="Prompt change password"
               value={form.promptChangePwd}
-              onChange={(value) => setField('promptChangePwd', value)}
+              onChange={(v) => setField('promptChangePwd', v)}
               description="User must change password on next login"
             />
           </div>
@@ -371,16 +261,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                  Saving
-                </>
-              ) : (
-                'Create user'
-              )}
-            </Button>
+            <SaveButton saving={saving} label="Create user" savingLabel="Saving" />
           </DialogFooter>
         </form>
       </DialogContent>
@@ -396,15 +277,15 @@ interface EditUserDialogProps {
   onUpdated: (updated: Partial<UserDetailVM>) => void;
 }
 
-export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps) {
-  interface EditUserFormValues {
-    email: string;
-    firstName: string;
-    lastName: string;
-    mobile: string;
-    profilePicture: string | undefined;
-  }
+interface EditUserFormValues {
+  email: string;
+  firstName: string;
+  lastName: string;
+  mobile: string;
+  profilePicture: string | undefined;
+}
 
+export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps) {
   const [form, setForm] = useState<EditUserFormValues>({
     email: '',
     firstName: '',
@@ -412,7 +293,7 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
     mobile: '',
     profilePicture: undefined,
   });
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { fieldErrors, setFieldErrors, clearErr, resetFieldErrors } = useFieldErrors();
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -428,23 +309,16 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
         mobile: user.mobileNo ?? '',
         profilePicture: user.profilePicture ?? undefined,
       });
-      setFieldErrors({});
+      resetFieldErrors();
       setError(null);
     }
-  }, [user]);
-
-  const clearErr = (f: string) =>
-    setFieldErrors((p) => {
-      const n = { ...p };
-      delete n[f];
-      return n;
-    });
+  }, [user, resetFieldErrors]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     setError(null);
-    setFieldErrors({});
+    resetFieldErrors();
     setSaving(true);
     try {
       const pictureChanged = form.profilePicture !== (user.profilePicture ?? undefined);
@@ -493,7 +367,7 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
             onChange={(v) => setField('profilePicture', v)}
             fallbackText={initialsOf(form.firstName, form.lastName)}
           />
-          <FieldInput
+          <FormField
             id="eu-email"
             label="Email"
             type="email"
@@ -503,9 +377,8 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
               clearErr('emailId');
             }}
             onBlur={async (v) => {
-              const value = v.trim();
-              if (!value || value === (user?.emailId ?? '')) return;
-              const taken = await resolvesExists(usersApi.checkEmailExists(value));
+              if (!v.trim() || v.trim() === (user?.emailId ?? '')) return;
+              const taken = await resolvesExists(usersApi.checkEmailExists(v.trim()));
               if (taken)
                 setFieldErrors((p) => ({ ...p, emailId: 'This email is already registered.' }));
             }}
@@ -513,7 +386,7 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
             error={fieldErrors.emailId}
           />
           <div className="grid grid-cols-2 gap-3">
-            <FieldInput
+            <FormField
               id="eu-first"
               label="First name"
               value={form.firstName}
@@ -524,7 +397,7 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
               placeholder="Rajveer"
               error={fieldErrors.firstName}
             />
-            <FieldInput
+            <FormField
               id="eu-last"
               label="Last name"
               value={form.lastName}
@@ -536,7 +409,7 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
               error={fieldErrors.lastName}
             />
           </div>
-          <FieldInput
+          <FormField
             id="eu-mobile"
             label="Mobile"
             value={form.mobile}
@@ -545,9 +418,8 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
               clearErr('mobileNo');
             }}
             onBlur={async (v) => {
-              const value = v.trim();
-              if (!value || value === (user?.mobileNo ?? '')) return;
-              const taken = await resolvesExists(usersApi.checkMobileExists(value));
+              if (!v.trim() || v.trim() === (user?.mobileNo ?? '')) return;
+              const taken = await resolvesExists(usersApi.checkMobileExists(v.trim()));
               if (taken)
                 setFieldErrors((p) => ({
                   ...p,
@@ -562,16 +434,7 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
             <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                  Saving
-                </>
-              ) : (
-                'Save changes'
-              )}
-            </Button>
+            <SaveButton saving={saving} label="Save changes" savingLabel="Saving" />
           </DialogFooter>
         </form>
       </DialogContent>
@@ -579,9 +442,7 @@ export function EditUserDialog({ user, onClose, onUpdated }: EditUserDialogProps
   );
 }
 
-export { PWD_RULES };
-
-// ── Change Password Dialog ─────────────────────────────────────────────────────
+// ── Change Password Dialog ────────────────────────────────────────────────────
 
 interface ChangePasswordDialogProps {
   user: UserDetailVM | null;
@@ -602,7 +463,6 @@ export function ChangePasswordDialog({ user, onClose }: ChangePasswordDialogProp
     setShowNew(false);
     setShowConfirm(false);
     setError(null);
-    setSaving(false);
   };
 
   const handleOpenChange = (o: boolean) => {
@@ -617,11 +477,8 @@ export function ChangePasswordDialog({ user, onClose }: ChangePasswordDialogProp
     setError(null);
     if (!user) return;
 
-    const passwordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)[A-Za-z\d@$!%*?&^]{6,12}$/;
-    if (!passwordRegex.test(newPassword)) {
-      setError(
-        'Password must be 6–12 characters with at least 1 uppercase, 1 lowercase, and 1 digit.',
-      );
+    if (!PASSWORD_PATTERN.test(newPassword)) {
+      setError(PASSWORD_ERROR);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -653,74 +510,31 @@ export function ChangePasswordDialog({ user, onClose }: ChangePasswordDialogProp
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="cp-new">
-                New password<span className="text-destructive ml-0.5">*</span>
-              </Label>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button type="button" className="text-muted-foreground hover:text-foreground">
-                    <HelpCircle className="h-3.5 w-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs text-xs">
-                  {PWD_RULES}
-                </TooltipContent>
-              </Tooltip>
-            </div>
-            <div className="relative">
-              <Input
-                id="cp-new"
-                type={showNew ? 'text' : 'password'}
-                value={newPassword}
-                onChange={(e) => {
-                  setNewPassword(e.target.value);
-                  setError(null);
-                }}
-                placeholder="6–12 chars, uppercase, lowercase, digit"
-                autoComplete="new-password"
-                className="pr-10"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowNew((s) => !s)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                tabIndex={-1}
-              >
-                {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="cp-confirm">
-              Confirm new password<span className="text-destructive ml-0.5">*</span>
-            </Label>
-            <div className="relative">
-              <Input
-                id="cp-confirm"
-                type={showConfirm ? 'text' : 'password'}
-                value={confirmPassword}
-                onChange={(e) => {
-                  setConfirmPassword(e.target.value);
-                  setError(null);
-                }}
-                placeholder="Re-enter new password"
-                autoComplete="new-password"
-                className="pr-10"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirm((s) => !s)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                tabIndex={-1}
-              >
-                {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
+          <PasswordInput
+            id="cp-new"
+            label="New password"
+            value={newPassword}
+            onChange={(v) => {
+              setNewPassword(v);
+              setError(null);
+            }}
+            show={showNew}
+            onToggleShow={() => setShowNew((s) => !s)}
+            placeholder="6–12 chars, uppercase, lowercase, digit"
+            tip={PASSWORD_RULES}
+          />
+          <PasswordInput
+            id="cp-confirm"
+            label="Confirm new password"
+            value={confirmPassword}
+            onChange={(v) => {
+              setConfirmPassword(v);
+              setError(null);
+            }}
+            show={showConfirm}
+            onToggleShow={() => setShowConfirm((s) => !s)}
+            placeholder="Re-enter new password"
+          />
           {error && <ErrorAlert message={error} />}
           <DialogFooter>
             <Button
@@ -731,19 +545,77 @@ export function ChangePasswordDialog({ user, onClose }: ChangePasswordDialogProp
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                  Saving
-                </>
-              ) : (
-                'Change password'
-              )}
-            </Button>
+            <SaveButton saving={saving} label="Change password" savingLabel="Saving" />
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Internal: password input with show/hide toggle ────────────────────────────
+
+interface PasswordInputProps {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  show: boolean;
+  onToggleShow: () => void;
+  placeholder?: string;
+  tip?: string;
+}
+
+function PasswordInput({
+  id,
+  label,
+  value,
+  onChange,
+  show,
+  onToggleShow,
+  placeholder,
+  tip,
+}: PasswordInputProps) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-1.5">
+        <Label htmlFor={id}>
+          {label}
+          <span className="text-destructive ml-0.5">*</span>
+        </Label>
+        {tip && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="text-muted-foreground hover:text-foreground">
+                <HelpCircle className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs text-xs">
+              {tip}
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+      <div className="relative">
+        <Input
+          id={id}
+          type={show ? 'text' : 'password'}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          autoComplete="new-password"
+          className="pr-10"
+          required
+        />
+        <button
+          type="button"
+          onClick={onToggleShow}
+          tabIndex={-1}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+        >
+          {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
+    </div>
   );
 }
