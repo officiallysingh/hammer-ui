@@ -35,9 +35,16 @@ import {
   DialogFooter,
 } from '@repo/ui';
 import { parseApiError } from '@/lib/api-errors';
-import { PASSWORD_PATTERN, PASSWORD_RULES, PASSWORD_ERROR } from '@/lib/validation';
+import {
+  PASSWORD_PATTERN,
+  PASSWORD_RULES,
+  PASSWORD_ERROR,
+  IFSC_TIP,
+  ACCOUNT_NO_TIP,
+} from '@/lib/validation';
 import { AvatarUpload } from '@/components/common/admin/AvatarUpload';
 import { CancelChequeUpload } from '@/components/common/admin/CancelChequeUpload';
+import { LabelWithTip } from '@/components/common/admin/LabelWithTip';
 
 // ── Field wrapper ─────────────────────────────────────────────────────────────
 
@@ -395,7 +402,7 @@ function BankDetailDialog({ open, editing, banks, onClose, onSaved }: BankDetail
             </select>
             {fieldErrors.bankId && <p className="text-xs text-destructive">{fieldErrors.bankId}</p>}
           </div>
-          <Field label="IFSC code" error={fieldErrors.ifscCode}>
+          <Field label="IFSC code" error={fieldErrors.ifscCode} tip={IFSC_TIP}>
             <Input
               value={form.ifscCode}
               onChange={(e) => {
@@ -409,7 +416,7 @@ function BankDetailDialog({ open, editing, banks, onClose, onSaved }: BankDetail
               }
             />
           </Field>
-          <Field label="Account number" error={fieldErrors.accountNo}>
+          <Field label="Account number" error={fieldErrors.accountNo} tip={ACCOUNT_NO_TIP}>
             <Input
               value={form.accountNo}
               onChange={(e) => {

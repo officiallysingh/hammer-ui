@@ -10,6 +10,9 @@
 // ── Re-exports from @repo/api so consumers need only one import ───────────────
 export { IFSC_REGEX, ACCOUNT_NO_REGEX } from '@repo/api';
 
+export const IFSC_TIP = 'Format: 4 letters + 0 + 6 alphanumeric · e.g. ICIC0000733';
+export const ACCOUNT_NO_TIP = '9–18 digit bank account number · e.g. 123456789012';
+
 // ── General ───────────────────────────────────────────────────────────────────
 export const ALPHABETS_PATTERN = /^[a-zA-Z]*$/;
 export const ALPHABETS_AND_SPACES_PATTERN = /^[a-zA-Z ]+$/;
@@ -21,6 +24,7 @@ export const PERSON_NAME_PATTERN = /^[A-Za-z]+(?: [A-Za-z]+)*$/;
 /** Indian mobile: starts with 6-9, followed by exactly 9 digits. */
 export const MOBILE_PATTERN = /^[6-9]\d{9}$/;
 export const MOBILE_ERROR = 'Enter a valid 10-digit Indian mobile number.';
+export const MOBILE_TIP = 'Indian mobile: starts with 6-9, followed by 9 digits · e.g. 9876543210';
 
 // ── PAN ───────────────────────────────────────────────────────────────────────
 export const PAN_PATTERN = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
@@ -35,9 +39,17 @@ export const AREA_PIN_CODE_PATTERN = /^[1-9]{1}[0-9]{2}\s{0,1}[0-9]{3}$/;
 
 export const STATE_NAME_ERROR = 'Only letters and spaces are allowed.';
 export const STATE_CODE_ERROR = 'Enter exactly 2 uppercase letters (e.g. MH).';
+export const STATE_NAME_TIP = 'Letters and spaces only · e.g. Maharashtra, Tamil Nadu';
+export const STATE_CODE_TIP = 'Exactly 2 uppercase letters · e.g. MH, TN, DL';
+
 export const CITY_NAME_ERROR = 'Only letters, numbers, spaces and . , & ( ) - are allowed.';
+export const CITY_NAME_TIP = 'Letters, numbers, spaces and . , & ( ) - · e.g. Mumbai, Navi Mumbai';
+
 export const AREA_NAME_ERROR = "Only letters, numbers, spaces and . , & ( ) ' / - are allowed.";
 export const AREA_PIN_CODE_ERROR = 'Enter a valid 6-digit pin code.';
+export const AREA_NAME_TIP =
+  "Letters, numbers, spaces and . , & ( ) ' / - · e.g. Andheri, Bandra-West";
+export const AREA_PIN_CODE_TIP = '6-digit Indian PIN code · cannot start with 0 · e.g. 400058';
 
 // ── Role ──────────────────────────────────────────────────────────────────────
 /**

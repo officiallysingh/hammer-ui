@@ -15,13 +15,16 @@ import {
   DialogTitle,
 } from '@repo/ui';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
+import { LabelWithTip } from '@/components/common/admin/LabelWithTip';
 import { parseApiError } from '@/lib/api-errors';
 import { resolvesExists } from '@/lib/exists-check';
 import {
   STATE_NAME_PATTERN,
   STATE_NAME_ERROR,
+  STATE_NAME_TIP,
   STATE_CODE_PATTERN,
   STATE_CODE_ERROR,
+  STATE_CODE_TIP,
 } from '@/lib/validation';
 
 interface EditStateDialogProps {
@@ -109,9 +112,13 @@ export function EditStateDialog({ state, onClose, onUpdated }: EditStateDialogPr
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <Label htmlFor="es-code" className={fieldErrors.code ? 'text-destructive' : ''}>
+            <LabelWithTip
+              htmlFor="es-code"
+              tip={STATE_CODE_TIP}
+              className={fieldErrors.code ? 'text-destructive' : ''}
+            >
               Code <span className="text-destructive">*</span>
-            </Label>
+            </LabelWithTip>
             <Input
               id="es-code"
               value={code}
@@ -134,9 +141,13 @@ export function EditStateDialog({ state, onClose, onUpdated }: EditStateDialogPr
             {fieldErrors.code && <p className="text-xs text-destructive">{fieldErrors.code}</p>}
           </div>
           <div className="space-y-1">
-            <Label htmlFor="es-name" className={fieldErrors.name ? 'text-destructive' : ''}>
+            <LabelWithTip
+              htmlFor="es-name"
+              tip={STATE_NAME_TIP}
+              className={fieldErrors.name ? 'text-destructive' : ''}
+            >
               Name <span className="text-destructive">*</span>
-            </Label>
+            </LabelWithTip>
             <Input
               id="es-name"
               value={name}
