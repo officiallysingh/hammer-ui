@@ -15,13 +15,16 @@ import {
   DialogTitle,
 } from '@repo/ui';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
+import { LabelWithTip } from '@/components/common/admin/LabelWithTip';
 import { parseApiError } from '@/lib/api-errors';
 import { resolvesExists } from '@/lib/exists-check';
 import {
   STATE_NAME_PATTERN,
   STATE_NAME_ERROR,
+  STATE_NAME_TIP,
   STATE_CODE_PATTERN,
   STATE_CODE_ERROR,
+  STATE_CODE_TIP,
 } from '@/lib/validation';
 
 interface AddStateDialogProps {
@@ -94,9 +97,13 @@ export function AddStateDialog({ open, onOpenChange, onCreated }: AddStateDialog
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <Label htmlFor="state-code" className={fieldErrors.code ? 'text-destructive' : ''}>
+            <LabelWithTip
+              htmlFor="state-code"
+              tip={STATE_CODE_TIP}
+              className={fieldErrors.code ? 'text-destructive' : ''}
+            >
               Code <span className="text-destructive">*</span>
-            </Label>
+            </LabelWithTip>
             <Input
               id="state-code"
               value={code}
@@ -119,9 +126,13 @@ export function AddStateDialog({ open, onOpenChange, onCreated }: AddStateDialog
             {fieldErrors.code && <p className="text-xs text-destructive">{fieldErrors.code}</p>}
           </div>
           <div className="space-y-1">
-            <Label htmlFor="state-name" className={fieldErrors.name ? 'text-destructive' : ''}>
+            <LabelWithTip
+              htmlFor="state-name"
+              tip={STATE_NAME_TIP}
+              className={fieldErrors.name ? 'text-destructive' : ''}
+            >
               Name <span className="text-destructive">*</span>
-            </Label>
+            </LabelWithTip>
             <Input
               id="state-name"
               value={name}

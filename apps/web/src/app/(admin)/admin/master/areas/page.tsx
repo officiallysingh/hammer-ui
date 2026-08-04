@@ -1,30 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { masterApi, StateVM, AreaVM } from '@repo/api';
-import { Loader2, Trash2, RefreshCw, Plus, Pencil, MapPinned } from 'lucide-react';
+import { masterApi, type StateVM, type AreaVM } from '@repo/api';
+import { MapPinned } from 'lucide-react';
 import { Button } from '@repo/ui';
 import { SearchInput } from '@/components/common/admin/SearchInput';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
-import Tip from '@/components/common/admin/Tip';
+import { ListToolbarActions } from '@/components/common/admin/ListToolbarActions';
+import { LoadingBlock, EmptyState } from '@/components/common/admin/ListState';
+import { RowActions } from '@/components/common/admin/RowActions';
+import { useConfirmDialog } from '@/components/common/admin/useConfirmDialog';
 import { AddAreaDialog } from './_components/AddAreaDialog';
 import { EditAreaDialog } from '../states/_components/EditAreaDialog';
-
-type ConfirmState = {
-  open: boolean;
-  title: string;
-  description: string;
-  onConfirm: () => void;
-};
-
-const CLOSED_CONFIRM: ConfirmState = {
-  open: false,
-  title: '',
-  description: '',
-  onConfirm: () => {},
-};
 
 const PAGE_SIZE = 16;
 
@@ -40,7 +29,7 @@ export default function AreasPage() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<AreaVM | null>(null);
-  const [confirm, setConfirm] = useState<ConfirmState>(CLOSED_CONFIRM);
+  const { confirm, openConfirm, closeConfirm } = useConfirmDialog();
 
   useEffect(() => {
     masterApi
@@ -73,31 +62,19 @@ export default function AreasPage() {
     fetchAreas(0);
   }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const openConfirm = (title: string, description: string, onConfirm: () => void) =>
-    setConfirm({ open: true, title, description, onConfirm });
-  const closeConfirm = () => setConfirm((prev) => ({ ...prev, open: false }));
-
   return (
     <div className="space-y-6">
       <PageHeader
         title="Areas"
         description="All areas across every city"
         actions={
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => setAddOpen(true)} disabled={!states.length}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add area
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fetchAreas(pageIndex)}
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          </div>
+          <ListToolbarActions
+            onAdd={() => setAddOpen(true)}
+            addLabel="Add area"
+            addDisabled={!states.length}
+            onRefresh={() => fetchAreas(pageIndex)}
+            refreshing={isLoading}
+          />
         }
       />
 
@@ -111,15 +88,9 @@ export default function AreasPage() {
       />
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="text-sm">Loading areas...</span>
-        </div>
+        <LoadingBlock message="Loading areas..." />
       ) : areas.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
-          <MapPinned className="h-10 w-10 opacity-30" />
-          <p className="text-sm">No areas found.</p>
-        </div>
+        <EmptyState icon={MapPinned} message="No areas found." />
       ) : (
         <div className="rounded-lg border border-border bg-card overflow-hidden divide-y divide-border">
           {areas.map((area) => (
@@ -133,40 +104,25 @@ export default function AreasPage() {
                 {area.pinCode && (
                   <span className="text-xs text-muted-foreground ml-2">{area.pinCode}</span>
                 )}
-                {(area.city?.name || area.city?.state?.name) && (
+                {(area.city?.name ?? area.city?.state?.name) && (
                   <span className="text-xs text-muted-foreground ml-2">
                     {[area.city?.name, area.city?.state?.name].filter(Boolean).join(', ')}
                   </span>
                 )}
               </div>
-              <Tip label="Edit area">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
-                  onClick={() => setEditTarget(area)}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-              </Tip>
-              <Tip label="Delete area">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                  onClick={() =>
-                    openConfirm(
-                      'Delete area?',
-                      `"${area.name}" will be permanently removed.`,
-                      async () => {
-                        setAreas((prev) => prev.filter((a) => a.id !== area.id));
-                      },
-                    )
-                  }
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </Tip>
+              <RowActions
+                size="sm"
+                editLabel="Edit area"
+                deleteLabel="Delete area"
+                onEdit={() => setEditTarget(area)}
+                onDelete={() =>
+                  openConfirm({
+                    title: 'Delete area?',
+                    description: `"${area.name}" will be permanently removed.`,
+                    onConfirm: () => setAreas((prev) => prev.filter((a) => a.id !== area.id)),
+                  })
+                }
+              />
             </div>
           ))}
         </div>
@@ -175,7 +131,7 @@ export default function AreasPage() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">
-            Showing {pageIndex * PAGE_SIZE + 1} to {pageIndex * PAGE_SIZE + areas.length} of{' '}
+            Showing {pageIndex * PAGE_SIZE + 1}–{pageIndex * PAGE_SIZE + areas.length} of{' '}
             {totalRecords} results
           </span>
           <div className="flex items-center space-x-2">

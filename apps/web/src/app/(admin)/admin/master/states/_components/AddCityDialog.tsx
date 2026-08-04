@@ -15,8 +15,9 @@ import {
   DialogTitle,
 } from '@repo/ui';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
+import { LabelWithTip } from '@/components/common/admin/LabelWithTip';
 import { parseApiError } from '@/lib/api-errors';
-import { CITY_NAME_PATTERN, CITY_NAME_ERROR } from '@/lib/validation';
+import { CITY_NAME_PATTERN, CITY_NAME_ERROR, CITY_NAME_TIP } from '@/lib/validation';
 
 interface AddCityDialogProps {
   state: StateVM | null;
@@ -77,9 +78,13 @@ export function AddCityDialog({ state, onClose, onCreated }: AddCityDialogProps)
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <Label htmlFor="city-name" className={fieldError ? 'text-destructive' : ''}>
+            <LabelWithTip
+              htmlFor="city-name"
+              tip={CITY_NAME_TIP}
+              className={fieldError ? 'text-destructive' : ''}
+            >
               Name <span className="text-destructive">*</span>
-            </Label>
+            </LabelWithTip>
             <Input
               id="city-name"
               value={name}

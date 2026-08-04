@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from '@repo/ui';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
+import { LabelWithTip } from '@/components/common/admin/LabelWithTip';
 import {
   CoordinatesMapField,
   type Coordinates,
@@ -23,8 +24,10 @@ import { parseApiError } from '@/lib/api-errors';
 import {
   AREA_NAME_PATTERN,
   AREA_NAME_ERROR,
+  AREA_NAME_TIP,
   AREA_PIN_CODE_PATTERN,
   AREA_PIN_CODE_ERROR,
+  AREA_PIN_CODE_TIP,
 } from '@/lib/validation';
 
 interface AddAreaDialogProps {
@@ -109,9 +112,13 @@ export function AddAreaDialog({ city, onClose, onCreated }: AddAreaDialogProps) 
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <Label htmlFor="area-name" className={fieldErrors.name ? 'text-destructive' : ''}>
+            <LabelWithTip
+              htmlFor="area-name"
+              tip={AREA_NAME_TIP}
+              className={fieldErrors.name ? 'text-destructive' : ''}
+            >
               Name <span className="text-destructive">*</span>
-            </Label>
+            </LabelWithTip>
             <Input
               id="area-name"
               value={name}
@@ -129,9 +136,13 @@ export function AddAreaDialog({ city, onClose, onCreated }: AddAreaDialogProps) 
             {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
           </div>
           <div className="space-y-1">
-            <Label htmlFor="area-pincode" className={fieldErrors.pinCode ? 'text-destructive' : ''}>
+            <LabelWithTip
+              htmlFor="area-pincode"
+              tip={AREA_PIN_CODE_TIP}
+              className={fieldErrors.pinCode ? 'text-destructive' : ''}
+            >
               Pin code <span className="text-muted-foreground font-normal">(optional)</span>
-            </Label>
+            </LabelWithTip>
             <Input
               id="area-pincode"
               value={pinCode}

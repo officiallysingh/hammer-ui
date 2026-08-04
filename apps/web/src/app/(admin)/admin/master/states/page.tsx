@@ -1,43 +1,23 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { masterApi, StateVM, CityVM, AreaVM } from '@repo/api';
-import {
-  Loader2,
-  Trash2,
-  RefreshCw,
-  Plus,
-  Pencil,
-  ChevronDown,
-  ChevronRight,
-  MapPin,
-} from 'lucide-react';
+import { masterApi, type StateVM, type CityVM, type AreaVM } from '@repo/api';
+import { Loader2, Trash2, Plus, Pencil, ChevronDown, ChevronRight, MapPin } from 'lucide-react';
 import { Button } from '@repo/ui';
 import { SearchInput } from '@/components/common/admin/SearchInput';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
+import { ListToolbarActions } from '@/components/common/admin/ListToolbarActions';
+import { LoadingBlock, EmptyState } from '@/components/common/admin/ListState';
+import { useConfirmDialog } from '@/components/common/admin/useConfirmDialog';
 import { AddStateDialog } from './_components/AddStateDialog';
 import { EditStateDialog } from './_components/EditStateDialog';
 import { AddCityDialog } from './_components/AddCityDialog';
 import { EditCityDialog } from './_components/EditCityDialog';
 import { AddAreaDialog } from './_components/AddAreaDialog';
 import { EditAreaDialog } from './_components/EditAreaDialog';
-
-type ConfirmState = {
-  open: boolean;
-  title: string;
-  description: string;
-  onConfirm: () => void;
-};
-
-const CLOSED_CONFIRM: ConfirmState = {
-  open: false,
-  title: '',
-  description: '',
-  onConfirm: () => {},
-};
 
 export default function StatesPage() {
   const [states, setStates] = useState<StateVM[]>([]);
@@ -62,7 +42,7 @@ export default function StatesPage() {
   const [editCityTarget, setEditCityTarget] = useState<CityVM | null>(null);
   const [addAreaTarget, setAddAreaTarget] = useState<CityVM | null>(null);
   const [editAreaTarget, setEditAreaTarget] = useState<AreaVM | null>(null);
-  const [confirm, setConfirm] = useState<ConfirmState>(CLOSED_CONFIRM);
+  const { confirm, openConfirm, closeConfirm } = useConfirmDialog();
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
@@ -164,12 +144,6 @@ export default function StatesPage() {
     }
   };
 
-  // ── Confirm helper ─────────────────────────────────────────────────────────
-
-  const openConfirm = (title: string, description: string, onConfirm: () => void) =>
-    setConfirm({ open: true, title, description, onConfirm });
-  const closeConfirm = () => setConfirm((prev) => ({ ...prev, open: false }));
-
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -178,16 +152,12 @@ export default function StatesPage() {
         title="States"
         description="Manage states, cities and areas"
         actions={
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => setAddStateOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add state
-            </Button>
-            <Button variant="outline" size="sm" onClick={fetchStates} disabled={isLoading}>
-              <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          </div>
+          <ListToolbarActions
+            onAdd={() => setAddStateOpen(true)}
+            addLabel="Add state"
+            onRefresh={fetchStates}
+            refreshing={isLoading}
+          />
         }
       />
 
@@ -201,15 +171,9 @@ export default function StatesPage() {
       />
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="text-sm">Loading states...</span>
-        </div>
+        <LoadingBlock message="Loading states..." />
       ) : states.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
-          <MapPin className="h-10 w-10 opacity-30" />
-          <p className="text-sm">No states yet. Add one to get started.</p>
-        </div>
+        <EmptyState icon={MapPin} message="No states yet." hint="Add one to get started." />
       ) : (
         <div className="rounded-lg border border-border bg-card overflow-hidden divide-y divide-border">
           {states.map((state) => {
@@ -278,14 +242,13 @@ export default function StatesPage() {
                         size="sm"
                         className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                         onClick={() =>
-                          openConfirm(
-                            'Delete state?',
-                            `"${state.name}" and all its cities and areas will be permanently removed.`,
-                            async () => {
-                              // No delete endpoint in spec — optimistic remove from UI
+                          openConfirm({
+                            title: 'Delete state?',
+                            description: `"${state.name}" and all its cities and areas will be permanently removed.`,
+                            onConfirm: () => {
                               setStates((prev) => prev.filter((s) => s.id !== state.id));
                             },
-                          )
+                          })
                         }
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -370,10 +333,10 @@ export default function StatesPage() {
                                       size="sm"
                                       className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                                       onClick={() =>
-                                        openConfirm(
-                                          'Delete city?',
-                                          `"${city.name}" and all its areas will be permanently removed.`,
-                                          async () => {
+                                        openConfirm({
+                                          title: 'Delete city?',
+                                          description: `"${city.name}" and all its areas will be permanently removed.`,
+                                          onConfirm: () => {
                                             setCitiesMap((prev) => ({
                                               ...prev,
                                               [state.id]: (prev[state.id] ?? []).filter(
@@ -381,7 +344,7 @@ export default function StatesPage() {
                                               ),
                                             }));
                                           },
-                                        )
+                                        })
                                       }
                                     >
                                       <Trash2 className="h-3 w-3" />
@@ -432,10 +395,10 @@ export default function StatesPage() {
                                           </button>
                                           <button
                                             onClick={() =>
-                                              openConfirm(
-                                                'Delete area?',
-                                                `"${area.name}" will be permanently removed.`,
-                                                async () => {
+                                              openConfirm({
+                                                title: 'Delete area?',
+                                                description: `"${area.name}" will be permanently removed.`,
+                                                onConfirm: () => {
                                                   setAreasMap((prev) => ({
                                                     ...prev,
                                                     [city.id]: (prev[city.id] ?? []).filter(
@@ -443,7 +406,7 @@ export default function StatesPage() {
                                                     ),
                                                   }));
                                                 },
-                                              )
+                                              })
                                             }
                                             className="text-muted-foreground hover:text-destructive transition-colors"
                                             aria-label={`Delete ${area.name}`}

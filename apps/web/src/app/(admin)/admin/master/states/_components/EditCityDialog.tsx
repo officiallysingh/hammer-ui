@@ -15,8 +15,9 @@ import {
   DialogTitle,
 } from '@repo/ui';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
+import { LabelWithTip } from '@/components/common/admin/LabelWithTip';
 import { parseApiError } from '@/lib/api-errors';
-import { CITY_NAME_PATTERN, CITY_NAME_ERROR } from '@/lib/validation';
+import { CITY_NAME_PATTERN, CITY_NAME_ERROR, CITY_NAME_TIP } from '@/lib/validation';
 
 interface EditCityDialogProps {
   city: CityVM | null;
@@ -113,9 +114,13 @@ export function EditCityDialog({ city, states, onClose, onUpdated }: EditCityDia
             </select>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="ec-name" className={fieldErrors.name ? 'text-destructive' : ''}>
+            <LabelWithTip
+              htmlFor="ec-name"
+              tip={CITY_NAME_TIP}
+              className={fieldErrors.name ? 'text-destructive' : ''}
+            >
               Name <span className="text-destructive">*</span>
-            </Label>
+            </LabelWithTip>
             <Input
               id="ec-name"
               value={name}

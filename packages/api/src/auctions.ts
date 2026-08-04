@@ -106,6 +106,18 @@ export interface AuctionVM {
   updatedAt?: string;
 }
 
+export interface AuctionsFilter {
+  phrases?: string[];
+  categories?: string[];
+  subCategories?: string[];
+  fromTime?: string;
+  tillTime?: string;
+  page?: number;
+  size?: number;
+  sort?: string[];
+  expand?: string[];
+}
+
 export interface PaginatedAuctions {
   content?: AuctionVM[];
   page?: {
@@ -294,11 +306,30 @@ export const auctionsApi = {
     await apiClient.patch(`/api/v1/auctions/${id}`, data);
   },
 
-  getAuctions: async (
-    params: { page?: number; size?: number } = {},
-  ): Promise<PaginatedAuctions> => {
+  getAuctions: async (filter: AuctionsFilter = {}): Promise<PaginatedAuctions> => {
+    const {
+      phrases,
+      categories,
+      subCategories,
+      fromTime,
+      tillTime,
+      page = 0,
+      size = 16,
+      sort,
+      expand,
+    } = filter;
     const response = await apiClient.get<PaginatedAuctions>('/api/v1/auctions', {
-      params: { page: params.page ?? 0, size: params.size ?? 20 },
+      params: {
+        ...(phrases?.length ? { phrases } : {}),
+        ...(categories?.length ? { categories } : {}),
+        ...(subCategories?.length ? { subCategories } : {}),
+        ...(fromTime ? { fromTime } : {}),
+        ...(tillTime ? { tillTime } : {}),
+        ...(sort?.length ? { sort } : {}),
+        page,
+        size,
+      },
+      headers: expand?.length ? { 'x-expand': expand } : undefined,
     });
     return response.data;
   },

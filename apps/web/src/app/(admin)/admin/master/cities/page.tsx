@@ -1,41 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { masterApi, StateVM, CityVM, AreaVM } from '@repo/api';
-import {
-  Loader2,
-  Trash2,
-  RefreshCw,
-  Plus,
-  Pencil,
-  Building2,
-  ChevronDown,
-  ChevronRight,
-} from 'lucide-react';
+import { masterApi, type StateVM, type CityVM, type AreaVM } from '@repo/api';
+import { Loader2, Trash2, Pencil, Building2, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { Button } from '@repo/ui';
 import { SearchInput } from '@/components/common/admin/SearchInput';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
+import { ListToolbarActions } from '@/components/common/admin/ListToolbarActions';
+import { LoadingBlock, EmptyState } from '@/components/common/admin/ListState';
+import { useConfirmDialog } from '@/components/common/admin/useConfirmDialog';
 import { AddCityDialog } from './_components/AddCityDialog';
 import { EditCityDialog } from '../states/_components/EditCityDialog';
 import { AddAreaDialog } from '../states/_components/AddAreaDialog';
 import { EditAreaDialog } from '../states/_components/EditAreaDialog';
-
-type ConfirmState = {
-  open: boolean;
-  title: string;
-  description: string;
-  onConfirm: () => void;
-};
-
-const CLOSED_CONFIRM: ConfirmState = {
-  open: false,
-  title: '',
-  description: '',
-  onConfirm: () => {},
-};
 
 const PAGE_SIZE = 16;
 
@@ -50,9 +30,8 @@ export default function CitiesPage() {
   const [totalRecords, setTotalRecords] = useState(0);
 
   const [addOpen, setAddOpen] = useState(false);
-  const [confirm, setConfirm] = useState<ConfirmState>(CLOSED_CONFIRM);
+  const { confirm, openConfirm, closeConfirm } = useConfirmDialog();
 
-  // Expanded city IDs → areas loaded
   const [expandedCities, setExpandedCities] = useState<Set<string>>(new Set());
   const [areasMap, setAreasMap] = useState<Record<string, AreaVM[]>>({});
   const [areasLoading, setAreasLoading] = useState<Record<string, boolean>>({});
@@ -120,31 +99,19 @@ export default function CitiesPage() {
     }
   };
 
-  const openConfirm = (title: string, description: string, onConfirm: () => void) =>
-    setConfirm({ open: true, title, description, onConfirm });
-  const closeConfirm = () => setConfirm((prev) => ({ ...prev, open: false }));
-
   return (
     <div className="space-y-6">
       <PageHeader
         title="Cities"
         description="All cities across every state"
         actions={
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => setAddOpen(true)} disabled={!states.length}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add city
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fetchCities(pageIndex)}
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          </div>
+          <ListToolbarActions
+            onAdd={() => setAddOpen(true)}
+            addLabel="Add city"
+            addDisabled={!states.length}
+            onRefresh={() => fetchCities(pageIndex)}
+            refreshing={isLoading}
+          />
         }
       />
 
@@ -158,15 +125,9 @@ export default function CitiesPage() {
       />
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="text-sm">Loading cities...</span>
-        </div>
+        <LoadingBlock message="Loading cities..." />
       ) : cities.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
-          <Building2 className="h-10 w-10 opacity-30" />
-          <p className="text-sm">No cities found.</p>
-        </div>
+        <EmptyState icon={Building2} message="No cities found." />
       ) : (
         <div className="rounded-lg border border-border bg-card overflow-hidden divide-y divide-border">
           {cities.map((city) => {
@@ -176,7 +137,6 @@ export default function CitiesPage() {
 
             return (
               <div key={city.id}>
-                {/* ── City row ── */}
                 <div className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors">
                   <button
                     onClick={() => toggleCity(city.id)}
@@ -229,13 +189,12 @@ export default function CitiesPage() {
                         size="sm"
                         className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                         onClick={() =>
-                          openConfirm(
-                            'Delete city?',
-                            `"${city.name}" and all its areas will be permanently removed.`,
-                            async () => {
-                              setCities((prev) => prev.filter((c) => c.id !== city.id));
-                            },
-                          )
+                          openConfirm({
+                            title: 'Delete city?',
+                            description: `"${city.name}" and all its areas will be permanently removed.`,
+                            onConfirm: () =>
+                              setCities((prev) => prev.filter((c) => c.id !== city.id)),
+                          })
                         }
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -244,7 +203,6 @@ export default function CitiesPage() {
                   </div>
                 </div>
 
-                {/* ── Areas ── */}
                 {cityExpanded && (
                   <div className="bg-muted/10 border-t border-border px-10 py-3">
                     {areasLoading[city.id] ? (
@@ -279,18 +237,17 @@ export default function CitiesPage() {
                             </button>
                             <button
                               onClick={() =>
-                                openConfirm(
-                                  'Delete area?',
-                                  `"${area.name}" will be permanently removed.`,
-                                  async () => {
+                                openConfirm({
+                                  title: 'Delete area?',
+                                  description: `"${area.name}" will be permanently removed.`,
+                                  onConfirm: () =>
                                     setAreasMap((prev) => ({
                                       ...prev,
                                       [city.id]: (prev[city.id] ?? []).filter(
                                         (a) => a.id !== area.id,
                                       ),
-                                    }));
-                                  },
-                                )
+                                    })),
+                                })
                               }
                               className="text-muted-foreground hover:text-destructive transition-colors"
                               aria-label={`Delete ${area.name}`}
@@ -312,7 +269,7 @@ export default function CitiesPage() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">
-            Showing {pageIndex * PAGE_SIZE + 1} to {pageIndex * PAGE_SIZE + cities.length} of{' '}
+            Showing {pageIndex * PAGE_SIZE + 1}–{pageIndex * PAGE_SIZE + cities.length} of{' '}
             {totalRecords} results
           </span>
           <div className="flex items-center space-x-2">

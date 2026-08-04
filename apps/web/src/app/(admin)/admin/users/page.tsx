@@ -16,6 +16,7 @@ import {
   Circle,
   Search,
   X,
+  KeyRound,
 } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button, Label } from '@repo/ui';
@@ -30,6 +31,7 @@ import Tip from '@/components/common/admin/Tip';
 import { TagList } from '@/components/common/admin/TagList';
 import { PhrasesInput } from '@/components/common/admin/PhrasesInput';
 import { UserAvatar } from '@/components/common/admin/UserAvatar';
+import { ChangePasswordDialog } from './_components/UserFormDialog';
 
 interface SelectOption {
   label: string;
@@ -119,6 +121,7 @@ export default function UsersPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [changePwdUser, setChangePwdUser] = useState<UserDetailVM | null>(null);
   const PAGE_SIZE = 20;
   const [pageIndex, setPageIndex] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -413,6 +416,16 @@ export default function UsersPage() {
               <Pencil className="h-3.5 w-3.5" />
             </Button>
           </Tip>
+          <Tip label="Change password">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+              onClick={() => setChangePwdUser(user)}
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+            </Button>
+          </Tip>
           <Tip label={user.enabled ? 'Disable user' : 'Enable user'}>
             <Button
               variant="ghost"
@@ -631,6 +644,8 @@ export default function UsersPage() {
         }}
         onCancel={() => setConfirmId(null)}
       />
+
+      <ChangePasswordDialog user={changePwdUser} onClose={() => setChangePwdUser(null)} />
     </div>
   );
 }

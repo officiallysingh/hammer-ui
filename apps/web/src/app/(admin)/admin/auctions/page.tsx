@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { auctionsApi, AuctionVM } from '@repo/api';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { auctionsApi, masterApi, AuctionVM, CategoryVM } from '@repo/api';
 import {
   Loader2,
   Trash2,
@@ -16,19 +16,41 @@ import {
   Globe,
   Users,
   TrendingUp,
-  Calendar,
   DollarSign,
   Info,
+  Search,
+  X,
 } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
-import { Button, Badge, Tooltip, TooltipContent, TooltipTrigger } from '@repo/ui';
+import { Button, Label, DateTimePicker, Tooltip, TooltipContent, TooltipTrigger } from '@repo/ui';
+import Select from 'react-select';
+import type { MultiValue } from 'react-select';
 import { DataTable } from '@/components/common/data-table';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
 import { StatusBadge } from '@/components/common/admin/AuctionStatusBadge';
-import { formatDate, formatLabel, resolveStr } from '@/components/common/admin/format';
+import { PhrasesInput } from '@/components/common/admin/PhrasesInput';
+import {
+  GroupedSubcategorySelect,
+  makeReactSelectStyles,
+} from '@/components/common/admin/GroupedSubcategorySelect';
+import { formatLabel, resolveStr } from '@/components/common/admin/format';
+
+interface SelectOption {
+  label: string;
+  value: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const reactSelectStyles = makeReactSelectStyles<true>() as any;
+
+function toIsoOrUndefined(localValue: string): string | undefined {
+  if (!localValue) return undefined;
+  const date = new Date(localValue);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
 
 // ── Direction icon with tooltip ───────────────────────────────────────────────
 
@@ -148,6 +170,7 @@ function ProtocolDetailsCell({ auction }: { auction: AuctionVM }) {
 
 export default function AuctionsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [auctions, setAuctions] = useState<AuctionVM[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -158,11 +181,64 @@ export default function AuctionsPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalRecords, setTotalRecords] = useState(0);
 
-  const fetchAuctions = async (page = 0) => {
+  // Filter state — initialised from URL params
+  const [phrases, setPhrases] = useState<string[]>(() => searchParams.getAll('phrases'));
+  const [selectedCategories, setSelectedCategories] = useState<SelectOption[]>([]);
+  const [selectedSubCategories, setSelectedSubCategories] = useState<SelectOption[]>([]);
+  const [categories, setCategories] = useState<CategoryVM[]>([]);
+  const [fromTime, setFromTime] = useState(() => searchParams.get('fromTime') ?? '');
+  const [tillTime, setTillTime] = useState(() => searchParams.get('tillTime') ?? '');
+
+  useEffect(() => {
+    const catIds = searchParams.getAll('categories');
+    const subCatIds = searchParams.getAll('subCategories');
+    masterApi
+      .getCategories(true)
+      .then((cats) => {
+        setCategories(cats);
+        if (catIds.length) {
+          setSelectedCategories(
+            cats.filter((c) => catIds.includes(c.id)).map((c) => ({ label: c.name, value: c.id })),
+          );
+        }
+        if (subCatIds.length) {
+          const allSubs = cats.flatMap((c) => c.subCategories ?? []);
+          setSelectedSubCategories(
+            allSubs
+              .filter((s) => subCatIds.includes(s.id))
+              .map((s) => ({ label: s.name, value: s.id })),
+          );
+        }
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const categoryOptions: SelectOption[] = categories.map((c) => ({
+    label: c.name,
+    value: c.id,
+  }));
+
+  const fetchAuctions = async (opts?: {
+    phrases?: string[];
+    categories?: string[];
+    subCategories?: string[];
+    fromTime?: string;
+    tillTime?: string;
+    page?: number;
+  }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const result = await auctionsApi.getAuctions({ page, size: PAGE_SIZE });
+      const page = opts?.page ?? 0;
+      const result = await auctionsApi.getAuctions({
+        phrases: opts?.phrases?.length ? opts.phrases : undefined,
+        categories: opts?.categories?.length ? opts.categories : undefined,
+        subCategories: opts?.subCategories?.length ? opts.subCategories : undefined,
+        fromTime: opts?.fromTime,
+        tillTime: opts?.tillTime,
+        page,
+        size: PAGE_SIZE,
+      });
       setAuctions(result.content ?? []);
       setPageIndex(page);
       setTotalPages(result.page?.totalPages ?? 0);
@@ -175,8 +251,56 @@ export default function AuctionsPage() {
   };
 
   useEffect(() => {
-    fetchAuctions();
-  }, []);
+    // Fetch on mount using any pre-existing URL params
+    fetchAuctions({
+      phrases: searchParams.getAll('phrases'),
+      categories: searchParams.getAll('categories'),
+      subCategories: searchParams.getAll('subCategories'),
+      fromTime: toIsoOrUndefined(searchParams.get('fromTime') ?? ''),
+      tillTime: toIsoOrUndefined(searchParams.get('tillTime') ?? ''),
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const buildFilterUrl = (
+    ph: string[],
+    cats: SelectOption[],
+    subs: SelectOption[],
+    from: string,
+    till: string,
+  ) => {
+    const params = new URLSearchParams();
+    ph.forEach((p) => params.append('phrases', p));
+    cats.forEach((c) => params.append('categories', c.value));
+    subs.forEach((s) => params.append('subCategories', s.value));
+    if (from) params.set('fromTime', from);
+    if (till) params.set('tillTime', till);
+    return params.toString() ? `?${params.toString()}` : '';
+  };
+
+  const handleSearch = () => {
+    router.replace(
+      buildFilterUrl(phrases, selectedCategories, selectedSubCategories, fromTime, tillTime),
+      { scroll: false },
+    );
+    fetchAuctions({
+      phrases,
+      categories: selectedCategories.map((o) => o.value),
+      subCategories: selectedSubCategories.map((o) => o.value),
+      fromTime: toIsoOrUndefined(fromTime),
+      tillTime: toIsoOrUndefined(tillTime),
+      page: 0,
+    });
+  };
+
+  const handleReset = () => {
+    setPhrases([]);
+    setSelectedCategories([]);
+    setSelectedSubCategories([]);
+    setFromTime('');
+    setTillTime('');
+    router.replace('', { scroll: false });
+    fetchAuctions({ page: 0 });
+  };
 
   const handleDelete = async (id: string) => {
     setDeletingId(id);
@@ -350,7 +474,16 @@ export default function AuctionsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => fetchAuctions(pageIndex)}
+              onClick={() =>
+                fetchAuctions({
+                  phrases,
+                  categories: selectedCategories.map((o) => o.value),
+                  subCategories: selectedSubCategories.map((o) => o.value),
+                  fromTime: toIsoOrUndefined(fromTime),
+                  tillTime: toIsoOrUndefined(tillTime),
+                  page: pageIndex,
+                })
+              }
               disabled={isLoading}
             >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
@@ -361,6 +494,94 @@ export default function AuctionsPage() {
       />
 
       {error && <ErrorAlert message={error} />}
+
+      {/* Filter panel */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          {/* Phrases search */}
+          <div className="flex-1 min-w-[220px] space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Search phrases</Label>
+            <PhrasesInput
+              value={phrases}
+              onChange={setPhrases}
+              placeholder="Type phrase and press Enter..."
+            />
+          </div>
+
+          {/* Categories */}
+          <div className="min-w-[220px] space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Categories</Label>
+            <Select<SelectOption, true>
+              isMulti
+              options={categoryOptions}
+              value={selectedCategories}
+              onChange={(vals: MultiValue<SelectOption>) => {
+                setSelectedCategories([...vals]);
+                // Clear subcategories that no longer belong to selected cats
+                const catIds = new Set(vals.map((v) => v.value));
+                setSelectedSubCategories((prev) =>
+                  prev.filter((s) => {
+                    const ownerCat = categories.find((c) =>
+                      c.subCategories?.some((sc) => sc.id === s.value),
+                    );
+                    return ownerCat && catIds.has(ownerCat.id);
+                  }),
+                );
+              }}
+              placeholder="All categories"
+              styles={reactSelectStyles}
+            />
+          </div>
+
+          {/* Subcategories */}
+          <div className="min-w-[220px] space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Sub-categories</Label>
+            <GroupedSubcategorySelect
+              isMulti
+              categories={
+                selectedCategories.length > 0
+                  ? categories.filter((c) => selectedCategories.some((s) => s.value === c.id))
+                  : categories
+              }
+              value={selectedSubCategories.map((o) => o.value)}
+              onChange={(ids) => {
+                const allSubs = categories.flatMap((c) => c.subCategories ?? []);
+                setSelectedSubCategories(
+                  ids
+                    .map((id) => allSubs.find((s) => s.id === id))
+                    .filter(Boolean)
+                    .map((s) => ({ label: s!.name, value: s!.id })),
+                );
+              }}
+              placeholder="All sub-categories"
+            />
+          </div>
+
+          {/* Schedule from */}
+          <div className="min-w-[200px] space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">From schedule time</Label>
+            <DateTimePicker value={fromTime} onChange={setFromTime} placeholder="Any" />
+          </div>
+
+          {/* Schedule till */}
+          <div className="min-w-[200px] space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Till schedule time</Label>
+            <DateTimePicker value={tillTime} onChange={setTillTime} placeholder="Any" />
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2 pb-0.5">
+            <Button size="sm" onClick={handleSearch} className="gap-1.5">
+              <Search className="h-3.5 w-3.5" />
+              Search
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleReset} className="gap-1.5">
+              <X className="h-3.5 w-3.5" />
+              Reset
+            </Button>
+          </div>
+        </div>
+      </div>
 
       <DataTable
         data={auctions}
@@ -373,7 +594,16 @@ export default function AuctionsPage() {
         pageCount={totalPages}
         rowCount={totalRecords}
         pageSize={PAGE_SIZE}
-        onPageChange={fetchAuctions}
+        onPageChange={(page) =>
+          fetchAuctions({
+            phrases,
+            categories: selectedCategories.map((o) => o.value),
+            subCategories: selectedSubCategories.map((o) => o.value),
+            fromTime: toIsoOrUndefined(fromTime),
+            tillTime: toIsoOrUndefined(tillTime),
+            page,
+          })
+        }
       />
 
       <ConfirmDialog

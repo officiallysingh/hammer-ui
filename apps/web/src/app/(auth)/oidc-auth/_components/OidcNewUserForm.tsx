@@ -22,13 +22,11 @@ import {
 import { authApi, usersApi } from '@repo/api';
 import { useAuthStore } from '@/store/authStore';
 import { parseApiError } from '@/lib/api-errors';
+import { USERNAME_RULES, PASSWORD_PATTERN, PASSWORD_RULES, PASSWORD_ERROR } from '@/lib/validation';
 import { StepIndicator } from './StepIndicator';
 import { AuthIllustration } from '@/components/auth/AuthIllustration';
 import { AvatarUpload } from '@/components/common/admin/AvatarUpload';
 
-const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)[A-Za-z\d@$!%*?&^]{6,12}$/;
-const USERNAME_RULES =
-  '2–100 characters · lowercase letters and digits only · cannot start with a digit · at most one dot (.) and one underscore (_)';
 const OTP_COOLDOWN = 30;
 
 type Step = 'details' | 'mobile' | 'mobile_otp' | 'password';
@@ -197,8 +195,8 @@ export function OidcNewUserForm({
     setPasswordError(null);
     setConfirmError(null);
     let hasError = false;
-    if (!PASSWORD_REGEX.test(password)) {
-      setPasswordError('6–12 chars · 1 uppercase · 1 lowercase · 1 digit');
+    if (!PASSWORD_PATTERN.test(password)) {
+      setPasswordError(PASSWORD_ERROR);
       hasError = true;
     }
     if (password !== confirmPassword) {
@@ -500,8 +498,7 @@ export function OidcNewUserForm({
                           </button>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="max-w-xs text-xs">
-                          6–12 characters · at least 1 uppercase · 1 lowercase · 1 digit · allowed
-                          special: @$!%*?&^
+                          {PASSWORD_RULES}
                         </TooltipContent>
                       </Tooltip>
                     </div>
