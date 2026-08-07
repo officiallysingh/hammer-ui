@@ -6,12 +6,12 @@ import {
   auctionsApi,
   AuctionVM,
   PolicyItemRQ,
-  AuctionPoliciesGroupRQ,
+  AuctionPoliciesRQ,
   PolicyEvaluationMap,
 } from '@repo/api';
 import { PolicyGroupSection } from '../../_components/AuctionPolicyGroupSection';
 import { AuctionUnitSection } from '../../_components/AuctionUnitSection';
-import { splitPolicyGroups } from '../../_components/policyGroups';
+import { groupPoliciesByCategory } from '../../_components/PolicyShared';
 import {
   ArrowLeft,
   Pencil,
@@ -59,7 +59,7 @@ export default function AuctionViewPage() {
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [auction, setAuction] = useState<AuctionVM | null>(null);
-  const [policies, setPolicies] = useState<AuctionPoliciesGroupRQ | null>(null);
+  const [policies, setPolicies] = useState<AuctionPoliciesRQ | null>(null);
   const [evaluationsByPolicyId, setEvaluationsByPolicyId] = useState<
     Record<string, PolicyEvaluationMap>
   >({});
@@ -67,15 +67,10 @@ export default function AuctionViewPage() {
   // "Re-evaluate All" badge result is fresh or stale.
   const [evaluationsEvaluatedAt, setEvaluationsEvaluatedAt] = useState<Date | null>(null);
 
-  const fetchEvaluations = async (polGroup: AuctionPoliciesGroupRQ | null) => {
-    if (!polGroup) return;
+  const fetchEvaluations = async (items: AuctionPoliciesRQ | null) => {
+    if (!items) return;
     const policyIds = Array.from(
-      new Set(
-        Object.values(polGroup)
-          .flat()
-          .map((p) => p.id)
-          .filter((policyId): policyId is string => Boolean(policyId)),
-      ),
+      new Set(items.map((p) => p.id).filter((policyId): policyId is string => Boolean(policyId))),
     );
     const results = await Promise.all(
       policyIds.map((policyId) =>
@@ -183,43 +178,28 @@ export default function AuctionViewPage() {
   const format = formatLabel(auction.format);
   const auctionType = formatLabel(auction.type);
 
-  // Policy Group entries split pre / post payment. Single source of truth is
-  // policyGroups.splitPolicyGroups so the view and the workflow editor can't drift.
-  const split = splitPolicyGroups(policies);
-  const policyEntries: [string, PolicyItemRQ[]][] = (() => {
-    const ordered: [string, PolicyItemRQ[]][] = [];
-    if (split.prePayment.length > 0) ordered.push(['Pre Payment', split.prePayment]);
-    ordered.push(...split.others);
-    if (split.postPayment.length > 0) ordered.push(['Post Payment', split.postPayment]);
-    return ordered;
-  })();
+  // Policy entries grouped back into named categories client-side — the backend
+  // now returns a flat policies array (see PolicyShared.groupPoliciesByCategory).
+  const policyEntries: [string, PolicyItemRQ[]][] = groupPoliciesByCategory(policies ?? []);
 
   const totalPolicyCount = policyEntries.reduce((sum, [, items]) => sum + items.length, 0);
 
   // Policies timeline: fold the flat group list into ordered auction-lifecycle
-  // stages (pre-payment → start → running → complete → winner → post-payment)
-  // so the tab reads like the auction's actual sequence of events.
+  // stages (start → running → complete → winner) so the tab reads like the
+  // auction's actual sequence of events.
   const byUpperKey =
     (keys: string[]) =>
     ([key]: [string, PolicyItemRQ[]]) =>
       keys.includes(key.toUpperCase());
 
-  const prePaymentGroups = policyEntries.filter(byUpperKey(['PRE PAYMENT']));
   const auctionStartGroups = policyEntries.filter(byUpperKey(['PARTICIPATION', 'PRECONDITION']));
   const auctionRunningGroups = policyEntries.filter(byUpperKey(['EXTENSION', 'PRICE_PROGRESSION']));
   const winnerGroups = policyEntries.filter(
     byUpperKey(['WINNER_DETERMINATION', 'WINNER_PRICE_DETERMINATION']),
   );
-  const postPaymentGroups = policyEntries.filter(byUpperKey(['POST PAYMENT']));
 
   const placedKeys = new Set(
-    [
-      ...prePaymentGroups,
-      ...auctionStartGroups,
-      ...auctionRunningGroups,
-      ...winnerGroups,
-      ...postPaymentGroups,
-    ].map(([key]) => key),
+    [...auctionStartGroups, ...auctionRunningGroups, ...winnerGroups].map(([key]) => key),
   );
   const otherGroups = policyEntries.filter(([key]) => !placedKeys.has(key));
 
@@ -234,17 +214,6 @@ export default function AuctionViewPage() {
   }
 
   const policyStages: PolicyStage[] = [];
-
-  if (prePaymentGroups.length > 0) {
-    policyStages.push({
-      id: 'pre-payment',
-      label: 'Pre Payment',
-      dotClassName: 'bg-amber-500',
-      textClassName: 'text-amber-600 dark:text-amber-400',
-      subLine: 'Collected from participants before the auction starts.',
-      groups: prePaymentGroups,
-    });
-  }
 
   if (auction.schedule?.startTime || auctionStartGroups.length > 0) {
     policyStages.push({
@@ -289,17 +258,6 @@ export default function AuctionViewPage() {
       dotClassName: 'bg-violet-500',
       textClassName: 'text-violet-600 dark:text-violet-400',
       groups: winnerGroups,
-    });
-  }
-
-  if (postPaymentGroups.length > 0) {
-    policyStages.push({
-      id: 'post-payment',
-      label: 'Post Payment',
-      dotClassName: 'bg-rose-500',
-      textClassName: 'text-rose-600 dark:text-rose-400',
-      subLine: 'Collected from the winner after the auction closes.',
-      groups: postPaymentGroups,
     });
   }
 
@@ -618,8 +576,8 @@ export default function AuctionViewPage() {
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-foreground">No policies configured</p>
                   <p className="text-xs text-muted-foreground max-w-sm">
-                    This auction doesn&apos;t have any policy groups yet. Add participation,
-                    payment, and winner-determination rules so the auction knows how to run.
+                    This auction doesn&apos;t have any policies configured yet. Add precondition,
+                    extension, and winner-determination rules so the auction knows how to run.
                   </p>
                 </div>
                 <Button

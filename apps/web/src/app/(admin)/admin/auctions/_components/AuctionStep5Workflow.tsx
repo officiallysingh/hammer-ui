@@ -29,11 +29,10 @@ import {
   PropertyDef,
 } from '@repo/api';
 import { DismissibleError, FieldError } from './AuctionShared';
-import { SELECT_CLS, resolveStr, fmtLabel } from './PolicyShared';
+import { SELECT_CLS, resolveStr, fmtLabel, categoryForPolicyType } from './PolicyShared';
 import { PolicyItemCard } from './PolicyEvaluationDisplay';
 import { AddStepDialog } from './AddStepDialog';
 import { EditStepDialog } from './EditStepDialog';
-import { isPostPayment, isPrePayment } from './policyGroups';
 import Tip from '@/components/common/admin/Tip';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import { parseApiError } from '@/lib/api-errors';
@@ -221,7 +220,6 @@ function WorkflowStepCard({
   index,
   dragHandleProps,
   isDragTarget,
-  prePaymentPolicies,
   participationPolicies,
   evaluationsByPolicyId,
   onEdit,
@@ -232,7 +230,6 @@ function WorkflowStepCard({
   index: number;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
   isDragTarget?: boolean;
-  prePaymentPolicies?: PolicyItemRQ[];
   participationPolicies?: PolicyItemRQ[];
   evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
   onEdit?: () => void;
@@ -395,11 +392,9 @@ function WorkflowStepCard({
               </div>
             )}
 
-          {/* Step-level policies — payment/participation steps fall back to the auction's
-              pre-payment / participation policies when the step itself doesn't carry an
-              embedded policy. */}
+          {/* Step-level policies — the participation step falls back to the auction's
+              participation policy when the step itself doesn't carry an embedded policy. */}
           {(() => {
-            const isPaymentStep = resolveStr(step.type) === 'PAYMENT_STEP';
             const isParticipationStep =
               resolveStr(step.type) === 'PARTICIPATION_STEP' ||
               (participationPolicies ?? []).some((p) => p.name && p.name === step.name);
@@ -412,11 +407,9 @@ function WorkflowStepCard({
             const policiesToShow =
               embeddedPolicies.length > 0
                 ? embeddedPolicies
-                : isPaymentStep
-                  ? (prePaymentPolicies ?? [])
-                  : isParticipationStep
-                    ? (participationPolicies ?? [])
-                    : [];
+                : isParticipationStep
+                  ? (participationPolicies ?? [])
+                  : [];
             if (policiesToShow.length === 0) return null;
             return (
               <div className="mt-1.5 space-y-1">
@@ -462,48 +455,6 @@ function WorkflowStepCard({
   );
 }
 
-// ── Post-payment block ────────────────────────────────────────────────────────
-
-function PostPaymentBlock({
-  auctionId,
-  policies,
-  evaluationsByPolicyId,
-}: {
-  auctionId: string;
-  policies: PolicyItemRQ[];
-  evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
-}) {
-  return (
-    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-emerald-500/20">
-        <CreditCard className="h-4 w-4 text-emerald-600" />
-        <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-          Post Payment
-        </span>
-        <span className="text-xs text-muted-foreground ml-1">
-          — collected after auction completes
-        </span>
-      </div>
-      <div className="px-4 py-3 space-y-2">
-        {policies.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No post-payment policies configured.</p>
-        ) : (
-          policies.map((item, i) => (
-            <PolicyItemCard
-              key={item.id ?? i}
-              auctionId={auctionId}
-              policyId={item.id}
-              name={item.name}
-              type={item.type}
-              evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
-            />
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ── Reorder constraint ─────────────────────────────────────────────────────────
 // The pre-payment step and the bank-details step must stay next to each other —
 // bank details are collected for refunding that payment, so the two shouldn't drift
@@ -537,8 +488,6 @@ export function AuctionStep5Workflow({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<'schedule' | 'publish' | null>(null);
   const [workflow, setWorkflow] = useState<AuctionWorkflowStep[]>([]);
-  const [postPaymentPolicies, setPostPaymentPolicies] = useState<PolicyItemRQ[]>([]);
-  const [prePaymentPolicies, setPrePaymentPolicies] = useState<PolicyItemRQ[]>([]);
   const [participationPolicies, setParticipationPolicies] = useState<PolicyItemRQ[]>([]);
   const [evaluationsByPolicyId, setEvaluationsByPolicyId] = useState<
     Record<string, PolicyEvaluationMap>
@@ -584,17 +533,14 @@ export function AuctionStep5Workflow({
       .then(([wf, pol]) => {
         if (!mounted) return;
         setWorkflow(wf);
-        // Policies flagged postPayment: true are collected after the auction ends —
-        // shown in a trailing block regardless of which group they belong to.
-        const allItems = Object.values(pol ?? {}).flat();
-        setPostPaymentPolicies(allItems.filter(isPostPayment));
-        setPrePaymentPolicies(allItems.filter(isPrePayment));
+        const allItems = pol ?? [];
         // The implicit Participation step doesn't embed its own policy on the workflow
-        // step object — fall back to the PARTICIPATION group from the policies endpoint,
-        // same as pre/post payment above.
-        setParticipationPolicies(pol?.['PARTICIPATION'] ?? []);
+        // step object — fall back to the participation policy from the policies endpoint.
+        setParticipationPolicies(
+          allItems.filter((p) => categoryForPolicyType(p.type) === 'PARTICIPATION'),
+        );
 
-        // Evaluate every saved policy (workflow-embedded + pre/post payment) by id.
+        // Evaluate every saved policy (workflow-embedded + auction-level) by id.
         const policyIds = Array.from(
           new Set(
             [...wf.flatMap((s) => s.policies ?? []), ...allItems]
@@ -813,7 +759,6 @@ export function AuctionStep5Workflow({
                     step={step}
                     index={i}
                     isDragTarget={dragOverIdx === i}
-                    prePaymentPolicies={prePaymentPolicies}
                     participationPolicies={participationPolicies}
                     evaluationsByPolicyId={evaluationsByPolicyId}
                     onEdit={() => setEditingStep(step)}
@@ -828,17 +773,6 @@ export function AuctionStep5Workflow({
               ))
             )}
           </div>
-
-          {/* Post-payment block — shown whenever policies are flagged postPayment: true */}
-          {!loading && postPaymentPolicies.length > 0 && (
-            <div className="border-t border-border px-4 pb-4 pt-3">
-              <PostPaymentBlock
-                auctionId={auctionId}
-                policies={postPaymentPolicies}
-                evaluationsByPolicyId={evaluationsByPolicyId}
-              />
-            </div>
-          )}
         </div>
       )}
 

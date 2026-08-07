@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
+import type { PolicyItemRQ } from '@repo/api';
 import { resolveStr as resolveStrShared } from '@/components/common/admin/format';
 
 // Re-export the shared resolveStr under the same local name so existing
@@ -68,58 +69,81 @@ export const POLICY_DEFAULTS: Record<string, { name: string; description: string
   },
 };
 
-// Pre-payment (AUCTION_START_TIME) fee head types
-export const PAYMENT_HEAD_TYPE_OPTIONS_PRE: { value: string; label: string }[] = [
-  { value: 'PLATFORM_FEE', label: 'Platform Fee' },
-  { value: 'PARTICIPATION_FEE', label: 'Participation Fee' },
-  { value: 'EMD', label: 'Earnest Money Deposit (EMD)' },
-  { value: 'OTHER', label: 'Other' },
-];
+/** The backend's flat policy-types-per-auction-type endpoint returns individual
+ *  type codes with no grouping. The UI still shows each category (Participation,
+ *  Precondition, Price Progression, Extension, Winner Determination, Winner Price
+ *  Determination) as its own section, so this map recovers that categorisation
+ *  client-side from a type code. */
+export const POLICY_TYPE_CATEGORY: Record<string, string> = {
+  PARTICIPATION_POLICY: 'PARTICIPATION',
+  MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY: 'PRECONDITION',
+  PRICE_PROGRESSION_POLICY: 'PRICE_PROGRESSION',
+  EXTENSION_POLICY: 'EXTENSION',
+  KTH_PRICE_WINNER_DETERMINATION_POLICY: 'WINNER_DETERMINATION',
+  KTH_WINNER_PRICE_DETERMINATION_POLICY: 'WINNER_PRICE_DETERMINATION',
+};
 
-// Post-payment (AUCTION_END_TIME) fee head types
-export const PAYMENT_HEAD_TYPE_OPTIONS_POST: { value: string; label: string }[] = [
-  { value: 'AUCTION_CLEARING_AMOUNT', label: 'Auction Clearing Amount' },
-  { value: 'AUCTION_CLEARING_INSTALLMENT', label: 'Auction Clearing Installment' },
-  { value: 'OTHER', label: 'Other' },
-];
+export function categoryForPolicyType(type: unknown): string {
+  const key = resolveStr(type);
+  return POLICY_TYPE_CATEGORY[key] ?? key;
+}
 
-// Pre-payment (AUCTION_START_TIME) basis options
-export const PAYMENT_HEAD_BASIS_OPTIONS_PRE: { value: string; label: string }[] = [
-  { value: 'FIXED_AMOUNT', label: 'Fixed Amount' },
-  { value: 'PERCENTAGE_OF_OPENING_PRICE', label: 'Percentage of Opening Price' },
-  { value: 'OTHER', label: 'Other' },
-];
-
-// Post-payment (AUCTION_END_TIME) basis options
-export const PAYMENT_HEAD_BASIS_OPTIONS_POST: { value: string; label: string }[] = [
-  { value: 'WINNING_AMOUNT', label: 'Winning Amount' },
-  { value: 'PERCENTAGE_OF_WINNING_PRICE', label: 'Percentage of Winning Price' },
-  { value: 'OTHER', label: 'Other' },
-];
-
-export const PAYMENT_POLICY_NAME_DEFAULTS: Record<
-  'AUCTION_START_TIME' | 'AUCTION_END_TIME',
-  { name: string; description: string }
-> = {
-  AUCTION_START_TIME: {
-    name: 'Pre Payment',
-    description: 'Payment required to participate in auction',
+/** The price-progression sub-policy (window) types aren't part of the flat
+ *  per-auction-type policy list — they're a fixed, small enum nested inside
+ *  the PRICE_PROGRESSION_POLICY wrapper, so they're kept as a static list here. */
+export const PRICE_CHANGE_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'STEP_BASED_OFFER_PRICE_POLICY', label: 'Step Based Offer Price' },
+  {
+    value: 'FIXED_PERCENTAGE_BASED_OFFER_PRICE_POLICY',
+    label: 'Fixed Percentage Based Offer Price',
   },
-  AUCTION_END_TIME: {
-    name: 'Winning payment',
-    description: 'Winning amount payment',
+  {
+    value: 'PERCENTAGE_RANGE_BASED_OFFER_PRICE_POLICY',
+    label: 'Percentage Range Based Offer Price',
   },
+  { value: 'CLOCK_BASED_PRICE_CHANGE_POLICY', label: 'Clock Based Price Change' },
+];
+
+export const POLICY_CATEGORY_DESCRIPTIONS: Record<string, string> = {
+  PARTICIPATION: 'Rules governing who can register and how their eligibility is verified',
+  PRECONDITION: 'Conditions that must hold for the auction to proceed',
+  PRICE_PROGRESSION: 'How the bid price moves over the lifetime of the auction',
+  EXTENSION: 'How the end time extends when late bids arrive',
+  WINNER_DETERMINATION: 'How the winning bid is selected',
+  WINNER_PRICE_DETERMINATION: 'How the final price paid by the winner is calculated',
 };
 
-export const PAYMENT_HEAD_DEFAULT: { name: string; description: string } = {
-  name: 'EMD',
-  description: 'Earnest money deposit',
-};
+/** Canonical display order for policy categories — used everywhere a flat
+ *  `PolicyItemRQ[]` needs to be grouped back into named sections. */
+const POLICY_CATEGORY_ORDER = [
+  'PARTICIPATION',
+  'PRECONDITION',
+  'PRICE_PROGRESSION',
+  'EXTENSION',
+  'WINNER_DETERMINATION',
+  'WINNER_PRICE_DETERMINATION',
+];
 
-export const PAYMENT_HEAD_DEFAULT_POST: { name: string; description: string } = {
-  name: 'Winning payment',
-  description: 'Winning amount payment',
-};
+/** Groups a flat policies array back into `[categoryKey, items]` pairs, in
+ *  canonical category order (unknown categories trail, in first-seen order). */
+export function groupPoliciesByCategory(items: PolicyItemRQ[]): [string, PolicyItemRQ[]][] {
+  const byCategory = new Map<string, PolicyItemRQ[]>();
+  for (const item of items) {
+    const category = categoryForPolicyType(item.type);
+    const bucket = byCategory.get(category);
+    if (bucket) bucket.push(item);
+    else byCategory.set(category, [item]);
+  }
+  const ordered: [string, PolicyItemRQ[]][] = [];
+  for (const key of POLICY_CATEGORY_ORDER) {
+    const bucket = byCategory.get(key);
+    if (bucket) ordered.push([key, bucket]);
+  }
+  for (const [key, bucket] of byCategory) {
+    if (!POLICY_CATEGORY_ORDER.includes(key)) ordered.push([key, bucket]);
+  }
+  return ordered;
+}
 
 export function PolicyInfoButton({ description }: { description: string }) {
   const [open, setOpen] = useState(false);

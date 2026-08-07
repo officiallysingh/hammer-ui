@@ -14,6 +14,7 @@ import {
   Mail,
   Phone,
   HelpCircle,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   Button,
@@ -56,7 +57,7 @@ function detectIdentity(value: string): IdentityType {
 // Moved to ./TextCaptcha.tsx — import TextCaptcha from there.
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type LoginStep = 'identity' | 'password' | 'otp';
+type LoginStep = 'identity' | 'password' | 'otp' | 'forgot' | 'forgot_otp' | 'forgot_done';
 type SignupStep = 'initial' | 'email_otp' | 'mobile' | 'mobile_otp' | 'details';
 
 interface AuthFormProps {
@@ -161,6 +162,11 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState('');
+
+  // ── Forgot password state (UI-only — no reset API yet) ────────────────────
+  const [forgotIdentifier, setForgotIdentifier] = useState('');
+  const [forgotIdentifierError, setForgotIdentifierError] = useState<string | null>(null);
+  const [forgotOtp, setForgotOtp] = useState('');
 
   // ── Signup state ───────────────────────────────────────────────────────────
   const [signupStep, setSignupStep] = useState<SignupStep>('initial');
@@ -286,6 +292,42 @@ export function AuthForm({ mode }: AuthFormProps) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // ─── LOGIN: Forgot password (UI-only fake flow — no reset API yet) ───────
+  const handleForgotPasswordClick = () => {
+    setError(null);
+    setForgotIdentifier(loginIdentifier);
+    setForgotIdentifierError(null);
+    setForgotOtp('');
+    setLoginStep('forgot');
+  };
+
+  const handleSendForgotOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setError(null);
+    setForgotIdentifierError(null);
+    if (!forgotIdentifier.trim()) {
+      setForgotIdentifierError('Please enter your username, email, or mobile number.');
+      return;
+    }
+    setIsLoading(true);
+    // No reset-password API yet — simulate sending an OTP.
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    setLoginStep('forgot_otp');
+    setResendCooldown(OTP_RESEND_COOLDOWN_SEC);
+    setForgotOtp('');
+    setIsLoading(false);
+  };
+
+  const handleVerifyForgotOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsLoading(true);
+    // No reset-password API yet — simulate verifying the OTP.
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    setLoginStep('forgot_done');
+    setIsLoading(false);
   };
 
   // ─── SIGNUP handlers (unchanged logic) ────────────────────────────────────
@@ -476,6 +518,152 @@ export function AuthForm({ mode }: AuthFormProps) {
     );
   }
 
+  // ─── LOGIN: Forgot password — identity step ───────────────────────────────
+  if (mode === 'login' && loginStep === 'forgot') {
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div
+          key="forgot"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          transition={{ duration: 0.25 }}
+          className="space-y-6"
+        >
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={() => {
+                setLoginStep('password');
+                setError(null);
+              }}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mb-3"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" /> Back
+            </button>
+            <h3 className="text-xl font-semibold text-foreground">Reset your password</h3>
+            <p className="text-sm text-muted-foreground">
+              Enter your username, email, or mobile number and we&apos;ll send you a one-time code
+              to verify it&apos;s you.
+            </p>
+          </div>
+
+          {error && (
+            <div className="py-2 px-3 bg-destructive/10 text-destructive text-sm rounded-md">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSendForgotOtp} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="forgot-identity"
+                className={forgotIdentifierError ? 'text-destructive' : ''}
+              >
+                Username, email or mobile
+              </Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="forgot-identity"
+                  type="text"
+                  placeholder="Enter username, email or 10-digit mobile"
+                  value={forgotIdentifier}
+                  onChange={(e) => {
+                    setForgotIdentifier(e.target.value);
+                    if (forgotIdentifierError) setForgotIdentifierError(null);
+                  }}
+                  className={`pl-9 ${forgotIdentifierError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                  autoComplete="username"
+                  autoFocus
+                />
+              </div>
+              {forgotIdentifierError && (
+                <p className="text-sm font-medium text-destructive">{forgotIdentifierError}</p>
+              )}
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full h-11 text-base font-medium"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending code...
+                </>
+              ) : (
+                <>
+                  Send OTP <ArrowRight className="ml-2 h-4 w-4" />
+                </>
+              )}
+            </Button>
+          </form>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
+
+  // ─── LOGIN: Forgot password — OTP step ────────────────────────────────────
+  if (mode === 'login' && loginStep === 'forgot_otp') {
+    return (
+      <OtpBlock
+        title="Verify your identity"
+        subtitle={`We've sent a 6-digit code to ${forgotIdentifier}`}
+        otp={forgotOtp}
+        onOtpChange={setForgotOtp}
+        error={error}
+        isLoading={isLoading}
+        resendCooldown={resendCooldown}
+        onSubmit={handleVerifyForgotOtp}
+        onResend={handleSendForgotOtp}
+      />
+    );
+  }
+
+  // ─── LOGIN: Forgot password — done ─────────────────────────────────────────
+  if (mode === 'login' && loginStep === 'forgot_done') {
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div
+          key="forgot-done"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          transition={{ duration: 0.25 }}
+          className="space-y-6 text-center"
+        >
+          <div className="flex justify-center">
+            <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
+              <CheckCircle2 className="h-7 w-7 text-primary" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-semibold text-foreground">Code verified</h3>
+            <p className="text-sm text-muted-foreground">
+              We&apos;ve sent password reset instructions to {forgotIdentifier}. Follow them to set
+              a new password.
+            </p>
+          </div>
+          <Button
+            type="button"
+            className="w-full h-11 text-base font-medium"
+            onClick={() => {
+              setLoginStep('identity');
+              setPassword('');
+              setForgotIdentifier('');
+              setForgotOtp('');
+              setError(null);
+            }}
+          >
+            Back to Sign In
+          </Button>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
+
   // ─── LOGIN: Step 2 — password / OTP ───────────────────────────────────────
   if (mode === 'login' && loginStep === 'password') {
     const canUseOtp = identityType === 'email' || identityType === 'mobile';
@@ -525,12 +713,13 @@ export function AuthForm({ mode }: AuthFormProps) {
                 <Label htmlFor="login-password" className={passwordError ? 'text-destructive' : ''}>
                   Password
                 </Label>
-                <a
-                  href="#"
+                <button
+                  type="button"
+                  onClick={handleForgotPasswordClick}
                   className="text-xs text-muted-foreground hover:text-primary transition-colors"
                 >
                   Forgot password?
-                </a>
+                </button>
               </div>
               <div className="relative">
                 <Input

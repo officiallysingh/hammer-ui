@@ -151,8 +151,12 @@ export default function NewAuctionPage() {
         return {
           type: 'SINGLE_UNIT' as AuctionUnitType,
           openingPrice: parseFloat(step2.openingPrice),
-          item: step2.item,
-          quantity: parseInt(step2.itemQuantity || '1', 10),
+          item: {
+            id: step2.items[0] ?? '',
+            name: step2.itemName || step2.itemSummary?.name || '',
+            description: step2.itemSummary?.description || undefined,
+            quantity: parseInt(step2.itemQuantity || '1', 10),
+          },
         };
       }
       return {
@@ -278,9 +282,9 @@ export default function NewAuctionPage() {
     }
     setSavingStep3(true);
     try {
-      const policies = buildPolicies(step3, step1.currencyUnit || 'INR');
-      if (Object.keys(policies).length > 0) {
-        await auctionsApi.setAuctionPolicyGroups(createdAuctionId, policies);
+      const policies = buildPolicies(step3);
+      if (policies.length > 0) {
+        await auctionsApi.setAuctionPolicies(createdAuctionId, policies);
       }
       setStep(4);
     } catch (err) {
