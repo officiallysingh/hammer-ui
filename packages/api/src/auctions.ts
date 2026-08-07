@@ -20,6 +20,8 @@ export interface AuctionSchedule {
   endTime?: string;
 }
 
+export type PaymentPhase = 'PRE_PAYMENT' | 'POST_PAYMENT';
+
 export interface AuctionWorkflowStep {
   id: string;
   type?: string | Record<string, string>;
@@ -34,6 +36,11 @@ export interface AuctionWorkflowStep {
     typeId?: string;
     properties?: PropertyDef[];
   };
+  /** PAYMENT_STEP fields — a workflow can carry multiple, one per phase or more. */
+  mode?: string | Record<string, string>;
+  phase?: PaymentPhase | Record<string, string>;
+  offset?: string;
+  heads?: PolicyHeadRQ[];
   implicit?: boolean;
   status?: {
     type?: string | Record<string, string>;
@@ -269,7 +276,22 @@ export interface AddBankDetailFormStepRQ {
   order?: number;
 }
 
-export type AddWorkflowStepRQ = AddFormStepRQ | AddTnCFormStepRQ | AddBankDetailFormStepRQ;
+export interface AddPaymentStepRQ {
+  type: 'PAYMENT_STEP';
+  name?: string;
+  description?: string;
+  order?: number;
+  mode: string;
+  phase: PaymentPhase;
+  offset: string;
+  heads: PolicyHeadRQ[];
+}
+
+export type AddWorkflowStepRQ =
+  | AddFormStepRQ
+  | AddTnCFormStepRQ
+  | AddBankDetailFormStepRQ
+  | AddPaymentStepRQ;
 
 export type AuctionPoliciesRQ = PolicyItemRQ[];
 

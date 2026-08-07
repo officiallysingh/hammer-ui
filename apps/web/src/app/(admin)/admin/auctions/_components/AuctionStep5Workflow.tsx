@@ -29,7 +29,13 @@ import {
   PropertyDef,
 } from '@repo/api';
 import { DismissibleError, FieldError } from './AuctionShared';
-import { SELECT_CLS, resolveStr, fmtLabel, categoryForPolicyType } from './PolicyShared';
+import {
+  SELECT_CLS,
+  resolveStr,
+  fmtLabel,
+  categoryForPolicyType,
+  parseOffsetDuration,
+} from './PolicyShared';
 import { PolicyItemCard } from './PolicyEvaluationDisplay';
 import { AddStepDialog } from './AddStepDialog';
 import { EditStepDialog } from './EditStepDialog';
@@ -130,6 +136,74 @@ function StepTypeIcon({ type, className }: { type?: unknown; className?: string 
     default:
       return <FileText className={className} />;
   }
+}
+
+/** PAYMENT_STEP has no distinct type label of its own — "Pre Payment"/"Post Payment"
+ *  come from its `phase` field instead. */
+function stepDisplayName(step: AuctionWorkflowStep, index: number): string {
+  if (step.name) return step.name;
+  if (resolveStr(step.type) === 'PAYMENT_STEP') {
+    return resolveStr(step.phase) === 'PRE_PAYMENT' ? 'Pre Payment' : 'Post Payment';
+  }
+  return fmtLabel(step.type) || `Step ${index + 1}`;
+}
+
+function formatOffsetLabel(iso?: string): string {
+  const { days, hours, minutes } = parseOffsetDuration(iso);
+  const parts = [
+    Number(days) > 0 ? `${days}d` : null,
+    Number(hours) > 0 ? `${hours}h` : null,
+    Number(minutes) > 0 ? `${minutes}m` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(' ') : '0m';
+}
+
+// ── Payment step (view-only) — mode/offset/heads collected by PAYMENT_STEP ────
+
+function PaymentStepPreview({ step }: { step: AuctionWorkflowStep }) {
+  const phase = resolveStr(step.phase);
+  return (
+    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3 text-xs">
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        <span className="text-muted-foreground">
+          Phase:{' '}
+          <span className="text-foreground font-medium">
+            {phase === 'PRE_PAYMENT' ? 'Pre Payment' : 'Post Payment'}
+          </span>
+        </span>
+        {step.mode && (
+          <span className="text-muted-foreground">
+            Mode: <span className="text-foreground font-medium">{fmtLabel(step.mode)}</span>
+          </span>
+        )}
+        <span className="text-muted-foreground">
+          Offset:{' '}
+          <span className="text-foreground font-medium">{formatOffsetLabel(step.offset)}</span>
+        </span>
+      </div>
+      {(step.heads?.length ?? 0) > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {step.heads!.map((h, i) => (
+            <div key={i} className="rounded-md border border-border/50 bg-muted/20 px-2.5 py-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium text-foreground">{h.name}</span>
+                <span className="text-muted-foreground">
+                  {h.value}
+                  {h.basis === 'PERCENTAGE_BASED' ? '%' : ''}
+                </span>
+              </div>
+              {h.description && <p className="text-muted-foreground mt-0.5">{h.description}</p>}
+              {h.refundable && (
+                <span className="inline-block mt-1 rounded-full bg-emerald-500/10 text-emerald-600 px-1.5 py-0.5 text-[10px]">
+                  Refundable
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Bank details (view-only) — fixed schema collected by BANK_DETAIL_FORM_STEP ─
@@ -280,9 +354,9 @@ function WorkflowStepCard({
         {/* Name */}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-foreground truncate">
-            {step.name ?? fmtLabel(step.type) ?? `Step ${index + 1}`}
+            {stepDisplayName(step, index)}
           </p>
-          {step.type && fmtLabel(step.type) !== step.name && (
+          {step.type && fmtLabel(step.type) !== stepDisplayName(step, index) && (
             <p className="text-[10px] text-muted-foreground truncate">{fmtLabel(step.type)}</p>
           )}
         </div>
@@ -371,6 +445,16 @@ function WorkflowStepCard({
             </div>
           )}
 
+          {/* Payment step — mode/phase/offset/heads, view-only */}
+          {resolveStr(step.type) === 'PAYMENT_STEP' && (
+            <div className="mt-1.5 space-y-1">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                Payment
+              </p>
+              <PaymentStepPreview step={step} />
+            </div>
+          )}
+
           {/* Bank details — fixed schema, view-only */}
           {resolveStr(step.type) === 'BANK_DETAIL_FORM_STEP' && (
             <div className="mt-1.5 space-y-1">
@@ -456,24 +540,19 @@ function WorkflowStepCard({
 }
 
 // ── Reorder constraint ─────────────────────────────────────────────────────────
-// The pre-payment step and the bank-details step must stay next to each other —
-// bank details are collected for refunding that payment, so the two shouldn't drift
-// apart in the list. Either can lead (bank-before-payment or bank-after-payment);
-// only their adjacency is enforced.
+// A Pre Payment step with a refundable head requires a Bank Detail step to be
+// positioned before it (bank details are needed to issue that refund). Non-refundable
+// pre-payments and post-payments carry no such requirement.
 
-function enforcePaymentBankAdjacency(list: AuctionWorkflowStep[]): AuctionWorkflowStep[] {
-  const paymentIdx = list.findIndex((s) => resolveStr(s.type) === 'PAYMENT_STEP');
+function violatesBankBeforeRefundablePayment(list: AuctionWorkflowStep[]): boolean {
   const bankIdx = list.findIndex((s) => resolveStr(s.type) === 'BANK_DETAIL_FORM_STEP');
-  if (paymentIdx === -1 || bankIdx === -1 || Math.abs(paymentIdx - bankIdx) === 1) {
-    return list;
-  }
-  const bankWasBefore = bankIdx < paymentIdx;
-  const next = [...list];
-  const [bankStep] = next.splice(bankIdx, 1);
-  const newPaymentIdx = next.findIndex((s) => resolveStr(s.type) === 'PAYMENT_STEP');
-  const insertAt = bankWasBefore ? newPaymentIdx : newPaymentIdx + 1;
-  next.splice(insertAt, 0, bankStep!);
-  return next;
+  return list.some((s, i) => {
+    if (resolveStr(s.type) !== 'PAYMENT_STEP' || resolveStr(s.phase) !== 'PRE_PAYMENT') {
+      return false;
+    }
+    if (!(s.heads ?? []).some((h) => h.refundable)) return false;
+    return bankIdx === -1 || bankIdx > i;
+  });
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -623,7 +702,13 @@ export function AuctionStep5Workflow({
     const next = [...workflow];
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved!);
-    handleReorder(enforcePaymentBankAdjacency(next));
+    if (violatesBankBeforeRefundablePayment(next)) {
+      setReorderError(
+        'A refundable Pre Payment step must have its Bank Detail step positioned before it.',
+      );
+      return;
+    }
+    handleReorder(next);
   };
 
   // Schedule compute

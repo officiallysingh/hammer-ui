@@ -282,6 +282,81 @@ export function DayHourDropdowns({
   );
 }
 
+/** Builds an ISO-8601 duration (e.g. "P1DT2H3M") from day/hour/minute parts,
+ *  matching what `java.time.Duration.parse` accepts on the backend. */
+export function formatOffsetDuration(days: string, hours: string, minutes: string): string {
+  const d = parseInt(days || '0', 10) || 0;
+  const h = parseInt(hours || '0', 10) || 0;
+  const m = parseInt(minutes || '0', 10) || 0;
+  return `P${d}DT${h}H${m}M`;
+}
+
+/** Inverse of {@link formatOffsetDuration} — tolerant of missing components. */
+export function parseOffsetDuration(iso?: string): {
+  days: string;
+  hours: string;
+  minutes: string;
+} {
+  const match = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?)?$/.exec(iso ?? '');
+  return {
+    days: match?.[1] ?? '0',
+    hours: match?.[2] ?? '0',
+    minutes: match?.[3] ?? '0',
+  };
+}
+
+export function DayHourMinuteFields({
+  daysValue,
+  hoursValue,
+  minutesValue,
+  onDaysChange,
+  onHoursChange,
+  onMinutesChange,
+  label,
+}: {
+  daysValue: string;
+  hoursValue: string;
+  minutesValue: string;
+  onDaysChange: (v: string) => void;
+  onHoursChange: (v: string) => void;
+  onMinutesChange: (v: string) => void;
+  label?: string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      {label && <Label className="text-xs font-medium">{label}</Label>}
+      <div className="grid grid-cols-3 gap-2">
+        <Input
+          type="number"
+          min={0}
+          value={daysValue}
+          onChange={(e) => onDaysChange(e.target.value)}
+          placeholder="Days"
+          className="text-sm"
+        />
+        <Input
+          type="number"
+          min={0}
+          max={23}
+          value={hoursValue}
+          onChange={(e) => onHoursChange(e.target.value)}
+          placeholder="Hours"
+          className="text-sm"
+        />
+        <Input
+          type="number"
+          min={0}
+          max={59}
+          value={minutesValue}
+          onChange={(e) => onMinutesChange(e.target.value)}
+          placeholder="Minutes"
+          className="text-sm"
+        />
+      </div>
+    </div>
+  );
+}
+
 export function NameDescriptionFields({
   name,
   description,
