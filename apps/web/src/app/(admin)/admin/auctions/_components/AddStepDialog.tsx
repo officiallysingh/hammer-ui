@@ -68,6 +68,13 @@ export function AddStepDialog({
   const [mode, setMode] = useState<AddStepMode>('choose');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // True when the last submitPaymentStep failure was specifically "needs a Bank
+  // Detail step first" — offers a one-click way into the Bank Detail step's own form.
+  const [needsBankDetailStep, setNeedsBankDetailStep] = useState(false);
+  // Set while walking the "add Bank Detail step first" detour from the Payment step
+  // form — remembers which phase to return to (with its already-filled fields intact)
+  // once the admin explicitly submits the Bank Detail step form.
+  const [pendingPaymentPhase, setPendingPaymentPhase] = useState<PaymentPhase | null>(null);
 
   // Shared order field (used by FORM_STEP, TNC_FORM_STEP and BANK_DETAIL_FORM_STEP)
   const [selectedOrder, setSelectedOrder] = useState(nextOrder);
@@ -125,6 +132,8 @@ export function AddStepDialog({
   const reset = () => {
     setMode('choose');
     setError(null);
+    setNeedsBankDetailStep(false);
+    setPendingPaymentPhase(null);
     setFormQuery('');
     setFormResults([]);
     setSelectedType(null);
@@ -201,8 +210,10 @@ export function AddStepDialog({
       return min === null || order < min ? order : min;
     }, null);
 
-  // Order dropdown — positions 1..nextOrder (insert at any position).
-  const orderOptions = Array.from({ length: nextOrder }, (_, i) => i + 1);
+  // Order dropdown — positions 1..nextOrder (insert at any position). Extended to
+  // cover `selectedOrder` too: when returning to the Payment step form after the
+  // Bank Detail detour below, its order is bumped past the original `nextOrder`.
+  const orderOptions = Array.from({ length: Math.max(nextOrder, selectedOrder) }, (_, i) => i + 1);
 
   const OrderField = () => (
     <div className="space-y-1.5">
@@ -312,7 +323,17 @@ export function AddStepDialog({
         order: selectedOrder,
       } as Parameters<typeof auctionsApi.addWorkflowStep>[1]);
       onAdded();
-      close();
+      if (pendingPaymentPhase) {
+        // Came from the Payment step's "needs Bank Detail first" detour — return to
+        // that (still-filled) form, now one position later since Bank Detail took
+        // this slot, so the admin can review and explicitly submit it themselves.
+        const phase = pendingPaymentPhase;
+        setPendingPaymentPhase(null);
+        setSelectedOrder((o) => o + 1);
+        setMode(phase === 'PRE_PAYMENT' ? 'PRE_PAYMENT_STEP' : 'POST_PAYMENT_STEP');
+      } else {
+        close();
+      }
     } catch (err) {
       const parsed = parseApiError(err);
       setError(parsed.general ?? 'Failed to add step.');
@@ -327,6 +348,7 @@ export function AddStepDialog({
     setHeads((prev) => prev.map((h, idx) => (idx === i ? { ...h, ...patch } : h)));
 
   const submitPaymentStep = async (phase: PaymentPhase) => {
+    setNeedsBankDetailStep(false);
     if (!paymentModeValue) {
       setError('Please select a payment mode.');
       return;
@@ -342,8 +364,14 @@ export function AddStepDialog({
         (s) => resolveStr(s.type) === 'BANK_DETAIL_FORM_STEP' && (s.order ?? 0) < selectedOrder,
       )
     ) {
+      // Only offer the one-click fix when no Bank Detail step exists yet — if one
+      // already exists but is positioned too late, the fix is repositioning it via
+      // drag-reorder, not adding a second one (only one is ever allowed).
+      if (!hasBankDetailStep) setNeedsBankDetailStep(true);
       setError(
-        'This Pre Payment step has a refundable head — add a Bank Detail step at an earlier position first.',
+        hasBankDetailStep
+          ? 'This Pre Payment step has a refundable head — reposition the Bank Detail step to before it.'
+          : 'This Pre Payment step has a refundable head — add a Bank Detail step at an earlier position first.',
       );
       return;
     }
@@ -390,6 +418,26 @@ export function AddStepDialog({
         </DialogHeader>
 
         <DismissibleError message={error} />
+
+        {needsBankDetailStep && error && (
+          <div className="flex justify-end -mt-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setPendingPaymentPhase(
+                  mode === 'PRE_PAYMENT_STEP' ? 'PRE_PAYMENT' : 'POST_PAYMENT',
+                );
+                setNeedsBankDetailStep(false);
+                setError(null);
+                setMode('BANK_DETAIL_FORM_STEP');
+              }}
+            >
+              Add Bank Detail step now
+            </Button>
+          </div>
+        )}
 
         {mode === 'choose' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2">
@@ -674,10 +722,30 @@ export function AddStepDialog({
               </div>
             </div>
 
+            {pendingPaymentPhase && (
+              <p className="text-xs text-muted-foreground">
+                Your {pendingPaymentPhase === 'PRE_PAYMENT' ? 'Pre' : 'Post'} Payment step details
+                are saved — add this Bank Detail step first, then you&apos;ll return to finish it.
+              </p>
+            )}
+
             <OrderField />
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="ghost" size="sm" onClick={() => setMode('choose')}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (pendingPaymentPhase) {
+                    const phase = pendingPaymentPhase;
+                    setPendingPaymentPhase(null);
+                    setMode(phase === 'PRE_PAYMENT' ? 'PRE_PAYMENT_STEP' : 'POST_PAYMENT_STEP');
+                  } else {
+                    setMode('choose');
+                  }
+                }}
+              >
                 Back
               </Button>
               <Button
