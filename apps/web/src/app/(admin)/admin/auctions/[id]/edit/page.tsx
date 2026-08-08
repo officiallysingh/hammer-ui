@@ -39,6 +39,9 @@ export default function EditAuctionPage() {
 
   const [originalStep1, setOriginalStep1] = useState<Step1State | null>(null);
   const origStep2Ref = useRef({ unitType: '', openingPrice: '', items: [] as string[] });
+  // The auction unit's own id (distinct from its item id(s)) — must be sent back
+  // on update so the backend patches the existing unit instead of creating a new one.
+  const [unitId, setUnitId] = useState<string | undefined>(undefined);
 
   // Step 1
   const [step1, setStep1] = useState<Step1State>({
@@ -142,6 +145,7 @@ export default function EditAuctionPage() {
         // API may return unit as a singular object or as units[] array
         const rawUnit = auction.unit ?? auction.units?.[0];
         if (rawUnit) {
+          setUnitId(rawUnit.id);
           const unitType = resolveStr(rawUnit.type) as AuctionUnitType;
           const isAtomic = unitType === 'SINGLE_UNIT' || unitType === 'BUNDLE';
           const isSingle = unitType === 'SINGLE_UNIT';
@@ -307,6 +311,7 @@ export default function EditAuctionPage() {
     if (step2.unitCategory === 'ATOMIC') {
       if (step2.unitType === 'SINGLE_UNIT') {
         return {
+          id: unitId,
           type: 'SINGLE_UNIT' as AuctionUnitType,
           openingPrice: parseFloat(step2.openingPrice),
           item: {
@@ -318,6 +323,7 @@ export default function EditAuctionPage() {
         };
       }
       return {
+        id: unitId,
         type: 'BUNDLE' as AuctionUnitType,
         openingPrice: parseFloat(step2.openingPrice),
         items: step2.items.map((itemId, i) => ({
@@ -327,6 +333,7 @@ export default function EditAuctionPage() {
       };
     }
     return {
+      id: unitId,
       type: step2.unitType as AuctionUnitType,
       openingPrice: parseFloat(step2.openingPrice),
       items: step2.multiItems.map((itemId) => ({ id: itemId, quantity: 1 })),

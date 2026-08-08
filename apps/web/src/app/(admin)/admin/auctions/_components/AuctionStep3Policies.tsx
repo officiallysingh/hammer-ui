@@ -19,6 +19,7 @@ import {
   buildExtensionItem,
   buildWinnerDeterminationItem,
   buildWinnerPriceDeterminationItem,
+  validatePolicyNames,
 } from './AuctionStep3PolicyMapping';
 import { PolicyParticipationSection } from './PolicyParticipationSection';
 import { PolicyPreconditionsSection, PreconditionFields } from './PolicyPreconditionsSection';
@@ -216,6 +217,10 @@ export function AuctionStep3Policies({
   /** Saves a single already-saved policy, refreshes its evaluation, and exits edit mode. */
   const runSave = async (policyId: string | undefined, item: PolicyItemRQ | null) => {
     if (!auctionId || !policyId || !item) return;
+    if (Object.keys(validatePolicyNames(form)).length > 0) {
+      setItemError('Policy name must be unique across all policies.');
+      return;
+    }
     setSavingItem(true);
     setItemError(null);
     try {
@@ -239,6 +244,10 @@ export function AuctionStep3Policies({
    *  edited as one form (PolicyWinnerSection) even though each is its own saved policy. */
   const saveWinnerBoth = async () => {
     if (!auctionId) return;
+    if (Object.keys(validatePolicyNames(form)).length > 0) {
+      setItemError('Policy name must be unique across all policies.');
+      return;
+    }
     setSavingItem(true);
     setItemError(null);
     try {
@@ -481,6 +490,7 @@ export function AuctionStep3Policies({
                 validationMinutes={form.participationValidationMinutes}
                 onValidationMinutesChange={(v) => onChange({ participationValidationMinutes: v })}
                 groupDescription={getGroupDescription('PARTICIPATION')}
+                nameError={fieldErrors['participationName']}
               />
               {editingKey === 'participation' && (
                 <SaveCancelBar

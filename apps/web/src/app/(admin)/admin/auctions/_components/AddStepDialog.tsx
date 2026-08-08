@@ -110,7 +110,13 @@ export function AddStepDialog({
     ) {
       auctionsApi
         .getPaymentModes()
-        .then(setPaymentModes)
+        .then((modes) => {
+          setPaymentModes(modes);
+          if (!paymentModeValue) {
+            const online = modes.find((m) => /online/i.test(m.value) || /online/i.test(m.label));
+            if (online) setPaymentModeValue(online.value);
+          }
+        })
         .catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -716,20 +722,25 @@ export function AddStepDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="paymentMode">Payment mode</Label>
-              <select
-                id="paymentMode"
-                value={paymentModeValue}
-                onChange={(e) => setPaymentModeValue(e.target.value)}
-                className={SELECT_CLS}
-              >
-                <option value="">Select mode...</option>
+              <Label>Payment mode</Label>
+              <div className="flex flex-wrap gap-4 pt-1">
                 {paymentModes.map((m) => (
-                  <option key={m.value} value={m.value}>
+                  <label
+                    key={m.value}
+                    className="flex items-center gap-2 text-sm text-foreground cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name="paymentMode"
+                      value={m.value}
+                      checked={paymentModeValue === m.value}
+                      onChange={() => setPaymentModeValue(m.value)}
+                      className="h-4 w-4 border-input text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
                     {m.label}
-                  </option>
+                  </label>
                 ))}
-              </select>
+              </div>
             </div>
 
             <DayHourMinuteFields

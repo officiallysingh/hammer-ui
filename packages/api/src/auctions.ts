@@ -70,6 +70,7 @@ export interface AuctionItemBody {
 }
 
 export interface AuctionUnitBody {
+  id?: string; // present when updating an existing unit
   type: AuctionUnitType;
   openingPrice: number;
   item?: AuctionItemBody; // SINGLE_UNIT

@@ -85,8 +85,9 @@ function WinnerBlock({
                 value={name ?? ''}
                 onChange={(e) => onFieldChange(`${fieldPrefix}Name`, e.target.value)}
                 placeholder="Policy name"
-                className="text-sm"
+                className={`text-sm ${fieldErrors[`${fieldPrefix}Name`] ? 'border-destructive focus-visible:ring-destructive' : ''}`}
               />
+              <FieldError message={fieldErrors[`${fieldPrefix}Name`]} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Description</Label>

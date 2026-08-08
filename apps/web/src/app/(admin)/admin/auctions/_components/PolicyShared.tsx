@@ -305,6 +305,10 @@ export function parseOffsetDuration(iso?: string): {
   };
 }
 
+/** Select-dropdown styling shared with the Price Progression window's Time Window fields. */
+const OFFSET_SELECT_CLS =
+  'w-20 rounded-md border border-input bg-background px-2 py-[7px] text-sm focus:outline-none focus:ring-2 focus:ring-ring';
+
 export function DayHourMinuteFields({
   daysValue,
   hoursValue,
@@ -325,33 +329,43 @@ export function DayHourMinuteFields({
   return (
     <div className="space-y-1.5">
       {label && <Label className="text-xs font-medium">{label}</Label>}
-      <div className="grid grid-cols-3 gap-2">
-        <Input
-          type="number"
-          min={0}
+      <div className="flex items-center gap-2 flex-wrap">
+        <select
           value={daysValue}
           onChange={(e) => onDaysChange(e.target.value)}
-          placeholder="Days"
-          className="text-sm"
-        />
-        <Input
-          type="number"
-          min={0}
-          max={23}
+          className={OFFSET_SELECT_CLS}
+        >
+          {Array.from({ length: 31 }, (_, d) => (
+            <option key={d} value={String(d)}>
+              {d}
+            </option>
+          ))}
+        </select>
+        <span className="text-sm text-muted-foreground">d</span>
+        <select
           value={hoursValue}
           onChange={(e) => onHoursChange(e.target.value)}
-          placeholder="Hours"
-          className="text-sm"
-        />
-        <Input
-          type="number"
-          min={0}
-          max={59}
+          className={OFFSET_SELECT_CLS}
+        >
+          {Array.from({ length: 24 }, (_, h) => (
+            <option key={h} value={String(h)}>
+              {h}
+            </option>
+          ))}
+        </select>
+        <span className="text-sm text-muted-foreground">h</span>
+        <select
           value={minutesValue}
           onChange={(e) => onMinutesChange(e.target.value)}
-          placeholder="Minutes"
-          className="text-sm"
-        />
+          className={OFFSET_SELECT_CLS}
+        >
+          {Array.from({ length: 60 }, (_, m) => (
+            <option key={m} value={String(m)}>
+              {m}
+            </option>
+          ))}
+        </select>
+        <span className="text-sm text-muted-foreground">min</span>
       </div>
     </div>
   );

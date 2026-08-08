@@ -278,26 +278,68 @@ export function mapSavedPolicies(items: PolicyItemRQ[]): Partial<Step3State> {
 
 // ─── validation ────────────────────────────────────────────────────────────────
 
+/** Every named policy currently present in the form, tagged with the field-error
+ *  key it should be reported under. Used to enforce name uniqueness across the
+ *  *whole* policies form, not just within a single section's list. */
+function collectNamedEntries(step3: Step3State): { key: string; name: string }[] {
+  const entries: { key: string; name: string }[] = [];
+
+  if (step3.participationEnabled && step3.participationName) {
+    entries.push({ key: 'participationName', name: step3.participationName });
+  }
+  step3.preconditions.forEach((p, i) => {
+    if (p.name) entries.push({ key: `precondition_name_${i}`, name: p.name });
+  });
+  step3.priceChangePolicies.forEach((p, i) => {
+    if (p.name) entries.push({ key: `priceChange_name_${i}`, name: p.name });
+  });
+  if (step3.extensionEnabled && step3.extensionName) {
+    entries.push({ key: 'extensionName', name: step3.extensionName });
+  }
+  if (step3.winnerDeterminationType && step3.winnerDeterminationName) {
+    entries.push({ key: 'winnerDeterminationName', name: step3.winnerDeterminationName });
+  }
+  if (step3.winnerPriceDeterminationType && step3.winnerPriceDeterminationName) {
+    entries.push({
+      key: 'winnerPriceDeterminationName',
+      name: step3.winnerPriceDeterminationName,
+    });
+  }
+
+  return entries;
+}
+
 /** Marks every duplicate occurrence of a name (by lowercase/trim) with the given error message. */
 function markDuplicateNames(
   errs: Record<string, string>,
-  items: { name: string }[],
-  keyFor: (i: number) => string,
+  entries: { key: string; name: string }[],
   message: string,
 ) {
-  const seen = new Map<string, number[]>();
-  items.forEach((item, i) => {
-    const key = item.name.trim().toLowerCase();
-    if (!key) return;
-    seen.set(key, [...(seen.get(key) ?? []), i]);
+  const seen = new Map<string, string[]>();
+  entries.forEach(({ key, name }) => {
+    const norm = name.trim().toLowerCase();
+    if (!norm) return;
+    seen.set(norm, [...(seen.get(norm) ?? []), key]);
   });
-  for (const indices of seen.values()) {
-    if (indices.length > 1) {
-      indices.forEach((i) => {
-        errs[keyFor(i)] = message;
+  for (const keys of seen.values()) {
+    if (keys.length > 1) {
+      keys.forEach((k) => {
+        errs[k] = message;
       });
     }
   }
+}
+
+/** Name-uniqueness check only — cheap enough to run before saving a single
+ *  already-saved policy inline, without requiring the rest of the form to be complete. */
+export function validatePolicyNames(step3: Step3State): Record<string, string> {
+  const errs: Record<string, string> = {};
+  markDuplicateNames(
+    errs,
+    collectNamedEntries(step3),
+    'Policy name must be unique across all policies.',
+  );
+  return errs;
 }
 
 export function validatePolicies(step3: Step3State): Record<string, string> {
@@ -313,12 +355,6 @@ export function validatePolicies(step3: Step3State): Record<string, string> {
       errs[`precondition_count_${i}`] = 'Minimum participants must be at least 1.';
     }
   });
-  markDuplicateNames(
-    errs,
-    step3.preconditions,
-    (i) => `precondition_name_${i}`,
-    'Precondition name must be unique.',
-  );
 
   step3.priceChangePolicies.forEach((p, i) => {
     if (!p.type) {
@@ -329,12 +365,8 @@ export function validatePolicies(step3: Step3State): Record<string, string> {
       errs[`priceChange_value_${i}`] = 'A positive step value is required.';
     }
   });
-  markDuplicateNames(
-    errs,
-    step3.priceChangePolicies,
-    (i) => `priceChange_name_${i}`,
-    'Price progression window name must be unique.',
-  );
+
+  Object.assign(errs, validatePolicyNames(step3));
 
   return errs;
 }

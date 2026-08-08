@@ -88,8 +88,9 @@ export function PolicyExtensionSection({
                 value={extensionName ?? ''}
                 onChange={(e) => onFieldChange('extensionName', e.target.value)}
                 placeholder="Extension policy name"
-                className="text-sm"
+                className={`text-sm ${fieldErrors['extensionName'] ? 'border-destructive focus-visible:ring-destructive' : ''}`}
               />
+              <FieldError message={fieldErrors['extensionName']} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Description</Label>
