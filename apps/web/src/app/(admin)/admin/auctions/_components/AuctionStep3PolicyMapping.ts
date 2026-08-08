@@ -1,12 +1,6 @@
 import { PolicyItemRQ } from '@repo/api';
-import type {
-  PaymentPolicyItem,
-  PolicyHeadItem,
-  PreconditionItem,
-  PriceChangeItem,
-  Step3State,
-} from './AuctionStep3Types';
-import { POLICY_DEFAULTS } from './PolicyShared';
+import type { PreconditionItem, PriceChangeItem, Step3State } from './AuctionStep3Types';
+import { POLICY_DEFAULTS, categoryForPolicyType } from './PolicyShared';
 
 // ─── duration helpers ─────────────────────────────────────────────────────────
 
@@ -53,37 +47,6 @@ export function resolveType(value: unknown): string {
 // ─── build (form state → API payload) ─────────────────────────────────────────
 // Each `build*Item` below builds a single leaf policy — reused both to assemble the
 // full submission payload (buildPolicies) and to preview one item at a time.
-
-export function buildPaymentPolicyItem(
-  p: PaymentPolicyItem,
-  priority: number,
-  currencyUnit: string,
-): PolicyItemRQ | null {
-  const heads = p.heads.filter((h) => h.basis && h.value);
-  if (heads.length === 0) return null;
-  return {
-    type: 'PAYMENT_POLICY',
-    name: p.name || undefined,
-    description: p.description || undefined,
-    priority,
-    currency: currencyUnit,
-    mode: p.mode || 'ONLINE',
-    schedule: {
-      reference: (p.scheduleReference || 'AUCTION_START_TIME') as
-        | 'AUCTION_START_TIME'
-        | 'AUCTION_END_TIME',
-      offset: buildDurationFromDaysHours(p.offsetDays, p.offsetHours),
-    },
-    heads: heads.map((h) => ({
-      name: h.name || undefined,
-      description: h.description || undefined,
-      // type: h.type,
-      basis: h.basis,
-      value: parseFloat(h.value),
-      refundable: h.refundable,
-    })),
-  };
-}
 
 export function buildPreconditionItem(p: PreconditionItem, priority: number): PolicyItemRQ | null {
   if (!p.type) return null;
@@ -182,50 +145,51 @@ export function buildParticipationItem(step3: Step3State): PolicyItemRQ | null {
   };
 }
 
-export function buildPolicies(
-  step3: Step3State,
-  currencyUnit: string,
-): Record<string, PolicyItemRQ[]> {
-  const policies: Record<string, PolicyItemRQ[]> = {};
+export function buildPolicies(step3: Step3State): PolicyItemRQ[] {
+  const policies: PolicyItemRQ[] = [];
+  let priority = 1;
 
   const participation = buildParticipationItem(step3);
-  if (participation) policies['PARTICIPATION'] = [participation];
-
-  const validPayments = step3.paymentPolicies.filter((p) =>
-    p.heads.some((h) => h.basis && h.value),
-  );
-  if (validPayments.length > 0) {
-    policies['PAYMENT'] = validPayments.map(
-      (p, i) => buildPaymentPolicyItem(p, i + 1, currencyUnit)!,
-    );
-  }
+  if (participation) policies.push({ ...participation, priority: priority++ });
 
   const preconditionItems = step3.preconditions
-    .map((p, i) => buildPreconditionItem(p, i + 1))
+    .map((p) => buildPreconditionItem(p, priority))
     .filter((item): item is PolicyItemRQ => item !== null);
-  if (preconditionItems.length > 0) policies['PRECONDITION'] = preconditionItems;
-
-  const priceWrapper = buildPriceProgressionWrapper(step3.priceChangePolicies);
-  if (priceWrapper) policies['PRICE_PROGRESSION'] = [priceWrapper];
+  for (const item of preconditionItems) {
+    item.priority = priority++;
+    policies.push(item);
+  }
 
   const extension = buildExtensionItem(step3);
-  if (extension) policies['EXTENSION'] = [extension];
+  if (extension) policies.push({ ...extension, priority: priority++ });
+
+  const priceWrapper = buildPriceProgressionWrapper(step3.priceChangePolicies);
+  if (priceWrapper) policies.push({ ...priceWrapper, priority: priority++ });
 
   const winnerDetermination = buildWinnerDeterminationItem(step3);
-  if (winnerDetermination) policies['WINNER_DETERMINATION'] = [winnerDetermination];
+  if (winnerDetermination) policies.push({ ...winnerDetermination, priority: priority++ });
 
   const winnerPriceDetermination = buildWinnerPriceDeterminationItem(step3);
-  if (winnerPriceDetermination) policies['WINNER_PRICE_DETERMINATION'] = [winnerPriceDetermination];
+  if (winnerPriceDetermination)
+    policies.push({ ...winnerPriceDetermination, priority: priority++ });
 
   return policies;
 }
 
 // ─── map (API payload → form state) ────────────────────────────────────────────
 
-export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partial<Step3State> {
+export function mapSavedPolicies(items: PolicyItemRQ[]): Partial<Step3State> {
   const out: Partial<Step3State> = {};
 
-  const participation = groups['PARTICIPATION'];
+  const byCategory = new Map<string, PolicyItemRQ[]>();
+  for (const item of items) {
+    const category = categoryForPolicyType(item.type);
+    const bucket = byCategory.get(category);
+    if (bucket) bucket.push(item);
+    else byCategory.set(category, [item]);
+  }
+
+  const participation = byCategory.get('PARTICIPATION');
   if (participation?.length) {
     const p = participation[0]!;
     out.participationEnabled = true;
@@ -239,32 +203,7 @@ export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partia
     out.participationValidationMinutes = minutes;
   }
 
-  const payment = groups['PAYMENT'];
-  if (payment?.length) {
-    out.paymentPolicies = payment.map((p): PaymentPolicyItem => {
-      const { days, hours } = parseDurationHours(p.schedule?.offset ?? 'PT0S');
-      return {
-        id: p.id,
-        name: p.name ?? '',
-        description: p.description ?? '',
-        scheduleReference: resolveType(p.schedule?.reference) || 'AUCTION_START_TIME',
-        offsetDays: days,
-        offsetHours: hours,
-        mode: resolveType(p.mode) || 'ONLINE',
-        heads: (p.heads ?? []).map(
-          (h): PolicyHeadItem => ({
-            name: h.name ?? '',
-            description: h.description ?? '',
-            basis: resolveType(h.basis),
-            value: String(h.value ?? ''),
-            refundable: h.refundable ?? false,
-          }),
-        ),
-      };
-    });
-  }
-
-  const preconditions = groups['PRECONDITION'];
+  const preconditions = byCategory.get('PRECONDITION');
   if (preconditions?.length) {
     out.preconditions = preconditions.map((p) => {
       const { days, hours } = parseDurationHours(p.preStartValidationDuration ?? 'PT0S');
@@ -280,7 +219,7 @@ export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partia
     });
   }
 
-  const priceProgression = groups['PRICE_PROGRESSION'];
+  const priceProgression = byCategory.get('PRICE_PROGRESSION');
   if (priceProgression?.length) {
     const wrapper = priceProgression[0]!;
     out.priceProgressionPolicyId = wrapper.id;
@@ -298,7 +237,7 @@ export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partia
     });
   }
 
-  const extension = groups['EXTENSION'] ?? groups['AUCTION_EXTENSION'];
+  const extension = byCategory.get('EXTENSION');
   if (extension?.length) {
     const ext = extension[0]!;
     out.extensionEnabled = true;
@@ -314,7 +253,7 @@ export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partia
     out.extensionPolicyId = ext.id;
   }
 
-  const winnerDet = groups['WINNER_DETERMINATION'];
+  const winnerDet = byCategory.get('WINNER_DETERMINATION');
   if (winnerDet?.length) {
     const w = winnerDet[0]!;
     out.winnerDeterminationType = resolveType(w.type);
@@ -324,7 +263,7 @@ export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partia
     out.winnerDeterminationPolicyId = w.id;
   }
 
-  const winnerPrice = groups['WINNER_PRICE_DETERMINATION'];
+  const winnerPrice = byCategory.get('WINNER_PRICE_DETERMINATION');
   if (winnerPrice?.length) {
     const w = winnerPrice[0]!;
     out.winnerPriceDeterminationType = resolveType(w.type);
@@ -339,63 +278,72 @@ export function mapSavedPolicies(groups: Record<string, PolicyItemRQ[]>): Partia
 
 // ─── validation ────────────────────────────────────────────────────────────────
 
+/** Every named policy currently present in the form, tagged with the field-error
+ *  key it should be reported under. Used to enforce name uniqueness across the
+ *  *whole* policies form, not just within a single section's list. */
+function collectNamedEntries(step3: Step3State): { key: string; name: string }[] {
+  const entries: { key: string; name: string }[] = [];
+
+  if (step3.participationEnabled && step3.participationName) {
+    entries.push({ key: 'participationName', name: step3.participationName });
+  }
+  step3.preconditions.forEach((p, i) => {
+    if (p.name) entries.push({ key: `precondition_name_${i}`, name: p.name });
+  });
+  step3.priceChangePolicies.forEach((p, i) => {
+    if (p.name) entries.push({ key: `priceChange_name_${i}`, name: p.name });
+  });
+  if (step3.extensionEnabled && step3.extensionName) {
+    entries.push({ key: 'extensionName', name: step3.extensionName });
+  }
+  if (step3.winnerDeterminationType && step3.winnerDeterminationName) {
+    entries.push({ key: 'winnerDeterminationName', name: step3.winnerDeterminationName });
+  }
+  if (step3.winnerPriceDeterminationType && step3.winnerPriceDeterminationName) {
+    entries.push({
+      key: 'winnerPriceDeterminationName',
+      name: step3.winnerPriceDeterminationName,
+    });
+  }
+
+  return entries;
+}
+
 /** Marks every duplicate occurrence of a name (by lowercase/trim) with the given error message. */
 function markDuplicateNames(
   errs: Record<string, string>,
-  items: { name: string }[],
-  keyFor: (i: number) => string,
+  entries: { key: string; name: string }[],
   message: string,
 ) {
-  const seen = new Map<string, number[]>();
-  items.forEach((item, i) => {
-    const key = item.name.trim().toLowerCase();
-    if (!key) return;
-    seen.set(key, [...(seen.get(key) ?? []), i]);
+  const seen = new Map<string, string[]>();
+  entries.forEach(({ key, name }) => {
+    const norm = name.trim().toLowerCase();
+    if (!norm) return;
+    seen.set(norm, [...(seen.get(norm) ?? []), key]);
   });
-  for (const indices of seen.values()) {
-    if (indices.length > 1) {
-      indices.forEach((i) => {
-        errs[keyFor(i)] = message;
+  for (const keys of seen.values()) {
+    if (keys.length > 1) {
+      keys.forEach((k) => {
+        errs[k] = message;
       });
     }
   }
 }
 
-export function validatePolicies(step3: Step3State): Record<string, string> {
+/** Name-uniqueness check only — cheap enough to run before saving a single
+ *  already-saved policy inline, without requiring the rest of the form to be complete. */
+export function validatePolicyNames(step3: Step3State): Record<string, string> {
   const errs: Record<string, string> = {};
-
-  const headNameSeen = new Map<string, { i: number; j: number }>();
-
-  step3.paymentPolicies.forEach((policy, i) => {
-    if (policy.heads.length === 0) {
-      errs[`payment_heads_${i}`] = 'At least one fee head is required.';
-      return;
-    }
-    policy.heads.forEach((h, j) => {
-      if (!h.basis) {
-        errs[`payment_head_basis_${i}_${j}`] = 'Please select a basis.';
-      } else if (!h.value || isNaN(parseFloat(h.value)) || parseFloat(h.value) <= 0) {
-        errs[`payment_head_value_${i}_${j}`] = 'A positive value is required.';
-      }
-
-      const key = h.name.trim().toLowerCase();
-      if (key) {
-        const dupe = headNameSeen.get(key);
-        if (dupe) {
-          errs[`payment_head_name_${dupe.i}_${dupe.j}`] = 'Payment head name must be unique.';
-          errs[`payment_head_name_${i}_${j}`] = 'Payment head name must be unique.';
-        } else {
-          headNameSeen.set(key, { i, j });
-        }
-      }
-    });
-  });
   markDuplicateNames(
     errs,
-    step3.paymentPolicies,
-    (i) => `payment_name_${i}`,
-    'Payment policy name must be unique.',
+    collectNamedEntries(step3),
+    'Policy name must be unique across all policies.',
   );
+  return errs;
+}
+
+export function validatePolicies(step3: Step3State): Record<string, string> {
+  const errs: Record<string, string> = {};
 
   step3.preconditions.forEach((pc, i) => {
     if (!pc.type) {
@@ -407,12 +355,6 @@ export function validatePolicies(step3: Step3State): Record<string, string> {
       errs[`precondition_count_${i}`] = 'Minimum participants must be at least 1.';
     }
   });
-  markDuplicateNames(
-    errs,
-    step3.preconditions,
-    (i) => `precondition_name_${i}`,
-    'Precondition name must be unique.',
-  );
 
   step3.priceChangePolicies.forEach((p, i) => {
     if (!p.type) {
@@ -423,12 +365,8 @@ export function validatePolicies(step3: Step3State): Record<string, string> {
       errs[`priceChange_value_${i}`] = 'A positive step value is required.';
     }
   });
-  markDuplicateNames(
-    errs,
-    step3.priceChangePolicies,
-    (i) => `priceChange_name_${i}`,
-    'Price progression window name must be unique.',
-  );
+
+  Object.assign(errs, validatePolicyNames(step3));
 
   return errs;
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Eye, Loader2, Search } from 'lucide-react';
 import { Input } from '@repo/ui';
 import { metadataApi, ManagedTypeListItemFull, PolicyEvaluationMap } from '@repo/api';
+import { FieldError } from './AuctionShared';
 import { PolicyInfoButton, DayHourDropdowns } from './PolicyShared';
 import { EvaluationList } from './PolicyEvaluationDisplay';
 import { ManagedTypeViewDialog } from '../../metadata/_components/ManagedTypeViewDialog';
@@ -23,6 +24,7 @@ interface Props {
   onValidationMinutesChange: (v: string) => void;
   groupDescription?: string;
   evaluations?: PolicyEvaluationMap;
+  nameError?: string;
 }
 
 export function PolicyParticipationSection({
@@ -40,6 +42,7 @@ export function PolicyParticipationSection({
   onValidationMinutesChange,
   groupDescription,
   evaluations,
+  nameError,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -124,8 +127,9 @@ export function PolicyParticipationSection({
               value={name}
               onChange={(e) => onNameChange(e.target.value)}
               placeholder="Auction Participation Policy"
-              className="w-full rounded-md border border-input bg-background px-3 py-[7px] text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className={`w-full rounded-md border bg-background px-3 py-[7px] text-sm focus:outline-none focus:ring-2 focus:ring-ring ${nameError ? 'border-destructive focus-visible:ring-destructive' : 'border-input'}`}
             />
+            <FieldError message={nameError} />
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-foreground">Description</label>

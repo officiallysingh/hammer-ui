@@ -115,6 +115,20 @@ export interface PaginatedUsers {
   };
 }
 
+export interface UsersFilter {
+  phrases?: string[];
+  roles?: string[];
+  permissions?: string[];
+  enabled?: boolean;
+  credentialsExpired?: boolean;
+  emailIdVerified?: boolean;
+  mobileNoVerified?: boolean;
+  page?: number;
+  size?: number;
+  sort?: string[];
+  expand?: ('permissions' | 'roles' | 'role-permissions' | '*')[];
+}
+
 export const usersApi = {
   /** Fetches info for the currently logged-in user (session-derived, no id needed). */
   getSelfInfo: async (): Promise<UserInfo> => {
@@ -133,14 +147,20 @@ export const usersApi = {
     const response = await apiClient.get(`/api/v1/users/mobile/${mobile}/exists`);
     return response.data;
   },
-  getUsers: async (
-    page = 0,
-    size = 20,
-    phrases?: string[],
-    expand?: ('permissions' | 'roles')[],
-    roles?: string[],
-    permissions?: string[],
-  ): Promise<PaginatedUsers> => {
+  getUsers: async (filter: UsersFilter = {}): Promise<PaginatedUsers> => {
+    const {
+      phrases,
+      roles,
+      permissions,
+      enabled,
+      credentialsExpired,
+      emailIdVerified,
+      mobileNoVerified,
+      page = 0,
+      size = 20,
+      sort,
+      expand,
+    } = filter;
     const response = await apiClient.get<PaginatedUsers>('/api/v1/users', {
       params: {
         page,
@@ -148,6 +168,11 @@ export const usersApi = {
         ...(phrases?.length ? { phrases } : {}),
         ...(roles?.length ? { roles } : {}),
         ...(permissions?.length ? { permissions } : {}),
+        ...(enabled !== undefined ? { enabled } : {}),
+        ...(credentialsExpired !== undefined ? { credentialsExpired } : {}),
+        ...(emailIdVerified !== undefined ? { emailIdVerified } : {}),
+        ...(mobileNoVerified !== undefined ? { mobileNoVerified } : {}),
+        ...(sort?.length ? { sort } : {}),
       },
       headers: expand?.length ? { 'x-expand': expand.join(',') } : undefined,
     });

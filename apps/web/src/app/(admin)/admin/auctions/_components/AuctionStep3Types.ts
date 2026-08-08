@@ -1,26 +1,3 @@
-export interface PolicyHeadItem {
-  name: string;
-  description: string;
-  // type: string;
-  basis: string;
-  value: string;
-  refundable: boolean;
-}
-
-export interface PaymentPolicyItem {
-  /** Present only when this item was loaded from a previously saved policy. */
-  id?: string;
-  name: string;
-  description: string;
-  scheduleReference: string;
-  offsetDays: string;
-  offsetHours: string;
-  heads: PolicyHeadItem[];
-  priority?: number;
-  currency?: string;
-  mode: string;
-}
-
 export interface PreconditionItem {
   /** Present only when this item was loaded from a previously saved policy. */
   id?: string;
@@ -57,7 +34,6 @@ export interface Step3State {
   participationValidationMinutes: string;
   /** Present only when participation was loaded from a previously saved policy. */
   participationPolicyId?: string;
-  paymentPolicies: PaymentPolicyItem[];
   preconditions: PreconditionItem[];
   priceChangePolicies: PriceChangeItem[];
   /** Present only when the price progression wrapper was loaded from a previously saved policy. */
@@ -93,7 +69,6 @@ export const initialStep3: Step3State = {
   participationManualApproval: false,
   participationValidationHours: '0',
   participationValidationMinutes: '0',
-  paymentPolicies: [],
   preconditions: [],
   priceChangePolicies: [],
   extensionEnabled: false,

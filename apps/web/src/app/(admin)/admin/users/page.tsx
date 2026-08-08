@@ -112,6 +112,37 @@ function VerifiedBadge({ verified }: { verified: boolean }) {
   );
 }
 
+/** Tri-state (All / Yes / No) filter for an optional boolean query param. */
+function TriStateFilter({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="min-w-[140px] space-y-1.5">
+      <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        <option value="">All</option>
+        <option value="true">Yes</option>
+        <option value="false">No</option>
+      </select>
+    </div>
+  );
+}
+
+/** '' -&gt; unset, 'true'/'false' -&gt; boolean, for the tri-state filters above. */
+function triStateToBool(v: string): boolean | undefined {
+  return v ? v === 'true' : undefined;
+}
+
 export default function UsersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -133,6 +164,16 @@ export default function UsersPage() {
   const [selectedPermissions, setSelectedPermissions] = useState<SelectOption[]>([]);
   const [allRoles, setAllRoles] = useState<RoleVM[]>([]);
   const [allPermissions, setAllPermissions] = useState<PermissionVM[]>([]);
+  const [enabledFilter, setEnabledFilter] = useState(() => searchParams.get('enabled') ?? '');
+  const [credentialsExpiredFilter, setCredentialsExpiredFilter] = useState(
+    () => searchParams.get('credentialsExpired') ?? '',
+  );
+  const [emailVerifiedFilter, setEmailVerifiedFilter] = useState(
+    () => searchParams.get('emailIdVerified') ?? '',
+  );
+  const [mobileVerifiedFilter, setMobileVerifiedFilter] = useState(
+    () => searchParams.get('mobileNoVerified') ?? '',
+  );
 
   // Column visibility
   const [showRoles, setShowRoles] = useState(false);
@@ -177,6 +218,10 @@ export default function UsersPage() {
     phrases?: string[];
     roles?: string[];
     permissions?: string[];
+    enabled?: string;
+    credentialsExpired?: string;
+    emailIdVerified?: string;
+    mobileNoVerified?: string;
     showPermsCol?: boolean;
     page?: number;
   }) => {
@@ -188,14 +233,18 @@ export default function UsersPage() {
       const expand: ('permissions' | 'roles')[] = ['roles'];
       if (opts?.showPermsCol ?? showPermissions) expand.push('permissions');
       const page = opts?.page ?? 0;
-      const result = await usersApi.getUsers(
+      const result = await usersApi.getUsers({
         page,
-        PAGE_SIZE,
-        opts?.phrases?.length ? opts.phrases : undefined,
+        size: PAGE_SIZE,
+        phrases: opts?.phrases?.length ? opts.phrases : undefined,
         expand,
-        opts?.roles?.length ? opts.roles : undefined,
-        opts?.permissions?.length ? opts.permissions : undefined,
-      );
+        roles: opts?.roles?.length ? opts.roles : undefined,
+        permissions: opts?.permissions?.length ? opts.permissions : undefined,
+        enabled: triStateToBool(opts?.enabled ?? ''),
+        credentialsExpired: triStateToBool(opts?.credentialsExpired ?? ''),
+        emailIdVerified: triStateToBool(opts?.emailIdVerified ?? ''),
+        mobileNoVerified: triStateToBool(opts?.mobileNoVerified ?? ''),
+      });
       setUsers(result.content ?? []);
       setPageIndex(page);
       setTotalPages(result.page?.totalPages ?? 0);
@@ -216,6 +265,10 @@ export default function UsersPage() {
       phrases: initPhrases,
       roles: initRoles,
       permissions: initPerms,
+      enabled: enabledFilter,
+      credentialsExpired: credentialsExpiredFilter,
+      emailIdVerified: emailVerifiedFilter,
+      mobileNoVerified: mobileVerifiedFilter,
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -228,27 +281,51 @@ export default function UsersPage() {
         phrases: phrasesRef.current.length ? phrasesRef.current : undefined,
         roles: selectedRoles.map((o) => o.value),
         permissions: selectedPermissions.map((o) => o.value),
+        enabled: enabledFilter,
+        credentialsExpired: credentialsExpiredFilter,
+        emailIdVerified: emailVerifiedFilter,
+        mobileNoVerified: mobileVerifiedFilter,
         showPermsCol: showPermissions,
         page: pageIndex,
       });
     }
   }, [showPermissions]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const buildFilterUrl = (ph: string[], roles: SelectOption[], perms: SelectOption[]) => {
+  const buildFilterUrl = (
+    ph: string[],
+    roles: SelectOption[],
+    perms: SelectOption[],
+    boolFilters: Record<string, string>,
+  ) => {
     const params = new URLSearchParams();
     ph.forEach((p) => params.append('phrases', p));
     roles.forEach((r) => params.append('roles', r.value));
     perms.forEach((p) => params.append('permissions', p.value));
+    for (const [key, value] of Object.entries(boolFilters)) {
+      if (value) params.set(key, value);
+    }
     return params.toString() ? `?${params.toString()}` : '';
   };
 
   const handleSearch = () => {
     phrasesRef.current = phrases;
-    router.replace(buildFilterUrl(phrases, selectedRoles, selectedPermissions), { scroll: false });
+    router.replace(
+      buildFilterUrl(phrases, selectedRoles, selectedPermissions, {
+        enabled: enabledFilter,
+        credentialsExpired: credentialsExpiredFilter,
+        emailIdVerified: emailVerifiedFilter,
+        mobileNoVerified: mobileVerifiedFilter,
+      }),
+      { scroll: false },
+    );
     fetchUsers({
       phrases,
       roles: selectedRoles.map((o) => o.value),
       permissions: selectedPermissions.map((o) => o.value),
+      enabled: enabledFilter,
+      credentialsExpired: credentialsExpiredFilter,
+      emailIdVerified: emailVerifiedFilter,
+      mobileNoVerified: mobileVerifiedFilter,
       page: 0,
     });
   };
@@ -257,6 +334,10 @@ export default function UsersPage() {
     setPhrases([]);
     setSelectedRoles([]);
     setSelectedPermissions([]);
+    setEnabledFilter('');
+    setCredentialsExpiredFilter('');
+    setEmailVerifiedFilter('');
+    setMobileVerifiedFilter('');
     phrasesRef.current = [];
     router.replace('', { scroll: false });
     fetchUsers({});
@@ -518,6 +599,10 @@ export default function UsersPage() {
                   phrases: phrasesRef.current.length ? phrasesRef.current : undefined,
                   roles: selectedRoles.map((o) => o.value),
                   permissions: selectedPermissions.map((o) => o.value),
+                  enabled: enabledFilter,
+                  credentialsExpired: credentialsExpiredFilter,
+                  emailIdVerified: emailVerifiedFilter,
+                  mobileNoVerified: mobileVerifiedFilter,
                   page: pageIndex,
                 })
               }
@@ -574,6 +659,24 @@ export default function UsersPage() {
             />
           </div>
 
+          {/* Status filters */}
+          <TriStateFilter label="Enabled" value={enabledFilter} onChange={setEnabledFilter} />
+          <TriStateFilter
+            label="Credentials Expired"
+            value={credentialsExpiredFilter}
+            onChange={setCredentialsExpiredFilter}
+          />
+          <TriStateFilter
+            label="Email Verified"
+            value={emailVerifiedFilter}
+            onChange={setEmailVerifiedFilter}
+          />
+          <TriStateFilter
+            label="Mobile Verified"
+            value={mobileVerifiedFilter}
+            onChange={setMobileVerifiedFilter}
+          />
+
           {/* Column toggles */}
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">Show columns</Label>
@@ -629,6 +732,10 @@ export default function UsersPage() {
             phrases: phrasesRef.current.length ? phrasesRef.current : undefined,
             roles: selectedRoles.map((o) => o.value),
             permissions: selectedPermissions.map((o) => o.value),
+            enabled: enabledFilter,
+            credentialsExpired: credentialsExpiredFilter,
+            emailIdVerified: emailVerifiedFilter,
+            mobileNoVerified: mobileVerifiedFilter,
             page,
           })
         }

@@ -29,11 +29,16 @@ import {
   PropertyDef,
 } from '@repo/api';
 import { DismissibleError, FieldError } from './AuctionShared';
-import { SELECT_CLS, resolveStr, fmtLabel } from './PolicyShared';
+import {
+  SELECT_CLS,
+  resolveStr,
+  fmtLabel,
+  categoryForPolicyType,
+  parseOffsetDuration,
+} from './PolicyShared';
 import { PolicyItemCard } from './PolicyEvaluationDisplay';
 import { AddStepDialog } from './AddStepDialog';
 import { EditStepDialog } from './EditStepDialog';
-import { isPostPayment, isPrePayment } from './policyGroups';
 import Tip from '@/components/common/admin/Tip';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import { parseApiError } from '@/lib/api-errors';
@@ -133,6 +138,74 @@ function StepTypeIcon({ type, className }: { type?: unknown; className?: string 
   }
 }
 
+/** PAYMENT_STEP has no distinct type label of its own — "Pre Payment"/"Post Payment"
+ *  come from its `phase` field instead. */
+function stepDisplayName(step: AuctionWorkflowStep, index: number): string {
+  if (step.name) return step.name;
+  if (resolveStr(step.type) === 'PAYMENT_STEP') {
+    return resolveStr(step.phase) === 'PRE_PAYMENT' ? 'Pre Payment' : 'Post Payment';
+  }
+  return fmtLabel(step.type) || `Step ${index + 1}`;
+}
+
+function formatOffsetLabel(iso?: string): string {
+  const { days, hours, minutes } = parseOffsetDuration(iso);
+  const parts = [
+    Number(days) > 0 ? `${days}d` : null,
+    Number(hours) > 0 ? `${hours}h` : null,
+    Number(minutes) > 0 ? `${minutes}m` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(' ') : '0m';
+}
+
+// ── Payment step (view-only) — mode/offset/heads collected by PAYMENT_STEP ────
+
+function PaymentStepPreview({ step }: { step: AuctionWorkflowStep }) {
+  const phase = resolveStr(step.phase);
+  return (
+    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3 text-xs">
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        <span className="text-muted-foreground">
+          Phase:{' '}
+          <span className="text-foreground font-medium">
+            {phase === 'PRE_PAYMENT' ? 'Pre Payment' : 'Post Payment'}
+          </span>
+        </span>
+        {step.mode && (
+          <span className="text-muted-foreground">
+            Mode: <span className="text-foreground font-medium">{fmtLabel(step.mode)}</span>
+          </span>
+        )}
+        <span className="text-muted-foreground">
+          Offset:{' '}
+          <span className="text-foreground font-medium">{formatOffsetLabel(step.offset)}</span>
+        </span>
+      </div>
+      {(step.heads?.length ?? 0) > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {step.heads!.map((h, i) => (
+            <div key={i} className="rounded-md border border-border/50 bg-muted/20 px-2.5 py-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium text-foreground">{h.name}</span>
+                <span className="text-muted-foreground">
+                  {h.value}
+                  {h.basis === 'PERCENTAGE_BASED' ? '%' : ''}
+                </span>
+              </div>
+              {h.description && <p className="text-muted-foreground mt-0.5">{h.description}</p>}
+              {h.refundable && (
+                <span className="inline-block mt-1 rounded-full bg-emerald-500/10 text-emerald-600 px-1.5 py-0.5 text-[10px]">
+                  Refundable
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Bank details (view-only) — fixed schema collected by BANK_DETAIL_FORM_STEP ─
 
 const BANK_DETAIL_FIELDS = [
@@ -221,7 +294,6 @@ function WorkflowStepCard({
   index,
   dragHandleProps,
   isDragTarget,
-  prePaymentPolicies,
   participationPolicies,
   evaluationsByPolicyId,
   onEdit,
@@ -232,7 +304,6 @@ function WorkflowStepCard({
   index: number;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
   isDragTarget?: boolean;
-  prePaymentPolicies?: PolicyItemRQ[];
   participationPolicies?: PolicyItemRQ[];
   evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
   onEdit?: () => void;
@@ -283,9 +354,9 @@ function WorkflowStepCard({
         {/* Name */}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-foreground truncate">
-            {step.name ?? fmtLabel(step.type) ?? `Step ${index + 1}`}
+            {stepDisplayName(step, index)}
           </p>
-          {step.type && fmtLabel(step.type) !== step.name && (
+          {step.type && fmtLabel(step.type) !== stepDisplayName(step, index) && (
             <p className="text-[10px] text-muted-foreground truncate">{fmtLabel(step.type)}</p>
           )}
         </div>
@@ -374,6 +445,16 @@ function WorkflowStepCard({
             </div>
           )}
 
+          {/* Payment step — mode/phase/offset/heads, view-only */}
+          {resolveStr(step.type) === 'PAYMENT_STEP' && (
+            <div className="mt-1.5 space-y-1">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                Payment
+              </p>
+              <PaymentStepPreview step={step} />
+            </div>
+          )}
+
           {/* Bank details — fixed schema, view-only */}
           {resolveStr(step.type) === 'BANK_DETAIL_FORM_STEP' && (
             <div className="mt-1.5 space-y-1">
@@ -395,11 +476,9 @@ function WorkflowStepCard({
               </div>
             )}
 
-          {/* Step-level policies — payment/participation steps fall back to the auction's
-              pre-payment / participation policies when the step itself doesn't carry an
-              embedded policy. */}
+          {/* Step-level policies — the participation step falls back to the auction's
+              participation policy when the step itself doesn't carry an embedded policy. */}
           {(() => {
-            const isPaymentStep = resolveStr(step.type) === 'PAYMENT_STEP';
             const isParticipationStep =
               resolveStr(step.type) === 'PARTICIPATION_STEP' ||
               (participationPolicies ?? []).some((p) => p.name && p.name === step.name);
@@ -412,11 +491,9 @@ function WorkflowStepCard({
             const policiesToShow =
               embeddedPolicies.length > 0
                 ? embeddedPolicies
-                : isPaymentStep
-                  ? (prePaymentPolicies ?? [])
-                  : isParticipationStep
-                    ? (participationPolicies ?? [])
-                    : [];
+                : isParticipationStep
+                  ? (participationPolicies ?? [])
+                  : [];
             if (policiesToShow.length === 0) return null;
             return (
               <div className="mt-1.5 space-y-1">
@@ -462,67 +539,20 @@ function WorkflowStepCard({
   );
 }
 
-// ── Post-payment block ────────────────────────────────────────────────────────
-
-function PostPaymentBlock({
-  auctionId,
-  policies,
-  evaluationsByPolicyId,
-}: {
-  auctionId: string;
-  policies: PolicyItemRQ[];
-  evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
-}) {
-  return (
-    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-emerald-500/20">
-        <CreditCard className="h-4 w-4 text-emerald-600" />
-        <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-          Post Payment
-        </span>
-        <span className="text-xs text-muted-foreground ml-1">
-          — collected after auction completes
-        </span>
-      </div>
-      <div className="px-4 py-3 space-y-2">
-        {policies.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No post-payment policies configured.</p>
-        ) : (
-          policies.map((item, i) => (
-            <PolicyItemCard
-              key={item.id ?? i}
-              auctionId={auctionId}
-              policyId={item.id}
-              name={item.name}
-              type={item.type}
-              evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
-            />
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ── Reorder constraint ─────────────────────────────────────────────────────────
-// The pre-payment step and the bank-details step must stay next to each other —
-// bank details are collected for refunding that payment, so the two shouldn't drift
-// apart in the list. Either can lead (bank-before-payment or bank-after-payment);
-// only their adjacency is enforced.
+// A Pre Payment step with a refundable head requires a Bank Detail step to be
+// positioned before it (bank details are needed to issue that refund). Non-refundable
+// pre-payments and post-payments carry no such requirement.
 
-function enforcePaymentBankAdjacency(list: AuctionWorkflowStep[]): AuctionWorkflowStep[] {
-  const paymentIdx = list.findIndex((s) => resolveStr(s.type) === 'PAYMENT_STEP');
+function violatesBankBeforeRefundablePayment(list: AuctionWorkflowStep[]): boolean {
   const bankIdx = list.findIndex((s) => resolveStr(s.type) === 'BANK_DETAIL_FORM_STEP');
-  if (paymentIdx === -1 || bankIdx === -1 || Math.abs(paymentIdx - bankIdx) === 1) {
-    return list;
-  }
-  const bankWasBefore = bankIdx < paymentIdx;
-  const next = [...list];
-  const [bankStep] = next.splice(bankIdx, 1);
-  const newPaymentIdx = next.findIndex((s) => resolveStr(s.type) === 'PAYMENT_STEP');
-  const insertAt = bankWasBefore ? newPaymentIdx : newPaymentIdx + 1;
-  next.splice(insertAt, 0, bankStep!);
-  return next;
+  return list.some((s, i) => {
+    if (resolveStr(s.type) !== 'PAYMENT_STEP' || resolveStr(s.phase) !== 'PRE_PAYMENT') {
+      return false;
+    }
+    if (!(s.heads ?? []).some((h) => h.refundable)) return false;
+    return bankIdx === -1 || bankIdx > i;
+  });
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -537,8 +567,6 @@ export function AuctionStep5Workflow({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<'schedule' | 'publish' | null>(null);
   const [workflow, setWorkflow] = useState<AuctionWorkflowStep[]>([]);
-  const [postPaymentPolicies, setPostPaymentPolicies] = useState<PolicyItemRQ[]>([]);
-  const [prePaymentPolicies, setPrePaymentPolicies] = useState<PolicyItemRQ[]>([]);
   const [participationPolicies, setParticipationPolicies] = useState<PolicyItemRQ[]>([]);
   const [evaluationsByPolicyId, setEvaluationsByPolicyId] = useState<
     Record<string, PolicyEvaluationMap>
@@ -584,17 +612,14 @@ export function AuctionStep5Workflow({
       .then(([wf, pol]) => {
         if (!mounted) return;
         setWorkflow(wf);
-        // Policies flagged postPayment: true are collected after the auction ends —
-        // shown in a trailing block regardless of which group they belong to.
-        const allItems = Object.values(pol ?? {}).flat();
-        setPostPaymentPolicies(allItems.filter(isPostPayment));
-        setPrePaymentPolicies(allItems.filter(isPrePayment));
+        const allItems = pol ?? [];
         // The implicit Participation step doesn't embed its own policy on the workflow
-        // step object — fall back to the PARTICIPATION group from the policies endpoint,
-        // same as pre/post payment above.
-        setParticipationPolicies(pol?.['PARTICIPATION'] ?? []);
+        // step object — fall back to the participation policy from the policies endpoint.
+        setParticipationPolicies(
+          allItems.filter((p) => categoryForPolicyType(p.type) === 'PARTICIPATION'),
+        );
 
-        // Evaluate every saved policy (workflow-embedded + pre/post payment) by id.
+        // Evaluate every saved policy (workflow-embedded + auction-level) by id.
         const policyIds = Array.from(
           new Set(
             [...wf.flatMap((s) => s.policies ?? []), ...allItems]
@@ -677,7 +702,13 @@ export function AuctionStep5Workflow({
     const next = [...workflow];
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved!);
-    handleReorder(enforcePaymentBankAdjacency(next));
+    if (violatesBankBeforeRefundablePayment(next)) {
+      setReorderError(
+        'A refundable Pre Payment step must have its Bank Detail step positioned before it.',
+      );
+      return;
+    }
+    handleReorder(next);
   };
 
   // Schedule compute
@@ -813,7 +844,6 @@ export function AuctionStep5Workflow({
                     step={step}
                     index={i}
                     isDragTarget={dragOverIdx === i}
-                    prePaymentPolicies={prePaymentPolicies}
                     participationPolicies={participationPolicies}
                     evaluationsByPolicyId={evaluationsByPolicyId}
                     onEdit={() => setEditingStep(step)}
@@ -828,17 +858,6 @@ export function AuctionStep5Workflow({
               ))
             )}
           </div>
-
-          {/* Post-payment block — shown whenever policies are flagged postPayment: true */}
-          {!loading && postPaymentPolicies.length > 0 && (
-            <div className="border-t border-border px-4 pb-4 pt-3">
-              <PostPaymentBlock
-                auctionId={auctionId}
-                policies={postPaymentPolicies}
-                evaluationsByPolicyId={evaluationsByPolicyId}
-              />
-            </div>
-          )}
         </div>
       )}
 

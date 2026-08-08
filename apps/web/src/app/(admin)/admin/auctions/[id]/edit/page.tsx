@@ -38,7 +38,10 @@ export default function EditAuctionPage() {
   const [step, setStep] = useState(1);
 
   const [originalStep1, setOriginalStep1] = useState<Step1State | null>(null);
-  const origStep2Ref = useRef({ unitType: '', openingPrice: '', item: '', items: [] as string[] });
+  const origStep2Ref = useRef({ unitType: '', openingPrice: '', items: [] as string[] });
+  // The auction unit's own id (distinct from its item id(s)) — must be sent back
+  // on update so the backend patches the existing unit instead of creating a new one.
+  const [unitId, setUnitId] = useState<string | undefined>(undefined);
 
   // Step 1
   const [step1, setStep1] = useState<Step1State>({
@@ -142,6 +145,7 @@ export default function EditAuctionPage() {
         // API may return unit as a singular object or as units[] array
         const rawUnit = auction.unit ?? auction.units?.[0];
         if (rawUnit) {
+          setUnitId(rawUnit.id);
           const unitType = resolveStr(rawUnit.type) as AuctionUnitType;
           const isAtomic = unitType === 'SINGLE_UNIT' || unitType === 'BUNDLE';
           const isSingle = unitType === 'SINGLE_UNIT';
@@ -174,7 +178,6 @@ export default function EditAuctionPage() {
               unitCategory: 'ATOMIC',
               unitType,
               openingPrice,
-              item: atomicItems[0] ?? '',
               itemName: '',
               itemSummary: null,
               itemQuantity: atomicQtys[0] ?? '1',
@@ -195,7 +198,6 @@ export default function EditAuctionPage() {
             origStep2Ref.current = {
               unitType,
               openingPrice,
-              item: atomicItems[0] ?? '',
               items: atomicItems,
             };
           } else {
@@ -203,7 +205,6 @@ export default function EditAuctionPage() {
               unitCategory: unitType as 'MULTI_UNIT' | 'LOT',
               unitType,
               openingPrice,
-              item: '',
               itemName: '',
               itemSummary: null,
               itemQuantity: '1',
@@ -221,11 +222,11 @@ export default function EditAuctionPage() {
               lockedSubCategories: [],
               lockedTags: [],
             });
-            origStep2Ref.current = { unitType, openingPrice, item: '', items: itemIds };
+            origStep2Ref.current = { unitType, openingPrice, items: itemIds };
           }
         }
 
-        if (savedPolicies && Object.keys(savedPolicies).length > 0) {
+        if (savedPolicies && savedPolicies.length > 0) {
           const loaded = { ...initialStep3, ...mapSavedPolicies(savedPolicies) };
           setStep3(loaded);
           setOriginalStep3(loaded);
@@ -310,13 +311,19 @@ export default function EditAuctionPage() {
     if (step2.unitCategory === 'ATOMIC') {
       if (step2.unitType === 'SINGLE_UNIT') {
         return {
+          id: unitId,
           type: 'SINGLE_UNIT' as AuctionUnitType,
           openingPrice: parseFloat(step2.openingPrice),
-          item: step2.item,
-          quantity: parseInt(step2.itemQuantity || '1', 10),
+          item: {
+            id: step2.items[0] ?? '',
+            name: step2.itemName || step2.itemSummary?.name || '',
+            description: step2.itemSummary?.description || undefined,
+            quantity: parseInt(step2.itemQuantity || '1', 10),
+          },
         };
       }
       return {
+        id: unitId,
         type: 'BUNDLE' as AuctionUnitType,
         openingPrice: parseFloat(step2.openingPrice),
         items: step2.items.map((itemId, i) => ({
@@ -326,6 +333,7 @@ export default function EditAuctionPage() {
       };
     }
     return {
+      id: unitId,
       type: step2.unitType as AuctionUnitType,
       openingPrice: parseFloat(step2.openingPrice),
       items: step2.multiItems.map((itemId) => ({ id: itemId, quantity: 1 })),
@@ -357,7 +365,7 @@ export default function EditAuctionPage() {
       step2.unitType !== orig.unitType ||
       step2.openingPrice !== orig.openingPrice ||
       (step2.unitCategory === 'ATOMIC'
-        ? step2.item !== orig.item || step2.items.length !== orig.items.length
+        ? step2.items[0] !== orig.items[0] || step2.items.length !== orig.items.length
         : step2.multiItems.length !== orig.items.length);
 
     if (!unitChanged) {
@@ -371,7 +379,6 @@ export default function EditAuctionPage() {
       origStep2Ref.current = {
         unitType: step2.unitType,
         openingPrice: step2.openingPrice,
-        item: step2.item,
         items: step2.items,
       };
       setStep(3);
@@ -397,9 +404,9 @@ export default function EditAuctionPage() {
     setStep3Errors({});
     setSavingStep3(true);
     try {
-      const policies = buildPolicies(step3, step1.currencyUnit || 'INR');
-      if (Object.keys(policies).length > 0) {
-        await auctionsApi.setAuctionPolicyGroups(id, policies);
+      const policies = buildPolicies(step3);
+      if (policies.length > 0) {
+        await auctionsApi.setAuctionPolicies(id, policies);
       }
       setStep(4);
     } catch (err) {
@@ -470,7 +477,6 @@ export default function EditAuctionPage() {
           const hasStep2Changes =
             step2.unitType !== o.unitType ||
             step2.openingPrice !== o.openingPrice ||
-            step2.item !== o.item ||
             JSON.stringify(step2.items) !== JSON.stringify(o.items);
           return (
             <AuctionStep2Units

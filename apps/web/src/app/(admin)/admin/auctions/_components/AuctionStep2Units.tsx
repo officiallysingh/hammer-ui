@@ -21,8 +21,7 @@ export interface Step2State {
   /** Derived real type sent to API */
   unitType: AuctionUnitType | '';
   openingPrice: string;
-  // Atomic — one or more listings
-  item: string; // first (or only) listing id
+  // Atomic — one or more listings (item[0] = first/only listing id)
   itemName: string;
   itemSummary: ListingSummaryVM | null;
   itemQuantity: string; // quantity for SINGLE_UNIT / first bundle item
@@ -47,7 +46,6 @@ export const initialStep2: Step2State = {
   unitCategory: 'ATOMIC',
   unitType: '',
   openingPrice: '',
-  item: '',
   itemName: '',
   itemSummary: null,
   itemQuantity: '1',
@@ -229,7 +227,6 @@ export function AuctionStep2Units({
     } catch {}
 
     onChange({
-      item: newItems[0] ?? '',
       itemName: newNames[0] ?? '',
       itemSummary: newSummaries[0] ?? null,
       itemQuantity: newQtys[0] ?? '1',
@@ -253,7 +250,6 @@ export function AuctionStep2Units({
     const newSummaries = form.itemSummaries.filter((_, i) => i !== idx);
     const newQtys = form.itemQuantities.filter((_, i) => i !== idx);
     onChange({
-      item: newItems[0] ?? '',
       itemName: newNames[0] ?? '',
       itemSummary: newSummaries[0] ?? null,
       itemQuantity: newQtys[0] ?? '1',

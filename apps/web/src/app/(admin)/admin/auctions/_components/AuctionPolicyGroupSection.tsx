@@ -4,20 +4,10 @@ import { Badge } from '@repo/ui';
 import { PolicyItemRQ, PolicyEvaluationMap } from '@repo/api';
 import { PolicyItemCard } from './PolicyEvaluationDisplay';
 import { PriceProgressionTimeline } from './PolicyPriceProgressionTimeline';
-
-export const POLICY_GROUP_DESCRIPTIONS: Record<string, string> = {
-  'Pre Payment': 'Collected from participants before the auction starts',
-  'Post Payment': 'Collected from winners after the auction closes',
-  PARTICIPATION: 'Rules governing who can register and how their eligibility is verified',
-  PRECONDITION: 'Conditions that must hold for the auction to proceed',
-  PRICE_PROGRESSION: 'How the bid price moves over the lifetime of the auction',
-  EXTENSION: 'How the end time extends when late bids arrive',
-  WINNER_DETERMINATION: 'How the winning bid is selected',
-  WINNER_PRICE_DETERMINATION: 'How the final price paid by the winner is calculated',
-};
+import { POLICY_CATEGORY_DESCRIPTIONS } from './PolicyShared';
 
 export function descriptionForGroup(key: string): string | undefined {
-  return POLICY_GROUP_DESCRIPTIONS[key] ?? POLICY_GROUP_DESCRIPTIONS[key.toUpperCase()];
+  return POLICY_CATEGORY_DESCRIPTIONS[key] ?? POLICY_CATEGORY_DESCRIPTIONS[key.toUpperCase()];
 }
 
 export function PolicyGroupSection({

@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, CheckCircle2, Search, Upload, Landmark } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Loader2, CheckCircle2, Search, Upload, Landmark, CreditCard } from 'lucide-react';
 import {
   Button,
   Label,
@@ -19,14 +19,26 @@ import {
   AuctionWorkflowStep,
   ManagedTypeListItemFull,
   ManagedTypeVM,
+  PaymentPhase,
+  PolicyHeadRQ,
 } from '@repo/api';
 import { DismissibleError } from './AuctionShared';
-import { resolveStr } from './PolicyShared';
+import { resolveStr, SELECT_CLS, DayHourMinuteFields, formatOffsetDuration } from './PolicyShared';
 import { PropertyFormPreview } from '../../metadata/_components/PropertyFormPreview';
 import { sanitizeProperties } from '../../metadata/_components/types';
 import { parseApiError } from '@/lib/api-errors';
 
-type AddStepMode = 'choose' | 'FORM_STEP' | 'TNC_FORM_STEP' | 'BANK_DETAIL_FORM_STEP';
+type AddStepMode =
+  | 'choose'
+  | 'FORM_STEP'
+  | 'TNC_FORM_STEP'
+  | 'BANK_DETAIL_FORM_STEP'
+  | 'PRE_PAYMENT_STEP'
+  | 'POST_PAYMENT_STEP';
+
+function emptyHead(): PolicyHeadRQ {
+  return { name: '', description: '', basis: 'AMOUNT_BASED', value: 0, refundable: false };
+}
 
 /** Tiptap emits "<p></p>" for an empty doc — strip tags to check for real content. */
 function isRichTextEmpty(html: string): boolean {
@@ -49,13 +61,20 @@ export function AddStepDialog({
   nextOrder: number;
   hasTnCStep: boolean;
   hasBankDetailStep: boolean;
-  /** Current workflow steps — used to keep the Bank Details + Payment steps adjacent. */
+  /** Current workflow steps — used to enforce Bank Details ordering ahead of refundable Pre Payment steps. */
   workflow: AuctionWorkflowStep[];
   onAdded: () => void;
 }) {
   const [mode, setMode] = useState<AddStepMode>('choose');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // True when the last submitPaymentStep failure was specifically "needs a Bank
+  // Detail step first" — offers a one-click way into the Bank Detail step's own form.
+  const [needsBankDetailStep, setNeedsBankDetailStep] = useState(false);
+  // Set while walking the "add Bank Detail step first" detour from the Payment step
+  // form — remembers which phase to return to (with its already-filled fields intact)
+  // once the admin explicitly submits the Bank Detail step form.
+  const [pendingPaymentPhase, setPendingPaymentPhase] = useState<PaymentPhase | null>(null);
 
   // Shared order field (used by FORM_STEP, TNC_FORM_STEP and BANK_DETAIL_FORM_STEP)
   const [selectedOrder, setSelectedOrder] = useState(nextOrder);
@@ -76,14 +95,45 @@ export function AddStepDialog({
   const [tncFile, setTncFile] = useState<File | null>(null);
   const [uploadingTnc, setUploadingTnc] = useState(false);
 
+  // PRE_PAYMENT_STEP / POST_PAYMENT_STEP state
+  const [paymentName, setPaymentName] = useState('');
+  const [paymentDescription, setPaymentDescription] = useState('');
+  const [paymentModeValue, setPaymentModeValue] = useState('');
+  const [paymentModes, setPaymentModes] = useState<{ value: string; label: string }[]>([]);
+  const [offsetDays, setOffsetDays] = useState('0');
+  const [offsetHours, setOffsetHours] = useState('0');
+  const [offsetMinutes, setOffsetMinutes] = useState('0');
+  const [heads, setHeads] = useState<PolicyHeadRQ[]>([emptyHead()]);
+
   // Keep selectedOrder in sync when dialog opens or nextOrder changes
   useEffect(() => {
     setSelectedOrder(nextOrder);
   }, [nextOrder, open]);
 
+  useEffect(() => {
+    if (
+      (mode === 'PRE_PAYMENT_STEP' || mode === 'POST_PAYMENT_STEP') &&
+      paymentModes.length === 0
+    ) {
+      auctionsApi
+        .getPaymentModes()
+        .then((modes) => {
+          setPaymentModes(modes);
+          if (!paymentModeValue) {
+            const online = modes.find((m) => /online/i.test(m.value) || /online/i.test(m.label));
+            if (online) setPaymentModeValue(online.value);
+          }
+        })
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
   const reset = () => {
     setMode('choose');
     setError(null);
+    setNeedsBankDetailStep(false);
+    setPendingPaymentPhase(null);
     setFormQuery('');
     setFormResults([]);
     setSelectedType(null);
@@ -92,6 +142,13 @@ export function AddStepDialog({
     setTncDescription('');
     setTncText('');
     setTncFile(null);
+    setPaymentName('');
+    setPaymentDescription('');
+    setPaymentModeValue('');
+    setOffsetDays('0');
+    setOffsetHours('0');
+    setOffsetMinutes('0');
+    setHeads([emptyHead()]);
   };
 
   const close = () => {
@@ -138,24 +195,25 @@ export function AddStepDialog({
       .finally(() => setLoadingTypeDetail(false));
   };
 
-  // The Bank Details step and the Payment step must stay adjacent — if both already
-  // exist, inserting a new step at the position between them would split them apart,
-  // so that single slot is removed from the picker entirely.
-  const blockedOrder = useMemo(() => {
-    const paymentIdx = workflow.findIndex((s) => resolveStr(s.type) === 'PAYMENT_STEP');
-    const bankIdx = workflow.findIndex((s) => resolveStr(s.type) === 'BANK_DETAIL_FORM_STEP');
-    if (paymentIdx === -1 || bankIdx === -1) return null;
-    const paymentOrder = workflow[paymentIdx]?.order ?? paymentIdx + 1;
-    const bankOrder = workflow[bankIdx]?.order ?? bankIdx + 1;
-    if (Math.abs(paymentOrder - bankOrder) !== 1) return null;
-    return Math.max(paymentOrder, bankOrder);
-  }, [workflow]);
+  // A refundable Pre Payment step requires a Bank Detail step positioned before it
+  // (bank details are needed to issue the refund). Non-refundable pre-payments and
+  // post-payments have no such requirement — Bank Details stays optional for them.
+  const earliestRefundablePrePaymentOrder = workflow
+    .filter(
+      (s) =>
+        resolveStr(s.type) === 'PAYMENT_STEP' &&
+        resolveStr(s.phase) === 'PRE_PAYMENT' &&
+        (s.heads ?? []).some((h) => h.refundable),
+    )
+    .reduce<number | null>((min, s) => {
+      const order = s.order ?? Infinity;
+      return min === null || order < min ? order : min;
+    }, null);
 
-  // Order dropdown — positions 1..nextOrder (insert at any position), minus the
-  // slot that would split the Bank Details + Payment pair apart.
-  const orderOptions = Array.from({ length: nextOrder }, (_, i) => i + 1).filter(
-    (o) => o !== blockedOrder,
-  );
+  // Order dropdown — positions 1..nextOrder (insert at any position). Extended to
+  // cover `selectedOrder` too: when returning to the Payment step form after the
+  // Bank Detail detour below, its order is bumped past the original `nextOrder`.
+  const orderOptions = Array.from({ length: Math.max(nextOrder, selectedOrder) }, (_, i) => i + 1);
 
   const OrderField = () => (
     <div className="space-y-1.5">
@@ -173,10 +231,6 @@ export function AddStepDialog({
             Step {o}
           </option>
         ))}
-        {/* Always include nextOrder as the "add at end" option */}
-        {!orderOptions.includes(nextOrder) && (
-          <option value={nextOrder}>Step {nextOrder} (end)</option>
-        )}
       </select>
     </div>
   );
@@ -250,6 +304,15 @@ export function AddStepDialog({
   };
 
   const submitBankDetailStep = async () => {
+    if (
+      earliestRefundablePrePaymentOrder !== null &&
+      selectedOrder > earliestRefundablePrePaymentOrder
+    ) {
+      setError(
+        'A refundable Pre Payment step already exists — the Bank Detail step must be positioned before it.',
+      );
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -259,6 +322,72 @@ export function AddStepDialog({
         description: 'Participant provides bank details for payouts',
         order: selectedOrder,
       } as Parameters<typeof auctionsApi.addWorkflowStep>[1]);
+      onAdded();
+      if (pendingPaymentPhase) {
+        // Came from the Payment step's "needs Bank Detail first" detour — return to
+        // that (still-filled) form, now one position later since Bank Detail took
+        // this slot, so the admin can review and explicitly submit it themselves.
+        const phase = pendingPaymentPhase;
+        setPendingPaymentPhase(null);
+        setSelectedOrder((o) => o + 1);
+        setMode(phase === 'PRE_PAYMENT' ? 'PRE_PAYMENT_STEP' : 'POST_PAYMENT_STEP');
+      } else {
+        close();
+      }
+    } catch (err) {
+      const parsed = parseApiError(err);
+      setError(parsed.general ?? 'Failed to add step.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const addHead = () => setHeads((prev) => [...prev, emptyHead()]);
+  const removeHead = (i: number) => setHeads((prev) => prev.filter((_, idx) => idx !== i));
+  const updateHead = (i: number, patch: Partial<PolicyHeadRQ>) =>
+    setHeads((prev) => prev.map((h, idx) => (idx === i ? { ...h, ...patch } : h)));
+
+  const submitPaymentStep = async (phase: PaymentPhase) => {
+    setNeedsBankDetailStep(false);
+    if (!paymentModeValue) {
+      setError('Please select a payment mode.');
+      return;
+    }
+    if (heads.length === 0 || heads.some((h) => !h.name?.trim() || !h.description?.trim())) {
+      setError('Every payment head needs a name, description and value.');
+      return;
+    }
+    if (
+      phase === 'PRE_PAYMENT' &&
+      heads.some((h) => h.refundable) &&
+      !workflow.some(
+        (s) => resolveStr(s.type) === 'BANK_DETAIL_FORM_STEP' && (s.order ?? 0) < selectedOrder,
+      )
+    ) {
+      // Only offer the one-click fix when no Bank Detail step exists yet — if one
+      // already exists but is positioned too late, the fix is repositioning it via
+      // drag-reorder, not adding a second one (only one is ever allowed).
+      if (!hasBankDetailStep) setNeedsBankDetailStep(true);
+      setError(
+        hasBankDetailStep
+          ? 'This Pre Payment step has a refundable head — reposition the Bank Detail step to before it.'
+          : 'This Pre Payment step has a refundable head — add a Bank Detail step at an earlier position first.',
+      );
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await auctionsApi.addWorkflowStep(auctionId, {
+        type: 'PAYMENT_STEP',
+        name: paymentName.trim() || undefined,
+        description: paymentDescription.trim() || undefined,
+        order: selectedOrder,
+        mode: paymentModeValue,
+        phase,
+        offset: formatOffsetDuration(offsetDays, offsetHours, offsetMinutes),
+        heads,
+      });
       onAdded();
       close();
     } catch (err) {
@@ -280,11 +409,35 @@ export function AddStepDialog({
                 ? 'Add Custom Form Step'
                 : mode === 'BANK_DETAIL_FORM_STEP'
                   ? 'Add Bank Detail Form Step'
-                  : 'Add Terms and Conditions Form Step'}
+                  : mode === 'PRE_PAYMENT_STEP'
+                    ? 'Add Pre Payment Step'
+                    : mode === 'POST_PAYMENT_STEP'
+                      ? 'Add Post Payment Step'
+                      : 'Add Terms and Conditions Form Step'}
           </DialogTitle>
         </DialogHeader>
 
         <DismissibleError message={error} />
+
+        {needsBankDetailStep && error && (
+          <div className="flex justify-end -mt-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setPendingPaymentPhase(
+                  mode === 'PRE_PAYMENT_STEP' ? 'PRE_PAYMENT' : 'POST_PAYMENT',
+                );
+                setNeedsBankDetailStep(false);
+                setError(null);
+                setMode('BANK_DETAIL_FORM_STEP');
+              }}
+            >
+              Add Bank Detail step now
+            </Button>
+          </div>
+        )}
 
         {mode === 'choose' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2">
@@ -304,7 +457,7 @@ export function AddStepDialog({
               onClick={() => {
                 if (hasTnCStep) return;
                 // Terms & Conditions should come first in the workflow by default.
-                setSelectedOrder(blockedOrder === 1 ? 2 : 1);
+                setSelectedOrder(1);
                 setMode('TNC_FORM_STEP');
               }}
               className={`text-left rounded-lg border p-4 transition-colors space-y-1 ${
@@ -340,6 +493,33 @@ export function AddStepDialog({
                 {hasBankDetailStep
                   ? 'Already added — only one is allowed per workflow.'
                   : 'Collect participant bank details for payouts. Only one allowed.'}
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('PRE_PAYMENT_STEP')}
+              className="text-left rounded-lg border border-border p-4 hover:border-primary/50 hover:bg-muted/30 transition-colors space-y-1"
+            >
+              <div className="flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />
+                <p className="text-sm font-semibold text-foreground">Pre Payment Step</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Collect payment before the auction outcome is finalized. Can be added multiple
+                times.
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('POST_PAYMENT_STEP')}
+              className="text-left rounded-lg border border-border p-4 hover:border-primary/50 hover:bg-muted/30 transition-colors space-y-1"
+            >
+              <div className="flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />
+                <p className="text-sm font-semibold text-foreground">Post Payment Step</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Collect payment after the participant wins. Can be added multiple times.
               </p>
             </button>
           </div>
@@ -542,10 +722,30 @@ export function AddStepDialog({
               </div>
             </div>
 
+            {pendingPaymentPhase && (
+              <p className="text-xs text-muted-foreground">
+                Your {pendingPaymentPhase === 'PRE_PAYMENT' ? 'Pre' : 'Post'} Payment step details
+                are saved — add this Bank Detail step first, then you&apos;ll return to finish it.
+              </p>
+            )}
+
             <OrderField />
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="ghost" size="sm" onClick={() => setMode('choose')}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (pendingPaymentPhase) {
+                    const phase = pendingPaymentPhase;
+                    setPendingPaymentPhase(null);
+                    setMode(phase === 'PRE_PAYMENT' ? 'PRE_PAYMENT_STEP' : 'POST_PAYMENT_STEP');
+                  } else {
+                    setMode('choose');
+                  }
+                }}
+              >
                 Back
               </Button>
               <Button
@@ -557,6 +757,155 @@ export function AddStepDialog({
               >
                 {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 Add Bank Detail Step
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {(mode === 'PRE_PAYMENT_STEP' || mode === 'POST_PAYMENT_STEP') && (
+          <div className="space-y-3 py-1">
+            <p className="text-xs text-muted-foreground">
+              {mode === 'PRE_PAYMENT_STEP'
+                ? 'Participant pays this amount before the auction outcome is finalized (e.g. earnest money).'
+                : 'Participant pays this amount after winning the auction (e.g. final settlement).'}
+            </p>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="paymentName">Name</Label>
+              <Input
+                id="paymentName"
+                value={paymentName}
+                onChange={(e) => setPaymentName(e.target.value)}
+                placeholder={mode === 'PRE_PAYMENT_STEP' ? 'Pre Payment' : 'Post Payment'}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="paymentDescription">Description</Label>
+              <Input
+                id="paymentDescription"
+                value={paymentDescription}
+                onChange={(e) => setPaymentDescription(e.target.value)}
+                placeholder="Optional description"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Payment mode</Label>
+              <div className="flex flex-wrap gap-4 pt-1">
+                {paymentModes.map((m) => (
+                  <label
+                    key={m.value}
+                    className="flex items-center gap-2 text-sm text-foreground cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name="paymentMode"
+                      value={m.value}
+                      checked={paymentModeValue === m.value}
+                      onChange={() => setPaymentModeValue(m.value)}
+                      className="h-4 w-4 border-input text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    {m.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <DayHourMinuteFields
+              label="Offset from auction end time"
+              daysValue={offsetDays}
+              hoursValue={offsetHours}
+              minutesValue={offsetMinutes}
+              onDaysChange={setOffsetDays}
+              onHoursChange={setOffsetHours}
+              onMinutesChange={setOffsetMinutes}
+            />
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium">Payment Heads</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-6 text-[11px]"
+                  onClick={addHead}
+                >
+                  + Add Head
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {heads.map((h, i) => (
+                  <div key={i} className="rounded-md border border-border/60 p-2.5 space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <Input
+                        placeholder="Name"
+                        value={h.name ?? ''}
+                        onChange={(e) => updateHead(i, { name: e.target.value })}
+                        className="text-sm"
+                      />
+                      <Input
+                        placeholder="Description"
+                        value={h.description ?? ''}
+                        onChange={(e) => updateHead(i, { description: e.target.value })}
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-center">
+                      <select
+                        value={h.basis}
+                        onChange={(e) => updateHead(i, { basis: e.target.value })}
+                        className={SELECT_CLS}
+                      >
+                        <option value="PERCENTAGE_BASED">Percentage</option>
+                        <option value="AMOUNT_BASED">Amount</option>
+                      </select>
+                      <Input
+                        type="number"
+                        placeholder="Value"
+                        value={h.value ?? ''}
+                        onChange={(e) => updateHead(i, { value: Number(e.target.value) })}
+                        className="text-sm"
+                      />
+                      <label className="flex items-center gap-1.5 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={!!h.refundable}
+                          onChange={(e) => updateHead(i, { refundable: e.target.checked })}
+                        />
+                        Refundable
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => removeHead(i)}
+                        disabled={heads.length === 1}
+                        className="text-[11px] text-destructive hover:underline justify-self-end disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <OrderField />
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="ghost" size="sm" onClick={() => setMode('choose')}>
+                Back
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() =>
+                  submitPaymentStep(mode === 'PRE_PAYMENT_STEP' ? 'PRE_PAYMENT' : 'POST_PAYMENT')
+                }
+                disabled={submitting}
+                className="gap-2"
+              >
+                {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Add
               </Button>
             </div>
           </div>

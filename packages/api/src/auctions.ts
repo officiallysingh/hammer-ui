@@ -20,6 +20,8 @@ export interface AuctionSchedule {
   endTime?: string;
 }
 
+export type PaymentPhase = 'PRE_PAYMENT' | 'POST_PAYMENT';
+
 export interface AuctionWorkflowStep {
   id: string;
   type?: string | Record<string, string>;
@@ -34,6 +36,11 @@ export interface AuctionWorkflowStep {
     typeId?: string;
     properties?: PropertyDef[];
   };
+  /** PAYMENT_STEP fields — a workflow can carry multiple, one per phase or more. */
+  mode?: string | Record<string, string>;
+  phase?: PaymentPhase | Record<string, string>;
+  offset?: string;
+  heads?: PolicyHeadRQ[];
   implicit?: boolean;
   status?: {
     type?: string | Record<string, string>;
@@ -55,15 +62,23 @@ export interface AuctionUnitItemBody {
   quantity: number;
 }
 
+export interface AuctionItemBody {
+  id: string;
+  name: string;
+  description?: string;
+  quantity: number;
+}
+
 export interface AuctionUnitBody {
+  id?: string; // present when updating an existing unit
   type: AuctionUnitType;
   openingPrice: number;
-  quantity?: number;
-  item?: string; // SINGLE_UNIT
+  item?: AuctionItemBody; // SINGLE_UNIT
   items?: AuctionUnitItemBody[]; // BUNDLE / MULTI_UNIT / LOT
 }
 
 export interface AuctionUnit {
+  id?: string;
   type: AuctionUnitType;
   openingPrice?: number;
   item?: string;
@@ -80,12 +95,6 @@ export interface AuctionUnitVM {
   items?: (string | { id: string; name: string; description?: string; quantity?: number })[];
 }
 
-export interface AuctionPolicies {
-  basePrice?: number;
-  stepPrice?: number;
-  reservePrice?: number;
-}
-
 export interface AuctionVM {
   id: string;
   type?: string | Record<string, string>;
@@ -97,8 +106,6 @@ export interface AuctionVM {
   protocol?: AuctionProtocol;
   monetaryOptions?: AuctionMonetaryOptions;
   schedule?: AuctionSchedule;
-  policies?: AuctionPolicies;
-  policyGroups?: Record<string, PolicyItemRQ[]>;
   unit?: AuctionUnitVM;
   units?: AuctionUnit[];
   blobs?: string[];
@@ -143,7 +150,6 @@ export interface AuctionCreationRQ {
   tags?: string[];
   subCategories?: string[];
   unit?: AuctionUnitBody;
-  policies?: Record<string, PolicyItemRQ[]>;
 }
 
 export interface AuctionUpdationRQ {
@@ -166,12 +172,6 @@ export interface AuctionScheduleRQ {
   publish?: boolean;
 }
 
-export interface AuctionPoliciesCreationRQ {
-  basePrice: number;
-  stepPrice: number;
-  reservePrice?: number;
-}
-
 export interface AuctionUnitCreationRQ {
   tags?: string[];
   subCategories?: string[];
@@ -180,12 +180,6 @@ export interface AuctionUnitCreationRQ {
 
 export interface AuctionBlobsCreationRQ {
   blobs: string[];
-}
-
-export interface PolicyGroup {
-  name: string;
-  description: string;
-  types: Record<string, string>[];
 }
 
 export interface PolicyHeadRQ {
@@ -283,9 +277,24 @@ export interface AddBankDetailFormStepRQ {
   order?: number;
 }
 
-export type AddWorkflowStepRQ = AddFormStepRQ | AddTnCFormStepRQ | AddBankDetailFormStepRQ;
+export interface AddPaymentStepRQ {
+  type: 'PAYMENT_STEP';
+  name?: string;
+  description?: string;
+  order?: number;
+  mode: string;
+  phase: PaymentPhase;
+  offset: string;
+  heads: PolicyHeadRQ[];
+}
 
-export type AuctionPoliciesGroupRQ = Record<string, PolicyItemRQ[]>;
+export type AddWorkflowStepRQ =
+  | AddFormStepRQ
+  | AddTnCFormStepRQ
+  | AddBankDetailFormStepRQ
+  | AddPaymentStepRQ;
+
+export type AuctionPoliciesRQ = PolicyItemRQ[];
 
 /** Model endpoints return arrays of single-key objects: [{ "KEY": "Label" }, ...] */
 export type AuctionModelEntry = Record<string, string>;
@@ -350,30 +359,24 @@ export const auctionsApi = {
   },
 
   getAuctionWorkflow: async (id: string): Promise<AuctionWorkflowStep[]> => {
-    const response = await apiClient.get<AuctionWorkflowStep[]>(
-      `/api/v1/auctions/${id}/participation/workflow`,
-    );
+    const response = await apiClient.get<AuctionWorkflowStep[]>(`/api/v1/auctions/${id}/workflow`);
     return response.data;
   },
 
-  getAuctionParticipation: async (id: string): Promise<AuctionParticipation> => {
-    const response = await apiClient.get<AuctionParticipation>(
-      `/api/v1/auctions/${id}/participation`,
-    );
-    return response.data;
-  },
+  // getAuctionParticipation: async (id: string): Promise<AuctionParticipation> => {
+  //   const response = await apiClient.get<AuctionParticipation>(
+  //     `/api/v1/auctions/${id}/participation`,
+  //   );
+  //   return response.data;
+  // },
 
   /** Payload is a map of stepId -> new order (1-based), not an ordered id array. */
   reorderWorkflowSteps: async (id: string, order: Record<string, number>): Promise<void> => {
-    await apiClient.post(`/api/v1/auctions/${id}/participation/workflow/steps/reorder`, order);
+    await apiClient.post(`/api/v1/auctions/${id}/workflow/reorder`, order);
   },
 
   addWorkflowStep: async (id: string, data: AddWorkflowStepRQ): Promise<void> => {
-    await apiClient.post(`/api/v1/auctions/${id}/participation/workflow/steps`, data);
-  },
-
-  setAuctionPolicies: async (id: string, data: AuctionPoliciesCreationRQ): Promise<void> => {
-    await apiClient.put(`/api/v1/auctions/${id}/policies`, data);
+    await apiClient.post(`/api/v1/auctions/${id}/workflow`, data);
   },
 
   setAuctionUnits: async (id: string, data: AuctionUnitCreationRQ): Promise<void> => {
@@ -419,19 +422,19 @@ export const auctionsApi = {
     return parseModelOptions(response.data);
   },
 
-  getPolicyGroups: async (auctionType: string): Promise<PolicyGroup[]> => {
-    const response = await apiClient.get<PolicyGroup[]>(
-      `/api/v1/auctions/model/policies/groups/${encodeURIComponent(auctionType)}`,
+  getPolicyTypes: async (auctionType: string): Promise<{ value: string; label: string }[]> => {
+    const response = await apiClient.get<AuctionModelEntry[]>(
+      `/api/v1/auctions/model/policies/types/${encodeURIComponent(auctionType)}`,
     );
+    return parseModelOptions(response.data);
+  },
+
+  getAuctionPolicies: async (id: string): Promise<AuctionPoliciesRQ> => {
+    const response = await apiClient.get<AuctionPoliciesRQ>(`/api/v1/auctions/${id}/policies`);
     return response.data;
   },
 
-  getAuctionPolicies: async (id: string): Promise<AuctionPoliciesGroupRQ> => {
-    const response = await apiClient.get<AuctionPoliciesGroupRQ>(`/api/v1/auctions/${id}/policies`);
-    return response.data;
-  },
-
-  setAuctionPolicyGroups: async (id: string, data: AuctionPoliciesGroupRQ): Promise<void> => {
+  setAuctionPolicies: async (id: string, data: AuctionPoliciesRQ): Promise<void> => {
     await apiClient.put(`/api/v1/auctions/${id}/policies`, data);
   },
 
@@ -468,12 +471,12 @@ export const auctionsApi = {
     stepId: string,
     data: Partial<AddWorkflowStepRQ> & { type: WorkflowStepType },
   ): Promise<void> => {
-    await apiClient.put(`/api/v1/auctions/${id}/participation/workflow/steps/${stepId}`, data);
+    await apiClient.put(`/api/v1/auctions/${id}/workflow/${stepId}`, data);
   },
 
   /** Deletes a single step from the auction workflow. */
   deleteWorkflowStep: async (id: string, stepId: string): Promise<void> => {
-    await apiClient.delete(`/api/v1/auctions/${id}/participation/workflow/steps/${stepId}`);
+    await apiClient.delete(`/api/v1/auctions/${id}/workflow/${stepId}`);
   },
 
   getRoundingModeTypes: async (): Promise<{ value: string; label: string }[]> => {
