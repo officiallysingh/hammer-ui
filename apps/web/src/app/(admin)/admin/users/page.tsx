@@ -17,9 +17,10 @@ import {
   Search,
   X,
   KeyRound,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
-import { Button, Label } from '@repo/ui';
+import { Badge, Button, Label } from '@repo/ui';
 import Select from 'react-select';
 import type { MultiValue } from 'react-select';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -112,18 +113,22 @@ function VerifiedBadge({ verified }: { verified: boolean }) {
   );
 }
 
-/** Tri-state (All / Yes / No) filter for an optional boolean query param. */
+/** Tri-state (All / option / option) filter for an optional boolean query param. */
 function TriStateFilter({
   label,
   value,
   onChange,
+  trueLabel = 'Yes',
+  falseLabel = 'No',
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  trueLabel?: string;
+  falseLabel?: string;
 }) {
   return (
-    <div className="min-w-[140px] space-y-1.5">
+    <div className="w-full space-y-1.5">
       <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
       <select
         value={value}
@@ -131,8 +136,8 @@ function TriStateFilter({
         className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
       >
         <option value="">All</option>
-        <option value="true">Yes</option>
-        <option value="false">No</option>
+        <option value="true">{trueLabel}</option>
+        <option value="false">{falseLabel}</option>
       </select>
     </div>
   );
@@ -580,6 +585,15 @@ export default function UsersPage() {
     actionsColumn,
   ];
 
+  const activeFilterCount =
+    phrases.length +
+    selectedRoles.length +
+    selectedPermissions.length +
+    (enabledFilter ? 1 : 0) +
+    (credentialsExpiredFilter ? 1 : 0) +
+    (emailVerifiedFilter ? 1 : 0) +
+    (mobileVerifiedFilter ? 1 : 0);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -618,100 +632,137 @@ export default function UsersPage() {
       {error && <ErrorAlert message={error} />}
 
       {/* Filter panel */}
-      <div className="rounded-xl border border-border bg-card p-4">
-        <div className="flex flex-wrap items-end gap-3">
-          {/* Phrases */}
-          <div className="flex-1 min-w-[220px] space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground">Search phrases</Label>
+      <div className="rounded-xl border border-border bg-card">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">Filters</h3>
+            {activeFilterCount > 0 && (
+              <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-xs">
+                {activeFilterCount} {activeFilterCount === 1 ? 'filter' : 'filters'} active
+              </Badge>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-muted-foreground hover:text-foreground"
+            onClick={handleReset}
+          >
+            <X className="h-3.5 w-3.5 mr-1" />
+            Clear all
+          </Button>
+        </div>
+
+        <div className="space-y-4 p-4">
+          {/* Search */}
+          <div className="max-w-xl space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Search keywords</Label>
             <PhrasesInput
               value={phrases}
               onChange={(v) => {
                 phrasesRef.current = v;
                 setPhrases(v);
               }}
-              placeholder="Search users..."
+              placeholder="Username, name, email or phone… press Enter to add"
             />
+            <p className="text-xs text-muted-foreground">
+              Add multiple keywords and press Enter after each. Matches across user profile fields.
+            </p>
           </div>
 
-          {/* Roles */}
-          <div className="min-w-[240px] space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground">Roles</Label>
-            <Select<SelectOption, true>
-              isMulti
-              options={roleOptions}
-              value={selectedRoles}
-              onChange={(vals: MultiValue<SelectOption>) => setSelectedRoles([...vals])}
-              placeholder="All roles"
-              styles={reactSelectStyles as never}
-            />
-          </div>
-
-          {/* Permissions */}
-          <div className="min-w-[240px] space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground">Permissions</Label>
-            <Select<SelectOption, true>
-              isMulti
-              options={permissionOptions}
-              value={selectedPermissions}
-              onChange={(vals: MultiValue<SelectOption>) => setSelectedPermissions([...vals])}
-              placeholder="All permissions"
-              styles={reactSelectStyles as never}
-            />
-          </div>
-
-          {/* Status filters */}
-          <TriStateFilter label="Enabled" value={enabledFilter} onChange={setEnabledFilter} />
-          <TriStateFilter
-            label="Credentials Expired"
-            value={credentialsExpiredFilter}
-            onChange={setCredentialsExpiredFilter}
-          />
-          <TriStateFilter
-            label="Email Verified"
-            value={emailVerifiedFilter}
-            onChange={setEmailVerifiedFilter}
-          />
-          <TriStateFilter
-            label="Mobile Verified"
-            value={mobileVerifiedFilter}
-            onChange={setMobileVerifiedFilter}
-          />
-
-          {/* Column toggles */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground">Show columns</Label>
-            <div className="flex items-center gap-3 h-9 px-2 rounded-md border border-input bg-background">
-              <label className="flex items-center gap-1.5 cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground transition-colors">
-                <input
-                  type="checkbox"
-                  checked={showRoles}
-                  onChange={(e) => setShowRoles(e.target.checked)}
-                  className="accent-primary h-3.5 w-3.5"
-                />
-                Roles
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground transition-colors">
-                <input
-                  type="checkbox"
-                  checked={showPermissions}
-                  onChange={(e) => setShowPermissions(e.target.checked)}
-                  className="accent-primary h-3.5 w-3.5"
-                />
-                Permissions
-              </label>
+          {/* Role / permission / status selects */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Roles</Label>
+              <Select<SelectOption, true>
+                isMulti
+                options={roleOptions}
+                value={selectedRoles}
+                onChange={(vals: MultiValue<SelectOption>) => setSelectedRoles([...vals])}
+                placeholder="All roles"
+                styles={reactSelectStyles as never}
+              />
             </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Permissions</Label>
+              <Select<SelectOption, true>
+                isMulti
+                options={permissionOptions}
+                value={selectedPermissions}
+                onChange={(vals: MultiValue<SelectOption>) => setSelectedPermissions([...vals])}
+                placeholder="All permissions"
+                styles={reactSelectStyles as never}
+              />
+            </div>
+
+            <TriStateFilter
+              label="Account status"
+              value={enabledFilter}
+              onChange={setEnabledFilter}
+              trueLabel="Active"
+              falseLabel="Inactive"
+            />
+            <TriStateFilter
+              label="Credentials"
+              value={credentialsExpiredFilter}
+              onChange={setCredentialsExpiredFilter}
+              trueLabel="Expired"
+              falseLabel="Valid"
+            />
+            <TriStateFilter
+              label="Email verification"
+              value={emailVerifiedFilter}
+              onChange={setEmailVerifiedFilter}
+              trueLabel="Verified"
+              falseLabel="Unverified"
+            />
+            <TriStateFilter
+              label="Mobile verification"
+              value={mobileVerifiedFilter}
+              onChange={setMobileVerifiedFilter}
+              trueLabel="Verified"
+              falseLabel="Unverified"
+            />
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-2 pb-0.5">
-            <Button size="sm" onClick={handleSearch} className="gap-1.5">
-              <Search className="h-3.5 w-3.5" />
-              Search
-            </Button>
-            <Button size="sm" variant="outline" onClick={handleReset} className="gap-1.5">
-              <X className="h-3.5 w-3.5" />
-              Reset
-            </Button>
+          {/* Column visibility + actions */}
+          <div className="flex flex-wrap items-end justify-between gap-3 border-t border-border pt-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Displayed columns</Label>
+              <div className="flex items-center gap-3 h-9 px-2 rounded-md border border-input bg-background">
+                <label className="flex items-center gap-1.5 cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={showRoles}
+                    onChange={(e) => setShowRoles(e.target.checked)}
+                    className="accent-primary h-3.5 w-3.5"
+                  />
+                  Roles
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={showPermissions}
+                    onChange={(e) => setShowPermissions(e.target.checked)}
+                    className="accent-primary h-3.5 w-3.5"
+                  />
+                  Permissions
+                </label>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button size="sm" onClick={handleSearch} className="gap-1.5">
+                <Search className="h-3.5 w-3.5" />
+                Apply filters
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleReset} className="gap-1.5">
+                <X className="h-3.5 w-3.5" />
+                Reset
+              </Button>
+            </div>
           </div>
         </div>
       </div>

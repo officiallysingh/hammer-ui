@@ -57,10 +57,10 @@ function seedMandatoryDefaults(
   }
 
   // Price Progression — mandatory
-  if (hasCategory('PRICE_PROGRESSION') && current.priceChangePolicies.length === 0) {
+  if (hasCategory('PRICE_PROGRESSION') && current.policies.length === 0) {
     const firstType = PRICE_CHANGE_TYPE_OPTIONS[0]?.value ?? '';
     const defaults = firstType ? POLICY_DEFAULTS[firstType] : undefined;
-    patch.priceChangePolicies = [
+    patch.policies = [
       {
         type: firstType,
         name: defaults?.name ?? '',
@@ -328,7 +328,7 @@ export function AuctionStep3Policies({
           evaluations: await preview(t.item),
         })),
       ),
-      preview(buildPriceProgressionWrapper(form.priceChangePolicies)),
+      preview(buildPriceProgressionWrapper(form.policies)),
       preview(buildParticipationItem(form)),
       preview(buildExtensionItem(form)),
       preview(buildWinnerDeterminationItem(form)),
@@ -584,15 +584,13 @@ export function AuctionStep3Policies({
               editable
               onEdit={() => setEditingKey('priceProgression')}
               deletable
-              onDeleted={() =>
-                onChange({ priceProgressionPolicyId: undefined, priceChangePolicies: [] })
-              }
+              onDeleted={() => onChange({ priceProgressionPolicyId: undefined, policies: [] })}
             />
           ) : (
             <div className="space-y-2">
               <PolicyPriceProgressionSection
-                priceChangePolicies={form.priceChangePolicies}
-                onPoliciesChange={(v) => onChange({ priceChangePolicies: v })}
+                policies={form.policies}
+                onPoliciesChange={(v) => onChange({ policies: v })}
                 options={PRICE_CHANGE_TYPE_OPTIONS}
                 fieldErrors={fieldErrors}
                 groupDescription={getGroupDescription('PRICE_PROGRESSION')}
@@ -604,7 +602,7 @@ export function AuctionStep3Policies({
                   onSave={() =>
                     runSave(
                       form.priceProgressionPolicyId,
-                      buildPriceProgressionWrapper(form.priceChangePolicies),
+                      buildPriceProgressionWrapper(form.policies),
                     )
                   }
                   onCancel={cancelEdit}
