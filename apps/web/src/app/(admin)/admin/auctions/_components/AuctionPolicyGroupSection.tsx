@@ -51,7 +51,7 @@ export function PolicyGroupSection({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
           {items.map((item, i) => {
             const isLastOfOdd = i === items.length - 1 && items.length % 2 === 1;
-            if (item.priceChangePolicies?.length) {
+            if (item.policies?.length) {
               return (
                 <div key={i} className={`space-y-2 ${isLastOfOdd ? 'sm:col-span-2' : ''}`}>
                   <PolicyItemCard
@@ -62,7 +62,7 @@ export function PolicyGroupSection({
                     evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
                     showStatus={true}
                   />
-                  {item.priceChangePolicies.map((nested, j) => (
+                  {item.policies.map((nested, j) => (
                     <div key={j} className="pl-4 border-l-2 border-primary/20">
                       <PolicyItemCard
                         auctionId={auctionId}

@@ -77,7 +77,7 @@ export function buildPriceProgressionWrapper(items: PriceChangeItem[]): PolicyIt
     type: 'PRICE_PROGRESSION_POLICY',
     name: wrapperDefaults?.name,
     description: wrapperDefaults?.description,
-    priceChangePolicies: priceItems.map((p, i, arr) => {
+    policies: priceItems.map((p, i, arr) => {
       const isLast = i === arr.length - 1;
       const item: PolicyItemRQ = {
         type: p.type,
@@ -163,7 +163,7 @@ export function buildPolicies(step3: Step3State): PolicyItemRQ[] {
   const extension = buildExtensionItem(step3);
   if (extension) policies.push({ ...extension, priority: priority++ });
 
-  const priceWrapper = buildPriceProgressionWrapper(step3.priceChangePolicies);
+  const priceWrapper = buildPriceProgressionWrapper(step3.policies);
   if (priceWrapper) policies.push({ ...priceWrapper, priority: priority++ });
 
   const winnerDetermination = buildWinnerDeterminationItem(step3);
@@ -223,7 +223,7 @@ export function mapSavedPolicies(items: PolicyItemRQ[]): Partial<Step3State> {
   if (priceProgression?.length) {
     const wrapper = priceProgression[0]!;
     out.priceProgressionPolicyId = wrapper.id;
-    out.priceChangePolicies = (wrapper.priceChangePolicies ?? []).map((p): PriceChangeItem => {
+    out.policies = (wrapper.policies ?? []).map((p): PriceChangeItem => {
       const { hours, minutes } = parseDurationWindow(p.windowDuration ?? 'PT0S');
       return {
         name: p.name ?? '',
@@ -290,7 +290,7 @@ function collectNamedEntries(step3: Step3State): { key: string; name: string }[]
   step3.preconditions.forEach((p, i) => {
     if (p.name) entries.push({ key: `precondition_name_${i}`, name: p.name });
   });
-  step3.priceChangePolicies.forEach((p, i) => {
+  step3.policies.forEach((p, i) => {
     if (p.name) entries.push({ key: `priceChange_name_${i}`, name: p.name });
   });
   if (step3.extensionEnabled && step3.extensionName) {
@@ -356,7 +356,7 @@ export function validatePolicies(step3: Step3State): Record<string, string> {
     }
   });
 
-  step3.priceChangePolicies.forEach((p, i) => {
+  step3.policies.forEach((p, i) => {
     if (!p.type) {
       errs[`priceChange_type_${i}`] = 'Please select a policy type.';
     } else if (p.type === 'STEP_BASED_OFFER_PRICE_POLICY' && (!p.steps || p.steps.length === 0)) {

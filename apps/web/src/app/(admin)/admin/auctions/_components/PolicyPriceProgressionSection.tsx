@@ -18,7 +18,7 @@ import {
 } from './PolicyShared';
 
 interface Props {
-  priceChangePolicies: PriceChangeItem[];
+  policies: PriceChangeItem[];
   onPoliciesChange: (updated: PriceChangeItem[]) => void;
   options: SelectOption[];
   fieldErrors: Record<string, string>;
@@ -42,7 +42,7 @@ const EMPTY_ITEM: PriceChangeItem = {
 };
 
 export function PolicyPriceProgressionSection({
-  priceChangePolicies,
+  policies,
   onPoliciesChange,
   options,
   fieldErrors,
@@ -57,7 +57,7 @@ export function PolicyPriceProgressionSection({
     const firstType = options[0]?.value ?? '';
     const defaults = firstType ? POLICY_DEFAULTS[firstType] : undefined;
     onPoliciesChange([
-      ...priceChangePolicies,
+      ...policies,
       {
         ...EMPTY_ITEM,
         type: firstType,
@@ -66,10 +66,10 @@ export function PolicyPriceProgressionSection({
       },
     ]);
   };
-  const remove = (i: number) => onPoliciesChange(priceChangePolicies.filter((_, idx) => idx !== i));
-  const move = (i: number, dir: -1 | 1) => onPoliciesChange(moveItem(priceChangePolicies, i, dir));
+  const remove = (i: number) => onPoliciesChange(policies.filter((_, idx) => idx !== i));
+  const move = (i: number, dir: -1 | 1) => onPoliciesChange(moveItem(policies, i, dir));
   const update = (i: number, patch: Partial<PriceChangeItem>) =>
-    onPoliciesChange(priceChangePolicies.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
+    onPoliciesChange(policies.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
 
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
@@ -88,12 +88,12 @@ export function PolicyPriceProgressionSection({
         </button>
       </div>
 
-      {priceChangePolicies.length === 0 ? (
+      {policies.length === 0 ? (
         <p className="text-sm text-muted-foreground">No price progression windows defined.</p>
       ) : (
         <div className="space-y-3">
-          {priceChangePolicies.map((pc, i) => {
-            const isLast = i === priceChangePolicies.length - 1;
+          {policies.map((pc, i) => {
+            const isLast = i === policies.length - 1;
             const isStepBased = pc.type === 'STEP_BASED_OFFER_PRICE_POLICY';
             return (
               <div
@@ -116,7 +116,7 @@ export function PolicyPriceProgressionSection({
                   e.preventDefault();
                   const from = dragIndexRef.current;
                   if (from !== null && from !== i) {
-                    const updated = [...priceChangePolicies];
+                    const updated = [...policies];
                     const [moved] = updated.splice(from, 1);
                     updated.splice(i, 0, moved!);
                     onPoliciesChange(updated);
@@ -139,11 +139,7 @@ export function PolicyPriceProgressionSection({
                         dragHandleActiveRef.current = true;
                       }}
                     />
-                    <SortButtons
-                      index={i}
-                      total={priceChangePolicies.length}
-                      onMove={(dir) => move(i, dir)}
-                    />
+                    <SortButtons index={i} total={policies.length} onMove={(dir) => move(i, dir)} />
                     <span className="text-xs font-medium text-muted-foreground">
                       Window {i + 1}
                       {isLast && (
@@ -193,7 +189,7 @@ export function PolicyPriceProgressionSection({
                     <div className="space-y-1.5">
                       <Label className="text-xs font-medium">Time Window</Label>
                       <p className="text-xs text-muted-foreground py-[7px]">
-                        {priceChangePolicies.length === 1
+                        {policies.length === 1
                           ? 'Applicable for whole auction duration'
                           : 'Applicable for rest of auction duration'}
                       </p>

@@ -41,7 +41,7 @@ export function PriceProgressionTimeline({
   wrapper: PolicyItemRQ;
   evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
 }) {
-  const windows = wrapper.priceChangePolicies ?? [];
+  const windows = wrapper.policies ?? [];
   if (windows.length === 0) return null;
 
   const nodes = windows.reduce<{ w: PolicyItemRQ; i: number; rangeLabel: string; end: number }[]>(

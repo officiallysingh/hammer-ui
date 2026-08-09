@@ -35,7 +35,7 @@ export interface Step3State {
   /** Present only when participation was loaded from a previously saved policy. */
   participationPolicyId?: string;
   preconditions: PreconditionItem[];
-  priceChangePolicies: PriceChangeItem[];
+  policies: PriceChangeItem[];
   /** Present only when the price progression wrapper was loaded from a previously saved policy. */
   priceProgressionPolicyId?: string;
   extensionEnabled: boolean;
@@ -70,7 +70,7 @@ export const initialStep3: Step3State = {
   participationValidationHours: '0',
   participationValidationMinutes: '0',
   preconditions: [],
-  priceChangePolicies: [],
+  policies: [],
   extensionEnabled: false,
   extensionType: '',
   extensionName: '',

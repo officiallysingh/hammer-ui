@@ -216,7 +216,7 @@ export interface PolicyItemRQ {
   windowDuration?: string;
   steps?: number[];
   kth?: number;
-  priceChangePolicies?: PolicyItemRQ[];
+  policies?: PolicyItemRQ[];
   postPayment?: boolean;
   prePayment?: boolean;
   typeId?: string;
