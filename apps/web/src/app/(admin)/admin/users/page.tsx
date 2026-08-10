@@ -128,7 +128,7 @@ function TriStateFilter({
   falseLabel?: string;
 }) {
   return (
-    <div className="w-full space-y-1.5">
+    <div className="w-full max-w-[18rem] space-y-1 sm:grid sm:grid-cols-[auto_minmax(12rem,1fr)] sm:items-center sm:gap-2 sm:space-y-0">
       <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
       <select
         value={value}
@@ -632,8 +632,8 @@ export default function UsersPage() {
       {error && <ErrorAlert message={error} />}
 
       {/* Filter panel */}
-      <div className="rounded-xl border border-border bg-card">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
           <div className="flex items-center gap-2">
             <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-sm font-semibold">Filters</h3>
@@ -654,9 +654,8 @@ export default function UsersPage() {
           </Button>
         </div>
 
-        <div className="space-y-4 p-4">
-          {/* Search */}
-          <div className="max-w-xl space-y-1.5">
+        <div className="flex flex-wrap items-end gap-3 pt-4">
+          <div className="min-w-[260px] flex-1 space-y-1">
             <Label className="text-xs font-medium text-muted-foreground">Search keywords</Label>
             <PhrasesInput
               value={phrases}
@@ -666,104 +665,86 @@ export default function UsersPage() {
               }}
               placeholder="Username, name, email or phone… press Enter to add"
             />
-            <p className="text-xs text-muted-foreground">
-              Add multiple keywords and press Enter after each. Matches across user profile fields.
-            </p>
           </div>
 
-          {/* Role / permission / status selects */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground">Roles</Label>
-              <Select<SelectOption, true>
-                isMulti
-                options={roleOptions}
-                value={selectedRoles}
-                onChange={(vals: MultiValue<SelectOption>) => setSelectedRoles([...vals])}
-                placeholder="All roles"
-                styles={reactSelectStyles as never}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground">Permissions</Label>
-              <Select<SelectOption, true>
-                isMulti
-                options={permissionOptions}
-                value={selectedPermissions}
-                onChange={(vals: MultiValue<SelectOption>) => setSelectedPermissions([...vals])}
-                placeholder="All permissions"
-                styles={reactSelectStyles as never}
-              />
-            </div>
-
-            <TriStateFilter
-              label="Account status"
-              value={enabledFilter}
-              onChange={setEnabledFilter}
-              trueLabel="Active"
-              falseLabel="Inactive"
-            />
-            <TriStateFilter
-              label="Credentials"
-              value={credentialsExpiredFilter}
-              onChange={setCredentialsExpiredFilter}
-              trueLabel="Expired"
-              falseLabel="Valid"
-            />
-            <TriStateFilter
-              label="Email verification"
-              value={emailVerifiedFilter}
-              onChange={setEmailVerifiedFilter}
-              trueLabel="Verified"
-              falseLabel="Unverified"
-            />
-            <TriStateFilter
-              label="Mobile verification"
-              value={mobileVerifiedFilter}
-              onChange={setMobileVerifiedFilter}
-              trueLabel="Verified"
-              falseLabel="Unverified"
+          <div className="min-w-[280px] max-w-[380px] space-y-1">
+            <Label className="text-xs font-medium text-muted-foreground">Roles</Label>
+            <Select<SelectOption, true>
+              isMulti
+              options={roleOptions}
+              value={selectedRoles}
+              onChange={(vals: MultiValue<SelectOption>) => setSelectedRoles([...vals])}
+              placeholder="All roles"
+              styles={reactSelectStyles as never}
             />
           </div>
 
-          {/* Column visibility + actions */}
-          <div className="flex flex-wrap items-end justify-between gap-3 border-t border-border pt-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground">Displayed columns</Label>
-              <div className="flex items-center gap-3 h-9 px-2 rounded-md border border-input bg-background">
-                <label className="flex items-center gap-1.5 cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={showRoles}
-                    onChange={(e) => setShowRoles(e.target.checked)}
-                    className="accent-primary h-3.5 w-3.5"
-                  />
-                  Roles
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={showPermissions}
-                    onChange={(e) => setShowPermissions(e.target.checked)}
-                    className="accent-primary h-3.5 w-3.5"
-                  />
-                  Permissions
-                </label>
-              </div>
-            </div>
+          <div className="min-w-[280px] max-w-[380px] space-y-1">
+            <Label className="text-xs font-medium text-muted-foreground">Permissions</Label>
+            <Select<SelectOption, true>
+              isMulti
+              options={permissionOptions}
+              value={selectedPermissions}
+              onChange={(vals: MultiValue<SelectOption>) => setSelectedPermissions([...vals])}
+              placeholder="All permissions"
+              styles={reactSelectStyles as never}
+            />
+          </div>
 
-            <div className="flex gap-2">
-              <Button size="sm" onClick={handleSearch} className="gap-1.5">
-                <Search className="h-3.5 w-3.5" />
-                Apply filters
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleReset} className="gap-1.5">
-                <X className="h-3.5 w-3.5" />
-                Reset
-              </Button>
+          <div className="w-full max-w-[420px] space-y-1">
+            <Label className="text-xs font-medium text-muted-foreground">Displayed columns</Label>
+            <div className="flex items-center gap-3 h-9 px-2 rounded-md border border-input bg-background">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <input
+                  type="checkbox"
+                  checked={showRoles}
+                  onChange={(e) => setShowRoles(e.target.checked)}
+                  className="accent-primary h-3.5 w-3.5"
+                />
+                Roles
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <input
+                  type="checkbox"
+                  checked={showPermissions}
+                  onChange={(e) => setShowPermissions(e.target.checked)}
+                  className="accent-primary h-3.5 w-3.5"
+                />
+                Permissions
+              </label>
             </div>
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 pt-4 sm:grid-cols-2 xl:grid-cols-4">
+          <TriStateFilter
+            label="Account status"
+            value={enabledFilter}
+            onChange={setEnabledFilter}
+            trueLabel="Active"
+            falseLabel="Inactive"
+          />
+          <TriStateFilter
+            label="Credentials"
+            value={credentialsExpiredFilter}
+            onChange={setCredentialsExpiredFilter}
+            trueLabel="Expired"
+            falseLabel="Valid"
+          />
+          <TriStateFilter
+            label="Email verification"
+            value={emailVerifiedFilter}
+            onChange={setEmailVerifiedFilter}
+            trueLabel="Verified"
+            falseLabel="Unverified"
+          />
+          <TriStateFilter
+            label="Mobile verification"
+            value={mobileVerifiedFilter}
+            onChange={setMobileVerifiedFilter}
+            trueLabel="Verified"
+            falseLabel="Unverified"
+          />
         </div>
       </div>
 
