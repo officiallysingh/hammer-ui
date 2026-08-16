@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { metadataApi, ManagedTypeVM } from '@repo/api';
-import { Loader2, Trash2, RefreshCw, Plus, Pencil, Eye } from 'lucide-react';
+import { Loader2, Trash2, RefreshCw, Plus, Pencil, Eye, Copy } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
-import { Button } from '@repo/ui';
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from '@repo/ui';
 import { DataTable } from '@/components/common/data-table';
 import PageHeader from '@/components/common/admin/PageHeader';
 import ErrorAlert from '@/components/common/admin/ErrorAlert';
@@ -14,6 +14,7 @@ import Tip from '@/components/common/admin/Tip';
 import { TagList } from '@/components/common/admin/TagList';
 import { PhraseSearchBar } from '@/components/common/admin/PhraseSearchBar';
 import { ManagedTypeViewDialog } from '../_components/ManagedTypeViewDialog';
+import { prepareManagedTypeForCreate } from '../_components/types';
 
 const TYPE = 'CUSTOM_FORM' as const;
 
@@ -27,6 +28,10 @@ export default function CustomFormsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
+  const [duplicateId, setDuplicateId] = useState<string | null>(null);
+  const [duplicateName, setDuplicateName] = useState('');
+  const [duplicating, setDuplicating] = useState(false);
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
   const PAGE_SIZE = 16;
   const [pageIndex, setPageIndex] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -87,6 +92,47 @@ export default function CustomFormsPage() {
       setError('Failed to delete custom form.');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleOpenDuplicate = (t: ManagedTypeVM) => {
+    setDuplicateId(t.id);
+    setDuplicateName(`Copy of ${t.name}`);
+    setDuplicateError(null);
+  };
+
+  const handleDuplicate = async () => {
+    if (!duplicateId) return;
+    const orig = types.find((t) => t.id === duplicateId);
+    if (!orig) return;
+    if (!duplicateName.trim()) {
+      setDuplicateError('Name is required.');
+      return;
+    }
+    setDuplicating(true);
+    setDuplicateError(null);
+    try {
+      const nextDescription = (orig.description ?? '').trim();
+      const uniqueDescription = nextDescription
+        ? `${nextDescription} (Copy ${Date.now().toString(36)})`
+        : `Copy ${Date.now().toString(36)}`;
+
+      await metadataApi.createManagedType(
+        prepareManagedTypeForCreate({
+          ...orig,
+          name: duplicateName.trim(),
+          description: uniqueDescription,
+          type: TYPE,
+        }),
+      );
+      setDuplicateId(null);
+      setDuplicateName('');
+      // refresh list
+      fetchTypes(phrases.length ? phrases : undefined, pageIndex);
+    } catch {
+      setDuplicateError('Failed to duplicate custom form.');
+    } finally {
+      setDuplicating(false);
     }
   };
 
@@ -153,6 +199,16 @@ export default function CustomFormsPage() {
               onClick={() => router.push(`/admin/metadata/custom-forms/${row.original.id}/edit`)}
             >
               <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          </Tip>
+          <Tip label="Duplicate form">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+              onClick={() => handleOpenDuplicate(row.original)}
+            >
+              <Copy className="h-3.5 w-3.5" />
             </Button>
           </Tip>
           <Tip label="Delete form">
@@ -233,6 +289,52 @@ export default function CustomFormsPage() {
         }}
         onCancel={() => setConfirmId(null)}
       />
+
+      {/* Duplicate dialog */}
+      <Dialog
+        open={duplicateId !== null}
+        onOpenChange={(o) => {
+          if (!o) setDuplicateId(null);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Duplicate custom form</DialogTitle>
+            <div className="text-sm text-muted-foreground">
+              Provide a name for the duplicated form.
+            </div>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label htmlFor="dup-name">
+                Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="dup-name"
+                value={duplicateName}
+                onChange={(e) => setDuplicateName(e.target.value)}
+                placeholder="New form name"
+                autoFocus
+              />
+              {duplicateError && <p className="text-xs text-destructive">{duplicateError}</p>}
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDuplicateId(null)}
+                disabled={duplicating}
+              >
+                Cancel
+              </Button>
+              <Button type="button" onClick={handleDuplicate} disabled={duplicating}>
+                {duplicating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                Duplicate
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <ManagedTypeViewDialog typeId={viewId} onClose={() => setViewId(null)} />
     </div>
