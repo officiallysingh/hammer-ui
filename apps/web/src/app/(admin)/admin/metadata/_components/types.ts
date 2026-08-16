@@ -56,6 +56,33 @@ export function sanitizeProperties(properties: PropertyDef[]): PropertyDef[] {
   return properties.map(sanitizeProperty);
 }
 
+/** Build a backend-safe create/update payload from a managed type returned by the API. */
+export function prepareManagedTypeForCreate<
+  T extends {
+    name: string;
+    description?: string;
+    type: string;
+    tags?: string[];
+    properties?: PropertyDef[];
+  },
+>(
+  managedType: T,
+): {
+  name: string;
+  description: string;
+  type: T['type'];
+  tags?: string[];
+  properties: PropertyDef[];
+} {
+  return {
+    name: managedType.name,
+    description: managedType.description ?? '',
+    type: managedType.type,
+    tags: managedType.tags?.length ? managedType.tags : undefined,
+    properties: sanitizeProperties(managedType.properties ?? []),
+  };
+}
+
 /** Extract a plain string type key from whatever the server/state gives us. */
 function extractValidatorType(raw: unknown): string {
   if (typeof raw === 'string') return raw.trim();
