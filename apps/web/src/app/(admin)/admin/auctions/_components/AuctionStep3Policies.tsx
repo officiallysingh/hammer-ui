@@ -168,6 +168,8 @@ function SaveCancelBar({
 
 interface AuctionStep3PoliciesProps {
   auctionId?: string;
+  /** True when editing an existing auction — changes button labels and "Add" fallbacks */
+  isEditMode?: boolean;
   form: Step3State;
   onChange: (updates: Partial<Step3State>) => void;
   auctionType: string;
@@ -185,6 +187,7 @@ interface AuctionStep3PoliciesProps {
 
 export function AuctionStep3Policies({
   auctionId,
+  isEditMode = false,
   form,
   onChange,
   auctionType,
@@ -454,26 +457,54 @@ export function AuctionStep3Policies({
         {/* Participation */}
         {hasGroup('PARTICIPATION') &&
           (form.participationPolicyId && editingKey !== 'participation' ? (
-            <PolicyItemCard
-              auctionId={auctionId!}
-              policyId={form.participationPolicyId}
-              name={form.participationName || 'Participation Policy'}
-              type="PARTICIPATION_POLICY"
-              evaluations={evaluationsByPolicyId[form.participationPolicyId]}
-              editable
-              onEdit={() => setEditingKey('participation')}
-              deletable
-              onDeleted={() =>
-                onChange({
-                  participationEnabled: false,
-                  participationPolicyId: undefined,
-                  participationName: '',
-                  participationDescription: '',
-                  participationTypeId: '',
-                  participationManualApproval: false,
-                })
-              }
-            />
+            <div className="rounded-xl border border-violet-200 dark:border-violet-900/50 bg-violet-50/30 dark:bg-violet-950/10 p-1">
+              <PolicyItemCard
+                auctionId={auctionId!}
+                policyId={form.participationPolicyId}
+                name={form.participationName || 'Participation Policy'}
+                type="PARTICIPATION_POLICY"
+                evaluations={evaluationsByPolicyId[form.participationPolicyId]}
+                editable
+                onEdit={() => setEditingKey('participation')}
+                deletable
+                onDeleted={() =>
+                  onChange({
+                    participationEnabled: false,
+                    participationPolicyId: undefined,
+                    participationName: '',
+                    participationDescription: '',
+                    participationTypeId: '',
+                    participationManualApproval: false,
+                  })
+                }
+              />
+            </div>
+          ) : isEditMode && !form.participationEnabled && !editingKey ? (
+            // Edit mode: policy was never created — offer an Add button
+            <div className="rounded-xl border border-dashed border-violet-300 dark:border-violet-800 bg-violet-50/20 dark:bg-violet-950/10 p-4 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-foreground">Participation</p>
+                <p className="text-xs text-muted-foreground">
+                  No participation policy created yet.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="shrink-0"
+                onClick={() => {
+                  const defaults = POLICY_DEFAULTS['PARTICIPATION_POLICY'];
+                  onChange({
+                    participationEnabled: true,
+                    participationName: defaults?.name ?? '',
+                    participationDescription: defaults?.description ?? '',
+                  });
+                }}
+              >
+                Add
+              </Button>
+            </div>
           ) : (
             <div className="space-y-2">
               <PolicyParticipationSection
@@ -575,17 +606,19 @@ export function AuctionStep3Policies({
         {/* Price Progression */}
         {hasGroup('PRICE_PROGRESSION') &&
           (form.priceProgressionPolicyId && editingKey !== 'priceProgression' ? (
-            <PolicyItemCard
-              auctionId={auctionId!}
-              policyId={form.priceProgressionPolicyId}
-              name="Price Progression"
-              type="PRICE_PROGRESSION_POLICY"
-              evaluations={evaluationsByPolicyId[form.priceProgressionPolicyId]}
-              editable
-              onEdit={() => setEditingKey('priceProgression')}
-              deletable
-              onDeleted={() => onChange({ priceProgressionPolicyId: undefined, policies: [] })}
-            />
+            <div className="rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50/30 dark:bg-blue-950/10 p-1">
+              <PolicyItemCard
+                auctionId={auctionId!}
+                policyId={form.priceProgressionPolicyId}
+                name="Price Progression"
+                type="PRICE_PROGRESSION_POLICY"
+                evaluations={evaluationsByPolicyId[form.priceProgressionPolicyId]}
+                editable
+                onEdit={() => setEditingKey('priceProgression')}
+                deletable
+                onDeleted={() => onChange({ priceProgressionPolicyId: undefined, policies: [] })}
+              />
+            </div>
           ) : (
             <div className="space-y-2">
               <PolicyPriceProgressionSection
@@ -614,25 +647,54 @@ export function AuctionStep3Policies({
         {/* Extension */}
         {hasExtension &&
           (form.extensionPolicyId && editingKey !== 'extension' ? (
-            <PolicyItemCard
-              auctionId={auctionId!}
-              policyId={form.extensionPolicyId}
-              name={form.extensionName || 'Extension Policy'}
-              type={form.extensionType}
-              evaluations={evaluationsByPolicyId[form.extensionPolicyId]}
-              editable
-              onEdit={() => setEditingKey('extension')}
-              deletable
-              onDeleted={() =>
-                onChange({
-                  extensionEnabled: false,
-                  extensionPolicyId: undefined,
-                  extensionType: '',
-                  extensionName: '',
-                  extensionDescription: '',
-                })
-              }
-            />
+            <div className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/30 dark:bg-amber-950/10 p-1">
+              <PolicyItemCard
+                auctionId={auctionId!}
+                policyId={form.extensionPolicyId}
+                name={form.extensionName || 'Extension Policy'}
+                type={form.extensionType}
+                evaluations={evaluationsByPolicyId[form.extensionPolicyId]}
+                editable
+                onEdit={() => setEditingKey('extension')}
+                deletable
+                onDeleted={() =>
+                  onChange({
+                    extensionEnabled: false,
+                    extensionPolicyId: undefined,
+                    extensionType: '',
+                    extensionName: '',
+                    extensionDescription: '',
+                  })
+                }
+              />
+            </div>
+          ) : isEditMode && !form.extensionEnabled && !form.extensionPolicyId && !editingKey ? (
+            // Edit mode: extension policy was never created — offer an Add button
+            <div className="rounded-xl border border-dashed border-amber-300 dark:border-amber-800 bg-amber-50/20 dark:bg-amber-950/10 p-4 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-foreground">Extension</p>
+                <p className="text-xs text-muted-foreground">No extension policy created yet.</p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="shrink-0"
+                onClick={() => {
+                  const opts = getGroupOptions('EXTENSION');
+                  const first = opts[0];
+                  const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
+                  onChange({
+                    extensionEnabled: true,
+                    extensionType: first?.value ?? '',
+                    extensionName: defaults?.name ?? '',
+                    extensionDescription: defaults?.description ?? '',
+                  });
+                }}
+              >
+                Add
+              </Button>
+            </div>
           ) : (
             <div className="space-y-2">
               <PolicyExtensionSection
@@ -688,7 +750,7 @@ export function AuctionStep3Policies({
 
             if (winnerFullySaved && editingKey !== 'winner') {
               return (
-                <div className="space-y-3">
+                <div className="space-y-3 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/30 dark:bg-emerald-950/10 p-1">
                   {form.winnerDeterminationPolicyId && (
                     <PolicyItemCard
                       auctionId={auctionId!}
@@ -731,6 +793,52 @@ export function AuctionStep3Policies({
                       }
                     />
                   )}
+                </div>
+              );
+            }
+
+            // Edit mode: neither winner policy was ever created — offer a single Add button
+            const neitherCreated =
+              isEditMode &&
+              !form.winnerDeterminationPolicyId &&
+              !form.winnerPriceDeterminationPolicyId &&
+              !form.winnerDeterminationType &&
+              !form.winnerPriceDeterminationType &&
+              !editingKey;
+
+            if (neitherCreated) {
+              return (
+                <div className="rounded-xl border border-dashed border-emerald-300 dark:border-emerald-800 bg-emerald-50/20 dark:bg-emerald-950/10 p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      Winner &amp; Price Determination
+                    </p>
+                    <p className="text-xs text-muted-foreground">No winner policies created yet.</p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={() => {
+                      const wOpts = getGroupOptions('WINNER_DETERMINATION');
+                      const wFirst = wOpts[0];
+                      const wDefaults = wFirst ? POLICY_DEFAULTS[wFirst.value] : undefined;
+                      const wpOpts = getGroupOptions('WINNER_PRICE_DETERMINATION');
+                      const wpFirst = wpOpts[0];
+                      const wpDefaults = wpFirst ? POLICY_DEFAULTS[wpFirst.value] : undefined;
+                      onChange({
+                        winnerDeterminationType: wFirst?.value ?? '',
+                        winnerDeterminationName: wDefaults?.name ?? '',
+                        winnerDeterminationDescription: wDefaults?.description ?? '',
+                        winnerPriceDeterminationType: wpFirst?.value ?? '',
+                        winnerPriceDeterminationName: wpDefaults?.name ?? '',
+                        winnerPriceDeterminationDescription: wpDefaults?.description ?? '',
+                      });
+                    }}
+                  >
+                    Add
+                  </Button>
                 </div>
               );
             }
@@ -813,8 +921,8 @@ export function AuctionStep3Policies({
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Saving...
               </>
-            ) : onSkip ? (
-              'Preview'
+            ) : isEditMode ? (
+              'Skip'
             ) : (
               'Preview & Continue'
             )}
@@ -896,7 +1004,7 @@ export function AuctionStep3Policies({
                 </>
               ) : (
                 <>
-                  {onSkip ? 'Continue' : 'Save & Continue'} <ArrowRight className="h-4 w-4" />
+                  {isEditMode ? 'Continue' : 'Save & Continue'} <ArrowRight className="h-4 w-4" />
                 </>
               )}
             </Button>
