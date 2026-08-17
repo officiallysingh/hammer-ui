@@ -804,58 +804,96 @@ export function AuctionStep5Workflow({
                 <span className="text-sm">Loading workflow…</span>
               </div>
             ) : workflow.length === 0 ? (
-              <div className="text-center py-8 text-sm text-muted-foreground">
-                No workflow steps available.
+              <div className="flex flex-col items-center justify-center py-8 gap-3 text-muted-foreground">
+                <p className="text-sm">No workflow steps yet.</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => setAddStepOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add first step
+                </Button>
               </div>
             ) : (
-              workflow.map((step, i) => (
-                <div
-                  key={step.id ?? i}
-                  draggable
-                  onDragStart={(e) => {
-                    if (!dragHandleActiveRef.current) {
-                      e.preventDefault();
-                      return;
-                    }
-                    dragIndexRef.current = i;
-                    e.dataTransfer.effectAllowed = 'move';
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDragOverIdx(i);
-                  }}
-                  onDragLeave={() => setDragOverIdx(null)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const from = dragIndexRef.current;
-                    if (from !== null && from !== i) moveStep(from, i);
-                    dragIndexRef.current = null;
-                    setDragOverIdx(null);
-                  }}
-                  onDragEnd={() => {
-                    dragHandleActiveRef.current = false;
-                    dragIndexRef.current = null;
-                    setDragOverIdx(null);
-                  }}
-                  className={`transition-opacity ${dragOverIdx === i ? 'opacity-50' : ''}`}
-                >
-                  <WorkflowStepCard
-                    auctionId={auctionId}
-                    step={step}
-                    index={i}
-                    isDragTarget={dragOverIdx === i}
-                    participationPolicies={participationPolicies}
-                    evaluationsByPolicyId={evaluationsByPolicyId}
-                    onEdit={() => setEditingStep(step)}
-                    onDelete={() => setDeletingStep(step)}
-                    dragHandleProps={{
-                      onPointerDown: () => {
-                        dragHandleActiveRef.current = true;
-                      },
-                    }}
-                  />
+              <>
+                {workflow.map((step, i) => (
+                  <div key={step.id ?? i}>
+                    <div
+                      draggable
+                      onDragStart={(e) => {
+                        if (!dragHandleActiveRef.current) {
+                          e.preventDefault();
+                          return;
+                        }
+                        dragIndexRef.current = i;
+                        e.dataTransfer.effectAllowed = 'move';
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragOverIdx(i);
+                      }}
+                      onDragLeave={() => setDragOverIdx(null)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const from = dragIndexRef.current;
+                        if (from !== null && from !== i) moveStep(from, i);
+                        dragIndexRef.current = null;
+                        setDragOverIdx(null);
+                      }}
+                      onDragEnd={() => {
+                        dragHandleActiveRef.current = false;
+                        dragIndexRef.current = null;
+                        setDragOverIdx(null);
+                      }}
+                      className={`transition-opacity ${dragOverIdx === i ? 'opacity-50' : ''}`}
+                    >
+                      <WorkflowStepCard
+                        auctionId={auctionId}
+                        step={step}
+                        index={i}
+                        isDragTarget={dragOverIdx === i}
+                        participationPolicies={participationPolicies}
+                        evaluationsByPolicyId={evaluationsByPolicyId}
+                        onEdit={() => setEditingStep(step)}
+                        onDelete={() => setDeletingStep(step)}
+                        dragHandleProps={{
+                          onPointerDown: () => {
+                            dragHandleActiveRef.current = true;
+                          },
+                        }}
+                      />
+                    </div>
+                    {/* Insert-between button */}
+                    <div className="flex items-center justify-center py-1">
+                      <button
+                        type="button"
+                        onClick={() => setAddStepOpen(true)}
+                        className="flex items-center gap-1 px-3 py-1 rounded-full text-xs text-muted-foreground hover:text-primary hover:bg-primary/5 border border-dashed border-border hover:border-primary/40 transition-all"
+                        title="Add step here"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Add step
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {/* Bottom Add Step button */}
+                <div className="flex justify-center pt-1 pb-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => setAddStepOpen(true)}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Step
+                  </Button>
                 </div>
-              ))
+              </>
             )}
           </div>
         </div>

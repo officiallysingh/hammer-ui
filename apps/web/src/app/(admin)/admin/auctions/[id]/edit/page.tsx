@@ -504,6 +504,7 @@ export default function EditAuctionPage() {
           return (
             <AuctionStep3Policies
               auctionId={id}
+              isEditMode
               form={step3}
               onChange={(u) => setStep3((prev) => ({ ...prev, ...u }))}
               auctionType={auctionType}
