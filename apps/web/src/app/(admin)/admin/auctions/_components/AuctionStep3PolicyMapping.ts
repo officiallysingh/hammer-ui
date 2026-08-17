@@ -48,13 +48,13 @@ export function resolveType(value: unknown): string {
 // Each `build*Item` below builds a single leaf policy — reused both to assemble the
 // full submission payload (buildPolicies) and to preview one item at a time.
 
-export function buildPreconditionItem(p: PreconditionItem, priority: number): PolicyItemRQ | null {
+export function buildPreconditionItem(p: PreconditionItem, order: number): PolicyItemRQ | null {
   if (!p.type) return null;
   const item: PolicyItemRQ = {
     type: p.type,
     name: p.name || undefined,
     description: p.description || undefined,
-    priority,
+    order,
   };
   if (p.type === 'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY') {
     item.count = parseInt(p.count, 10);
@@ -83,7 +83,7 @@ export function buildPriceProgressionWrapper(items: PriceChangeItem[]): PolicyIt
         type: p.type,
         name: p.name || undefined,
         description: p.description || undefined,
-        priority: i + 1,
+        order: i + 1,
         windowDuration: isLast ? 'PT0S' : buildWindowDuration(p.windowHours, p.windowMinutes),
       };
       if (p.value) item.value = parseFloat(p.value);
@@ -135,7 +135,7 @@ export function buildParticipationItem(step3: Step3State): PolicyItemRQ | null {
     type: 'PARTICIPATION_POLICY',
     name: step3.participationName || undefined,
     description: step3.participationDescription || undefined,
-    priority: 1,
+    order: 1,
     typeId: step3.participationTypeId || undefined,
     manualApproval: step3.participationManualApproval,
     preStartValidationDuration: buildWindowDuration(
@@ -147,31 +147,30 @@ export function buildParticipationItem(step3: Step3State): PolicyItemRQ | null {
 
 export function buildPolicies(step3: Step3State): PolicyItemRQ[] {
   const policies: PolicyItemRQ[] = [];
-  let priority = 1;
+  let order = 1;
 
   const participation = buildParticipationItem(step3);
-  if (participation) policies.push({ ...participation, priority: priority++ });
+  if (participation) policies.push({ ...participation, order: order++ });
 
   const preconditionItems = step3.preconditions
-    .map((p) => buildPreconditionItem(p, priority))
+    .map((p) => buildPreconditionItem(p, order))
     .filter((item): item is PolicyItemRQ => item !== null);
   for (const item of preconditionItems) {
-    item.priority = priority++;
+    item.order = order++;
     policies.push(item);
   }
 
   const extension = buildExtensionItem(step3);
-  if (extension) policies.push({ ...extension, priority: priority++ });
+  if (extension) policies.push({ ...extension, order: order++ });
 
   const priceWrapper = buildPriceProgressionWrapper(step3.policies);
-  if (priceWrapper) policies.push({ ...priceWrapper, priority: priority++ });
+  if (priceWrapper) policies.push({ ...priceWrapper, order: order++ });
 
   const winnerDetermination = buildWinnerDeterminationItem(step3);
-  if (winnerDetermination) policies.push({ ...winnerDetermination, priority: priority++ });
+  if (winnerDetermination) policies.push({ ...winnerDetermination, order: order++ });
 
   const winnerPriceDetermination = buildWinnerPriceDeterminationItem(step3);
-  if (winnerPriceDetermination)
-    policies.push({ ...winnerPriceDetermination, priority: priority++ });
+  if (winnerPriceDetermination) policies.push({ ...winnerPriceDetermination, order: order++ });
 
   return policies;
 }

@@ -203,7 +203,7 @@ export interface PolicyItemRQ {
   description?: string;
   basis?: string;
   value?: number;
-  priority?: number;
+  order?: number;
   currency?: string;
   mode?: string;
   heads?: PolicyHeadRQ[];
