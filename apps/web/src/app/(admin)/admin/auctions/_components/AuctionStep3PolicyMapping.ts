@@ -48,15 +48,32 @@ export function resolveType(value: unknown): string {
 // Each `build*Item` below builds a single leaf policy — reused both to assemble the
 // full submission payload (buildPolicies) and to preview one item at a time.
 
+/**
+ * Normalises all fields on a `PolicyItemRQ` that the backend may return as
+ * `{ KEY: "Label" }` enum objects. Ensures only plain strings are ever sent back.
+ * Applied defensively before every API submission.
+ */
+function sanitizePolicy(item: PolicyItemRQ): PolicyItemRQ {
+  return {
+    ...item,
+    type: resolveType(item.type),
+    reference: item.reference ? resolveType(item.reference) : undefined,
+    mode: item.mode ? resolveType(item.mode) : undefined,
+    basis: item.basis ? resolveType(item.basis) : undefined,
+    policies: item.policies?.map(sanitizePolicy),
+  };
+}
+
 export function buildPreconditionItem(p: PreconditionItem, order: number): PolicyItemRQ | null {
   if (!p.type) return null;
-  const item: PolicyItemRQ = {
-    type: p.type,
+  const type = resolveType(p.type);
+  const item: PolicyItemRQ = sanitizePolicy({
+    type,
     name: p.name || undefined,
     description: p.description || undefined,
     order,
-  };
-  if (p.type === 'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY') {
+  });
+  if (type === 'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY') {
     item.count = parseInt(p.count, 10);
   }
   if (p.validationDays || p.validationHours) {
@@ -79,15 +96,15 @@ export function buildPriceProgressionWrapper(items: PriceChangeItem[]): PolicyIt
     description: wrapperDefaults?.description,
     policies: priceItems.map((p, i, arr) => {
       const isLast = i === arr.length - 1;
-      const item: PolicyItemRQ = {
+      const item: PolicyItemRQ = sanitizePolicy({
         type: p.type,
         name: p.name || undefined,
         description: p.description || undefined,
         order: i + 1,
         windowDuration: isLast ? 'PT0S' : buildWindowDuration(p.windowHours, p.windowMinutes),
-      };
+      });
       if (p.value) item.value = parseFloat(p.value);
-      if (p.type === 'STEP_BASED_OFFER_PRICE_POLICY' && p.steps.length > 0) {
+      if (resolveType(p.type) === 'STEP_BASED_OFFER_PRICE_POLICY' && p.steps.length > 0) {
         item.steps = p.steps;
       }
       return item;
@@ -97,41 +114,41 @@ export function buildPriceProgressionWrapper(items: PriceChangeItem[]): PolicyIt
 
 export function buildExtensionItem(step3: Step3State): PolicyItemRQ | null {
   if (!step3.extensionEnabled || !step3.extensionType) return null;
-  return {
+  return sanitizePolicy({
     type: step3.extensionType,
     name: step3.extensionName || undefined,
     description: step3.extensionDescription || undefined,
     reference: step3.extensionReference,
     duration: `PT${parseInt(step3.extensionDurationMinutes, 10) || 10}M`,
     limit: parseInt(step3.extensionLimit, 10) || 0,
-  };
+  });
 }
 
 export function buildWinnerDeterminationItem(step3: Step3State): PolicyItemRQ | null {
   if (!step3.winnerDeterminationType) return null;
-  const item: PolicyItemRQ = {
+  const item: PolicyItemRQ = sanitizePolicy({
     type: step3.winnerDeterminationType,
     name: step3.winnerDeterminationName || undefined,
     description: step3.winnerDeterminationDescription || undefined,
-  };
+  });
   if (step3.winnerDeterminationKth) item.kth = parseInt(step3.winnerDeterminationKth, 10);
   return item;
 }
 
 export function buildWinnerPriceDeterminationItem(step3: Step3State): PolicyItemRQ | null {
   if (!step3.winnerPriceDeterminationType) return null;
-  const item: PolicyItemRQ = {
+  const item: PolicyItemRQ = sanitizePolicy({
     type: step3.winnerPriceDeterminationType,
     name: step3.winnerPriceDeterminationName || undefined,
     description: step3.winnerPriceDeterminationDescription || undefined,
-  };
+  });
   if (step3.winnerPriceDeterminationKth) item.kth = parseInt(step3.winnerPriceDeterminationKth, 10);
   return item;
 }
 
 export function buildParticipationItem(step3: Step3State): PolicyItemRQ | null {
   if (!step3.participationEnabled) return null;
-  return {
+  return sanitizePolicy({
     type: 'PARTICIPATION_POLICY',
     name: step3.participationName || undefined,
     description: step3.participationDescription || undefined,
@@ -142,7 +159,7 @@ export function buildParticipationItem(step3: Step3State): PolicyItemRQ | null {
       step3.participationValidationHours,
       step3.participationValidationMinutes,
     ),
-  };
+  });
 }
 
 export function buildPolicies(step3: Step3State): PolicyItemRQ[] {
@@ -225,6 +242,7 @@ export function mapSavedPolicies(items: PolicyItemRQ[]): Partial<Step3State> {
     out.policies = (wrapper.policies ?? []).map((p): PriceChangeItem => {
       const { hours, minutes } = parseDurationWindow(p.windowDuration ?? 'PT0S');
       return {
+        id: p.id,
         name: p.name ?? '',
         description: p.description ?? '',
         type: resolveType(p.type),

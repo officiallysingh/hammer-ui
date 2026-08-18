@@ -10,6 +10,8 @@ export interface PreconditionItem {
 }
 
 export interface PriceChangeItem {
+  /** Present only when this window was loaded from a previously saved sub-policy. */
+  id?: string;
   name: string;
   description: string;
   type: string;

@@ -35,6 +35,25 @@ export { initialStep3 } from './AuctionStep3Types';
 
 import type { Step3State } from './AuctionStep3Types';
 
+/**
+ * Edit-mode variant: only seeds form defaults for policy categories that already
+ * have a saved policy in the API response. Categories with no saved policy show
+ * "Add" dashed buttons instead of pre-filled editable forms.
+ */
+function seedMandatoryForSaved(
+  current: Step3State,
+  policyTypes: SelectOption[],
+  savedPolicies: PolicyItemRQ[],
+): Partial<Step3State> {
+  // Collect which categories are represented in saved policies
+  const savedCategories = new Set(savedPolicies.map((p) => categoryForPolicyType(p.type)));
+  // Only seed categories that exist in saved data
+  const filteredTypes = policyTypes.filter((t) =>
+    savedCategories.has(categoryForPolicyType(t.value)),
+  );
+  return seedMandatoryDefaults(current, filteredTypes);
+}
+
 /** For mandatory categories: seed one empty item if the category is available but form is empty */
 function seedMandatoryDefaults(
   current: Step3State,
@@ -351,6 +370,11 @@ export function AuctionStep3Policies({
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // In edit mode: if skipping (no changes to save), navigate directly.
+    if (isEditMode && onSkip) {
+      onSkip();
+      return;
+    }
     runReview();
   };
 
@@ -416,9 +440,13 @@ export function AuctionStep3Policies({
           }
         }
 
-        // Then seed any mandatory categories that are still empty after restore
+        // Then seed any mandatory categories that are still empty after restore.
+        // In edit mode: don't auto-seed form fields for categories that have no
+        // saved policy — show "Add" buttons instead so the user creates them explicitly.
         const merged: Step3State = { ...form, ...patch };
-        const mandatoryPatch = seedMandatoryDefaults(merged, fetchedTypes);
+        const mandatoryPatch = isEditMode
+          ? seedMandatoryForSaved(merged, fetchedTypes, savedPolicies ?? [])
+          : seedMandatoryDefaults(merged, fetchedTypes);
         onChange({ ...patch, ...mandatoryPatch });
       })
       .catch(() => setPolicyTypes([]))
@@ -627,6 +655,40 @@ export function AuctionStep3Policies({
                 options={PRICE_CHANGE_TYPE_OPTIONS}
                 fieldErrors={fieldErrors}
                 groupDescription={getGroupDescription('PRICE_PROGRESSION')}
+                onAddSubPolicy={
+                  form.priceProgressionPolicyId && auctionId
+                    ? async (item) => {
+                        const subItem = buildPriceProgressionWrapper([item]);
+                        if (!subItem?.policies?.[0]) return;
+                        await auctionsApi.addSubPolicy(
+                          auctionId,
+                          form.priceProgressionPolicyId!,
+                          subItem.policies[0],
+                        );
+                        // Reload to get the new sub-policy id
+                        const saved = await auctionsApi.getAuctionPolicies(auctionId);
+                        const patch = mapSavedPolicies(saved);
+                        onChange({ policies: patch.policies ?? form.policies });
+                      }
+                    : undefined
+                }
+                onDeleteSubPolicy={
+                  form.priceProgressionPolicyId && auctionId
+                    ? async (index) => {
+                        const subId = form.policies[index]?.id;
+                        if (!subId) {
+                          onChange({ policies: form.policies.filter((_, i) => i !== index) });
+                          return;
+                        }
+                        await auctionsApi.deleteSubPolicy(
+                          auctionId,
+                          form.priceProgressionPolicyId!,
+                          subId,
+                        );
+                        onChange({ policies: form.policies.filter((_, i) => i !== index) });
+                      }
+                    : undefined
+                }
               />
               {editingKey === 'priceProgression' && (
                 <SaveCancelBar

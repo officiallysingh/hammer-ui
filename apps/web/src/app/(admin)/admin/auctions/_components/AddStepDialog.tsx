@@ -246,15 +246,9 @@ export function AddStepDialog({
       await auctionsApi.addWorkflowStep(auctionId, {
         type: 'FORM_STEP',
         name: selectedType.name,
-        description: selectedType.description,
+        description: selectedType.description || selectedType.name,
         order: selectedOrder,
-        embedded: {
-          typeId: selectedType.id,
-          pathWiseState: {},
-          properties: selectedTypeDetail?.properties
-            ? sanitizeProperties(selectedTypeDetail.properties)
-            : [],
-        },
+        typeId: selectedType.id,
       });
       onAdded();
       close();

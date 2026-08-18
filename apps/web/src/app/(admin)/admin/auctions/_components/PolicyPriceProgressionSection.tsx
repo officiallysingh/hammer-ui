@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { GripVertical, Plus, Trash2 } from 'lucide-react';
+import { GripVertical, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
 import ReactSelect from 'react-select';
 import { makeReactSelectStyles } from '@/components/common/admin/GroupedSubcategorySelect';
@@ -24,6 +24,15 @@ interface Props {
   fieldErrors: Record<string, string>;
   groupDescription?: string;
   evaluationsByIndex?: Record<number, PolicyEvaluationMap>;
+  /**
+   * Called in edit mode when a new window is added to an already-saved composite policy.
+   * Returns the saved sub-policy id so the item can be linked.
+   */
+  onAddSubPolicy?: (item: PriceChangeItem) => Promise<void>;
+  /**
+   * Called in edit mode when a saved window (one with a sub-policy id) is removed.
+   */
+  onDeleteSubPolicy?: (index: number) => Promise<void>;
 }
 
 const STEP_OPTIONS = Array.from({ length: 10 }, (_, i) => ({
@@ -48,25 +57,53 @@ export function PolicyPriceProgressionSection({
   fieldErrors,
   groupDescription,
   evaluationsByIndex,
+  onAddSubPolicy,
+  onDeleteSubPolicy,
 }: Props) {
   const dragIndexRef = useRef<number | null>(null);
   const dragHandleActiveRef = useRef(false);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [subPolicyBusy, setSubPolicyBusy] = useState<number | null>(null);
 
-  const add = () => {
+  const add = async () => {
     const firstType = options[0]?.value ?? '';
     const defaults = firstType ? POLICY_DEFAULTS[firstType] : undefined;
-    onPoliciesChange([
-      ...policies,
-      {
-        ...EMPTY_ITEM,
-        type: firstType,
-        name: defaults?.name ?? '',
-        description: defaults?.description ?? '',
-      },
-    ]);
+    const newItem: PriceChangeItem = {
+      ...EMPTY_ITEM,
+      type: firstType,
+      name: defaults?.name ?? '',
+      description: defaults?.description ?? '',
+    };
+    if (onAddSubPolicy) {
+      setSubPolicyBusy(-1); // -1 = "adding" spinner on the Add button
+      try {
+        await onAddSubPolicy(newItem);
+        // parent will reload policies from API including the new sub-policy id
+      } catch {
+        // error surfaced by parent
+      } finally {
+        setSubPolicyBusy(null);
+      }
+    } else {
+      onPoliciesChange([...policies, newItem]);
+    }
   };
-  const remove = (i: number) => onPoliciesChange(policies.filter((_, idx) => idx !== i));
+
+  const remove = async (i: number) => {
+    if (onDeleteSubPolicy) {
+      setSubPolicyBusy(i);
+      try {
+        await onDeleteSubPolicy(i);
+      } catch {
+        // error surfaced by parent
+      } finally {
+        setSubPolicyBusy(null);
+      }
+    } else {
+      onPoliciesChange(policies.filter((_, idx) => idx !== i));
+    }
+  };
+
   const move = (i: number, dir: -1 | 1) => onPoliciesChange(moveItem(policies, i, dir));
   const update = (i: number, patch: Partial<PriceChangeItem>) =>
     onPoliciesChange(policies.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
@@ -81,9 +118,14 @@ export function PolicyPriceProgressionSection({
         <button
           type="button"
           onClick={add}
-          className="flex items-center gap-1 text-xs text-primary hover:underline"
+          disabled={subPolicyBusy !== null}
+          className="flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-50"
         >
-          <Plus className="h-3.5 w-3.5" />
+          {subPolicyBusy === -1 ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Plus className="h-3.5 w-3.5" />
+          )}
           Add
         </button>
       </div>
@@ -150,9 +192,14 @@ export function PolicyPriceProgressionSection({
                   <button
                     type="button"
                     onClick={() => remove(i)}
-                    className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                    disabled={subPolicyBusy !== null}
+                    className="p-1 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    {subPolicyBusy === i ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
                   </button>
                 </div>
 

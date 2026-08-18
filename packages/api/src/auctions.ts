@@ -251,14 +251,11 @@ export type WorkflowStepType =
 
 export interface AddFormStepRQ {
   type: 'FORM_STEP';
-  name?: string;
-  description?: string;
+  name: string;
+  description: string;
   order?: number;
-  embedded: {
-    typeId: string;
-    pathWiseState: Record<string, unknown>;
-    properties?: PropertyDef[];
-  };
+  /** Top-level typeId referencing the ManagedType — backend resolves properties from this. */
+  typeId: string;
 }
 
 export interface AddTnCFormStepRQ {
@@ -375,8 +372,57 @@ export const auctionsApi = {
     await apiClient.post(`/api/v1/auctions/${id}/workflow/reorder`, order);
   },
 
+  /** Adds a step to the auction workflow. */
   addWorkflowStep: async (id: string, data: AddWorkflowStepRQ): Promise<void> => {
-    await apiClient.post(`/api/v1/auctions/${id}/workflow`, data);
+    await apiClient.post(`/api/v1/auctions/${id}/workflow/add`, data);
+  },
+
+  /** Updates a workflow step's own fields (name/description/order, or full config for explicit steps). */
+  updateWorkflowStep: async (
+    id: string,
+    stepId: string,
+    data: Partial<AddWorkflowStepRQ> & { type: WorkflowStepType },
+  ): Promise<void> => {
+    await apiClient.put(`/api/v1/auctions/${id}/workflow`, { ...data, id: stepId });
+  },
+
+  /** Deletes a single step from the auction workflow. */
+  deleteWorkflowStep: async (id: string, stepId: string): Promise<void> => {
+    await apiClient.delete(`/api/v1/auctions/${id}/workflow/${stepId}`);
+  },
+
+  /** Deletes the entire auction workflow. */
+  deleteWorkflow: async (id: string): Promise<void> => {
+    await apiClient.delete(`/api/v1/auctions/${id}/workflow`);
+  },
+
+  /** Evaluates a draft workflow step that hasn't been saved yet. */
+  previewWorkflowStep: async (
+    id: string,
+    data: AddWorkflowStepRQ,
+  ): Promise<PolicyEvaluationMap> => {
+    const response = await apiClient.post<PolicyEvaluationMap>(
+      `/api/v1/auctions/${id}/workflow/preview`,
+      data,
+    );
+    return response.data;
+  },
+
+  /** Evaluates all workflow steps, or only the given step IDs if provided. */
+  evaluateWorkflowSteps: async (id: string, stepIds?: string[]): Promise<PolicyEvaluationMap> => {
+    const response = await apiClient.post<PolicyEvaluationMap>(
+      `/api/v1/auctions/${id}/workflow/evaluate`,
+      stepIds?.length ? { stepIds } : {},
+    );
+    return response.data;
+  },
+
+  /** Evaluates a single saved workflow step by ID. */
+  evaluateWorkflowStep: async (id: string, stepId: string): Promise<PolicyEvaluationMap> => {
+    const response = await apiClient.post<PolicyEvaluationMap>(
+      `/api/v1/auctions/${id}/workflow/${stepId}/evaluate`,
+    );
+    return response.data;
   },
 
   setAuctionUnits: async (id: string, data: AuctionUnitCreationRQ): Promise<void> => {
@@ -465,18 +511,24 @@ export const auctionsApi = {
     await apiClient.delete(`/api/v1/auctions/${id}/policies/${policyId}`);
   },
 
-  /** Updates a workflow step's own fields (name/description/order, or full config for explicit steps). */
-  updateWorkflowStep: async (
+  /** Adds a sub-policy to a composite policy (e.g. a price-progression window). */
+  addSubPolicy: async (
     id: string,
-    stepId: string,
-    data: Partial<AddWorkflowStepRQ> & { type: WorkflowStepType },
+    compositePolicyId: string,
+    data: PolicyItemRQ,
   ): Promise<void> => {
-    await apiClient.put(`/api/v1/auctions/${id}/workflow/${stepId}`, data);
+    await apiClient.post(`/api/v1/auctions/${id}/policies/${compositePolicyId}/policies`, data);
   },
 
-  /** Deletes a single step from the auction workflow. */
-  deleteWorkflowStep: async (id: string, stepId: string): Promise<void> => {
-    await apiClient.delete(`/api/v1/auctions/${id}/workflow/${stepId}`);
+  /** Deletes a sub-policy from a composite policy. */
+  deleteSubPolicy: async (
+    id: string,
+    compositePolicyId: string,
+    policyId: string,
+  ): Promise<void> => {
+    await apiClient.delete(
+      `/api/v1/auctions/${id}/policies/${compositePolicyId}/policies/${policyId}`,
+    );
   },
 
   getRoundingModeTypes: async (): Promise<{ value: string; label: string }[]> => {
