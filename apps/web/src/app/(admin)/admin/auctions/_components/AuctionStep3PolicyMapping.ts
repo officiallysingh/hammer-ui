@@ -162,7 +162,32 @@ export function buildParticipationItem(step3: Step3State): PolicyItemRQ | null {
   });
 }
 
-export function buildPolicies(step3: Step3State): PolicyItemRQ[] {
+function createFakeMongoId(): string {
+  const chars = '0123456789abcdef';
+  const id = Array.from({ length: 24 }, () => chars[Math.floor(Math.random() * chars.length)]).join(
+    '',
+  );
+  return id;
+}
+
+function orderByPolicyType(type: unknown, typeOrder: string[]): number {
+  const resolved = resolveType(type);
+  const index = typeOrder.indexOf(resolved);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+}
+
+export function buildPolicies(step3: Step3State, policyTypeOrder?: string[]): PolicyItemRQ[] {
+  const defaultOrder = [
+    'PARTICIPATION_POLICY',
+    'MINIMUM_PARTICIPANTS_REQUIREMENT_POLICY',
+    'PRICE_PROGRESSION_POLICY',
+    'EXTENSION_POLICY',
+    'KTH_PRICE_WINNER_DETERMINATION_POLICY',
+    'KTH_WINNER_PRICE_DETERMINATION_POLICY',
+  ];
+  const orderedTypes =
+    policyTypeOrder && policyTypeOrder.length > 0 ? policyTypeOrder : defaultOrder;
+
   const policies: PolicyItemRQ[] = [];
   let order = 1;
 
@@ -181,7 +206,18 @@ export function buildPolicies(step3: Step3State): PolicyItemRQ[] {
   if (extension) policies.push({ ...extension, order: order++ });
 
   const priceWrapper = buildPriceProgressionWrapper(step3.policies);
-  if (priceWrapper) policies.push({ ...priceWrapper, order: order++ });
+  if (priceWrapper) {
+    const withIds = {
+      ...priceWrapper,
+      order: order++,
+      policies: (priceWrapper.policies ?? []).map((p, idx) => ({
+        ...p,
+        id: p.id ?? createFakeMongoId(),
+        order: idx + 1,
+      })),
+    };
+    policies.push(withIds);
+  }
 
   const winnerDetermination = buildWinnerDeterminationItem(step3);
   if (winnerDetermination) policies.push({ ...winnerDetermination, order: order++ });
@@ -189,7 +225,27 @@ export function buildPolicies(step3: Step3State): PolicyItemRQ[] {
   const winnerPriceDetermination = buildWinnerPriceDeterminationItem(step3);
   if (winnerPriceDetermination) policies.push({ ...winnerPriceDetermination, order: order++ });
 
-  return policies;
+  const orderedPolicies = policies
+    .map((item) => ({
+      ...item,
+      id: item.id ?? createFakeMongoId(),
+      policies: item.policies?.map((sub) => ({
+        ...sub,
+        id: sub.id ?? createFakeMongoId(),
+      })),
+    }))
+    .sort((a, b) => {
+      const diff =
+        orderByPolicyType(a.type, orderedTypes) - orderByPolicyType(b.type, orderedTypes);
+      if (diff !== 0) return diff;
+      return (a.order ?? 0) - (b.order ?? 0);
+    });
+
+  return orderedPolicies.map((item, idx) => ({
+    ...item,
+    order: idx + 1,
+    policies: item.policies?.map((sub, subIdx) => ({ ...sub, order: subIdx + 1 })),
+  }));
 }
 
 // ─── map (API payload → form state) ────────────────────────────────────────────

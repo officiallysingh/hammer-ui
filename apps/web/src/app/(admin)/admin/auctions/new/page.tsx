@@ -282,7 +282,10 @@ export default function NewAuctionPage() {
     }
     setSavingStep3(true);
     try {
-      const policies = buildPolicies(step3);
+      const policyTypeOrder = (await auctionsApi.getPolicyTypes(createdAuctionType)).map(
+        (item) => item.value,
+      );
+      const policies = buildPolicies(step3, policyTypeOrder);
       if (policies.length > 0) {
         await auctionsApi.setAuctionPolicies(createdAuctionId, policies);
       }

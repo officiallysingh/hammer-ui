@@ -413,6 +413,7 @@ export function AuctionStep3Policies({
         seededRef.current = true;
 
         let patch: Partial<Step3State> = {};
+        console.log('Restored saved policies from API:', savedPolicies);
 
         if (savedPolicies && savedPolicies.length > 0) {
           patch = mapSavedPolicies(savedPolicies);

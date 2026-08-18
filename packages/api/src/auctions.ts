@@ -481,7 +481,7 @@ export const auctionsApi = {
   },
 
   setAuctionPolicies: async (id: string, data: AuctionPoliciesRQ): Promise<void> => {
-    await apiClient.put(`/api/v1/auctions/${id}/policies`, data);
+    await apiClient.post(`/api/v1/auctions/${id}/policies`, data);
   },
 
   /** Evaluates a draft policy that hasn't been saved yet (e.g. while editing in a form). */
