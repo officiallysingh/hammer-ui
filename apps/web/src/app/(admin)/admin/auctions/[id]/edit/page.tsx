@@ -404,7 +404,10 @@ export default function EditAuctionPage() {
     setStep3Errors({});
     setSavingStep3(true);
     try {
-      const policies = buildPolicies(step3);
+      const policyTypeOrder = (await auctionsApi.getPolicyTypes(auctionType)).map(
+        (item) => item.value,
+      );
+      const policies = buildPolicies(step3, policyTypeOrder);
       if (policies.length > 0) {
         await auctionsApi.setAuctionPolicies(id, policies);
       }
@@ -504,6 +507,7 @@ export default function EditAuctionPage() {
           return (
             <AuctionStep3Policies
               auctionId={id}
+              isEditMode
               form={step3}
               onChange={(u) => setStep3((prev) => ({ ...prev, ...u }))}
               auctionType={auctionType}

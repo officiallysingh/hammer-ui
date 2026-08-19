@@ -10,6 +10,7 @@ import {
   POLICY_CATEGORY_DESCRIPTIONS,
   PRICE_CHANGE_TYPE_OPTIONS,
   categoryForPolicyType,
+  buildEvaluationsByPolicy,
 } from './PolicyShared';
 import {
   mapSavedPolicies,
@@ -34,6 +35,25 @@ export type { PreconditionItem, PriceChangeItem, Step3State } from './AuctionSte
 export { initialStep3 } from './AuctionStep3Types';
 
 import type { Step3State } from './AuctionStep3Types';
+
+/**
+ * Edit-mode variant: only seeds form defaults for policy categories that already
+ * have a saved policy in the API response. Categories with no saved policy show
+ * "Add" dashed buttons instead of pre-filled editable forms.
+ */
+function seedMandatoryForSaved(
+  current: Step3State,
+  policyTypes: SelectOption[],
+  savedPolicies: PolicyItemRQ[],
+): Partial<Step3State> {
+  // Collect which categories are represented in saved policies
+  const savedCategories = new Set(savedPolicies.map((p) => categoryForPolicyType(p.type)));
+  // Only seed categories that exist in saved data
+  const filteredTypes = policyTypes.filter((t) =>
+    savedCategories.has(categoryForPolicyType(t.value)),
+  );
+  return seedMandatoryDefaults(current, filteredTypes);
+}
 
 /** For mandatory categories: seed one empty item if the category is available but form is empty */
 function seedMandatoryDefaults(
@@ -168,6 +188,8 @@ function SaveCancelBar({
 
 interface AuctionStep3PoliciesProps {
   auctionId?: string;
+  /** True when editing an existing auction — changes button labels and "Add" fallbacks */
+  isEditMode?: boolean;
   form: Step3State;
   onChange: (updates: Partial<Step3State>) => void;
   auctionType: string;
@@ -185,6 +207,7 @@ interface AuctionStep3PoliciesProps {
 
 export function AuctionStep3Policies({
   auctionId,
+  isEditMode = false,
   form,
   onChange,
   auctionType,
@@ -348,6 +371,11 @@ export function AuctionStep3Policies({
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // In edit mode, skip only when the parent confirmed there are no changes.
+    if (onSkip) {
+      onSkip();
+      return;
+    }
     runReview();
   };
 
@@ -386,6 +414,7 @@ export function AuctionStep3Policies({
         seededRef.current = true;
 
         let patch: Partial<Step3State> = {};
+        console.log('Restored saved policies from API:', savedPolicies);
 
         if (savedPolicies && savedPolicies.length > 0) {
           patch = mapSavedPolicies(savedPolicies);
@@ -396,26 +425,22 @@ export function AuctionStep3Policies({
             new Set(savedPolicies.map((p) => p.id).filter((id): id is string => Boolean(id))),
           );
           if (auctionId && policyIds.length > 0) {
-            Promise.all(
-              policyIds.map((policyId) =>
-                auctionsApi
-                  .evaluateAuctionPolicy(auctionId, policyId)
-                  .then((res) => [policyId, res] as const)
-                  .catch(() => [policyId, null] as const),
-              ),
-            ).then((results) => {
-              const map: Record<string, PolicyEvaluationMap> = {};
-              for (const [policyId, res] of results) {
-                if (res) map[policyId] = res;
-              }
-              setEvaluationsByPolicyId(map);
-            });
+            auctionsApi
+              .evaluateAuctionPolicies(auctionId, policyIds)
+              .then((evaluations) =>
+                setEvaluationsByPolicyId(buildEvaluationsByPolicy(evaluations, savedPolicies)),
+              )
+              .catch(() => setEvaluationsByPolicyId({}));
           }
         }
 
-        // Then seed any mandatory categories that are still empty after restore
+        // Then seed any mandatory categories that are still empty after restore.
+        // In edit mode: don't auto-seed form fields for categories that have no
+        // saved policy — show "Add" buttons instead so the user creates them explicitly.
         const merged: Step3State = { ...form, ...patch };
-        const mandatoryPatch = seedMandatoryDefaults(merged, fetchedTypes);
+        const mandatoryPatch = isEditMode
+          ? seedMandatoryForSaved(merged, fetchedTypes, savedPolicies ?? [])
+          : seedMandatoryDefaults(merged, fetchedTypes);
         onChange({ ...patch, ...mandatoryPatch });
       })
       .catch(() => setPolicyTypes([]))
@@ -454,26 +479,54 @@ export function AuctionStep3Policies({
         {/* Participation */}
         {hasGroup('PARTICIPATION') &&
           (form.participationPolicyId && editingKey !== 'participation' ? (
-            <PolicyItemCard
-              auctionId={auctionId!}
-              policyId={form.participationPolicyId}
-              name={form.participationName || 'Participation Policy'}
-              type="PARTICIPATION_POLICY"
-              evaluations={evaluationsByPolicyId[form.participationPolicyId]}
-              editable
-              onEdit={() => setEditingKey('participation')}
-              deletable
-              onDeleted={() =>
-                onChange({
-                  participationEnabled: false,
-                  participationPolicyId: undefined,
-                  participationName: '',
-                  participationDescription: '',
-                  participationTypeId: '',
-                  participationManualApproval: false,
-                })
-              }
-            />
+            <div className="rounded-xl border border-violet-200 dark:border-violet-900/50 bg-violet-50/30 dark:bg-violet-950/10 p-1">
+              <PolicyItemCard
+                auctionId={auctionId!}
+                policyId={form.participationPolicyId}
+                name={form.participationName || 'Participation Policy'}
+                type="PARTICIPATION_POLICY"
+                evaluations={evaluationsByPolicyId[form.participationPolicyId]}
+                editable
+                onEdit={() => setEditingKey('participation')}
+                deletable
+                onDeleted={() =>
+                  onChange({
+                    participationEnabled: false,
+                    participationPolicyId: undefined,
+                    participationName: '',
+                    participationDescription: '',
+                    participationTypeId: '',
+                    participationManualApproval: false,
+                  })
+                }
+              />
+            </div>
+          ) : isEditMode && !form.participationEnabled && !editingKey ? (
+            // Edit mode: policy was never created — offer an Add button
+            <div className="rounded-xl border border-dashed border-violet-300 dark:border-violet-800 bg-violet-50/20 dark:bg-violet-950/10 p-4 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-foreground">Participation</p>
+                <p className="text-xs text-muted-foreground">
+                  No participation policy created yet.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="shrink-0"
+                onClick={() => {
+                  const defaults = POLICY_DEFAULTS['PARTICIPATION_POLICY'];
+                  onChange({
+                    participationEnabled: true,
+                    participationName: defaults?.name ?? '',
+                    participationDescription: defaults?.description ?? '',
+                  });
+                }}
+              >
+                Add
+              </Button>
+            </div>
           ) : (
             <div className="space-y-2">
               <PolicyParticipationSection
@@ -508,6 +561,45 @@ export function AuctionStep3Policies({
           (() => {
             const savedItems = form.preconditions.map((p, i) => ({ p, i })).filter(({ p }) => p.id);
             const usedTypes = form.preconditions.map((p) => p.type).filter(Boolean);
+
+            // Edit mode: no precondition was ever created — offer an explicit Add button
+            if (isEditMode && form.preconditions.length === 0) {
+              const opts = getGroupOptions('PRECONDITION');
+              return (
+                <div className="rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/20 dark:bg-sky-950/10 p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Preconditions</p>
+                    <p className="text-xs text-muted-foreground">No preconditions created yet.</p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={() => {
+                      const first = opts.find((opt) => !usedTypes.includes(opt.value)) ?? opts[0];
+                      const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
+                      onChange({
+                        preconditions: [
+                          ...form.preconditions,
+                          {
+                            type: first?.value ?? '',
+                            name: defaults?.name ?? '',
+                            description: defaults?.description ?? '',
+                            count: '',
+                            validationDays: '',
+                            validationHours: '0',
+                          },
+                        ],
+                      });
+                    }}
+                  >
+                    Add
+                  </Button>
+                </div>
+              );
+            }
+
             return (
               <div className="space-y-3">
                 {savedItems.length > 0 && (
@@ -575,17 +667,19 @@ export function AuctionStep3Policies({
         {/* Price Progression */}
         {hasGroup('PRICE_PROGRESSION') &&
           (form.priceProgressionPolicyId && editingKey !== 'priceProgression' ? (
-            <PolicyItemCard
-              auctionId={auctionId!}
-              policyId={form.priceProgressionPolicyId}
-              name="Price Progression"
-              type="PRICE_PROGRESSION_POLICY"
-              evaluations={evaluationsByPolicyId[form.priceProgressionPolicyId]}
-              editable
-              onEdit={() => setEditingKey('priceProgression')}
-              deletable
-              onDeleted={() => onChange({ priceProgressionPolicyId: undefined, policies: [] })}
-            />
+            <div className="rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50/30 dark:bg-blue-950/10 p-1">
+              <PolicyItemCard
+                auctionId={auctionId!}
+                policyId={form.priceProgressionPolicyId}
+                name="Price Progression"
+                type="PRICE_PROGRESSION_POLICY"
+                evaluations={evaluationsByPolicyId[form.priceProgressionPolicyId]}
+                editable
+                onEdit={() => setEditingKey('priceProgression')}
+                deletable
+                onDeleted={() => onChange({ priceProgressionPolicyId: undefined, policies: [] })}
+              />
+            </div>
           ) : (
             <div className="space-y-2">
               <PolicyPriceProgressionSection
@@ -594,6 +688,40 @@ export function AuctionStep3Policies({
                 options={PRICE_CHANGE_TYPE_OPTIONS}
                 fieldErrors={fieldErrors}
                 groupDescription={getGroupDescription('PRICE_PROGRESSION')}
+                onAddSubPolicy={
+                  form.priceProgressionPolicyId && auctionId
+                    ? async (item) => {
+                        const subItem = buildPriceProgressionWrapper([item]);
+                        if (!subItem?.policies?.[0]) return;
+                        await auctionsApi.addSubPolicy(
+                          auctionId,
+                          form.priceProgressionPolicyId!,
+                          subItem.policies[0],
+                        );
+                        // Reload to get the new sub-policy id
+                        const saved = await auctionsApi.getAuctionPolicies(auctionId);
+                        const patch = mapSavedPolicies(saved);
+                        onChange({ policies: patch.policies ?? form.policies });
+                      }
+                    : undefined
+                }
+                onDeleteSubPolicy={
+                  form.priceProgressionPolicyId && auctionId
+                    ? async (index) => {
+                        const subId = form.policies[index]?.id;
+                        if (!subId) {
+                          onChange({ policies: form.policies.filter((_, i) => i !== index) });
+                          return;
+                        }
+                        await auctionsApi.deleteSubPolicy(
+                          auctionId,
+                          form.priceProgressionPolicyId!,
+                          subId,
+                        );
+                        onChange({ policies: form.policies.filter((_, i) => i !== index) });
+                      }
+                    : undefined
+                }
               />
               {editingKey === 'priceProgression' && (
                 <SaveCancelBar
@@ -614,25 +742,54 @@ export function AuctionStep3Policies({
         {/* Extension */}
         {hasExtension &&
           (form.extensionPolicyId && editingKey !== 'extension' ? (
-            <PolicyItemCard
-              auctionId={auctionId!}
-              policyId={form.extensionPolicyId}
-              name={form.extensionName || 'Extension Policy'}
-              type={form.extensionType}
-              evaluations={evaluationsByPolicyId[form.extensionPolicyId]}
-              editable
-              onEdit={() => setEditingKey('extension')}
-              deletable
-              onDeleted={() =>
-                onChange({
-                  extensionEnabled: false,
-                  extensionPolicyId: undefined,
-                  extensionType: '',
-                  extensionName: '',
-                  extensionDescription: '',
-                })
-              }
-            />
+            <div className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/30 dark:bg-amber-950/10 p-1">
+              <PolicyItemCard
+                auctionId={auctionId!}
+                policyId={form.extensionPolicyId}
+                name={form.extensionName || 'Extension Policy'}
+                type={form.extensionType}
+                evaluations={evaluationsByPolicyId[form.extensionPolicyId]}
+                editable
+                onEdit={() => setEditingKey('extension')}
+                deletable
+                onDeleted={() =>
+                  onChange({
+                    extensionEnabled: false,
+                    extensionPolicyId: undefined,
+                    extensionType: '',
+                    extensionName: '',
+                    extensionDescription: '',
+                  })
+                }
+              />
+            </div>
+          ) : isEditMode && !form.extensionEnabled && !form.extensionPolicyId && !editingKey ? (
+            // Edit mode: extension policy was never created — offer an Add button
+            <div className="rounded-xl border border-dashed border-amber-300 dark:border-amber-800 bg-amber-50/20 dark:bg-amber-950/10 p-4 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-foreground">Extension</p>
+                <p className="text-xs text-muted-foreground">No extension policy created yet.</p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="shrink-0"
+                onClick={() => {
+                  const opts = getGroupOptions('EXTENSION');
+                  const first = opts[0];
+                  const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
+                  onChange({
+                    extensionEnabled: true,
+                    extensionType: first?.value ?? '',
+                    extensionName: defaults?.name ?? '',
+                    extensionDescription: defaults?.description ?? '',
+                  });
+                }}
+              >
+                Add
+              </Button>
+            </div>
           ) : (
             <div className="space-y-2">
               <PolicyExtensionSection
@@ -688,7 +845,7 @@ export function AuctionStep3Policies({
 
             if (winnerFullySaved && editingKey !== 'winner') {
               return (
-                <div className="space-y-3">
+                <div className="space-y-3 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/30 dark:bg-emerald-950/10 p-1">
                   {form.winnerDeterminationPolicyId && (
                     <PolicyItemCard
                       auctionId={auctionId!}
@@ -731,6 +888,52 @@ export function AuctionStep3Policies({
                       }
                     />
                   )}
+                </div>
+              );
+            }
+
+            // Edit mode: neither winner policy was ever created — offer a single Add button
+            const neitherCreated =
+              isEditMode &&
+              !form.winnerDeterminationPolicyId &&
+              !form.winnerPriceDeterminationPolicyId &&
+              !form.winnerDeterminationType &&
+              !form.winnerPriceDeterminationType &&
+              !editingKey;
+
+            if (neitherCreated) {
+              return (
+                <div className="rounded-xl border border-dashed border-emerald-300 dark:border-emerald-800 bg-emerald-50/20 dark:bg-emerald-950/10 p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      Winner &amp; Price Determination
+                    </p>
+                    <p className="text-xs text-muted-foreground">No winner policies created yet.</p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={() => {
+                      const wOpts = getGroupOptions('WINNER_DETERMINATION');
+                      const wFirst = wOpts[0];
+                      const wDefaults = wFirst ? POLICY_DEFAULTS[wFirst.value] : undefined;
+                      const wpOpts = getGroupOptions('WINNER_PRICE_DETERMINATION');
+                      const wpFirst = wpOpts[0];
+                      const wpDefaults = wpFirst ? POLICY_DEFAULTS[wpFirst.value] : undefined;
+                      onChange({
+                        winnerDeterminationType: wFirst?.value ?? '',
+                        winnerDeterminationName: wDefaults?.name ?? '',
+                        winnerDeterminationDescription: wDefaults?.description ?? '',
+                        winnerPriceDeterminationType: wpFirst?.value ?? '',
+                        winnerPriceDeterminationName: wpDefaults?.name ?? '',
+                        winnerPriceDeterminationDescription: wpDefaults?.description ?? '',
+                      });
+                    }}
+                  >
+                    Add
+                  </Button>
                 </div>
               );
             }
@@ -813,8 +1016,8 @@ export function AuctionStep3Policies({
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Saving...
               </>
-            ) : onSkip ? (
-              'Preview'
+            ) : isEditMode && onSkip ? (
+              'Skip'
             ) : (
               'Preview & Continue'
             )}
@@ -896,7 +1099,7 @@ export function AuctionStep3Policies({
                 </>
               ) : (
                 <>
-                  {onSkip ? 'Continue' : 'Save & Continue'} <ArrowRight className="h-4 w-4" />
+                  {isEditMode ? 'Continue' : 'Save & Continue'} <ArrowRight className="h-4 w-4" />
                 </>
               )}
             </Button>

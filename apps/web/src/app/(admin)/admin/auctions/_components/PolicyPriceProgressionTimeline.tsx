@@ -31,9 +31,10 @@ const STEP_COLORS = [
   { bar: 'bg-rose-500', border: 'border-rose-500/40' },
 ];
 
-/** Renders a single PRICE_PROGRESSION wrapper's nested windows as a horizontal
- *  timeline — a shared spine with steps alternating above/below it — since each
- *  window is defined by a `windowDuration` time offset, not an unordered list. */
+/** Renders a single PRICE_PROGRESSION wrapper's nested windows as a vertical
+ *  timeline (left rail + colored dots), matching the auction view's outer
+ *  lifecycle timeline — each window is defined by a `windowDuration` time
+ *  offset, so the stages read top-to-bottom in the order they apply. */
 export function PriceProgressionTimeline({
   wrapper,
   evaluationsByPolicyId,
@@ -58,37 +59,21 @@ export function PriceProgressionTimeline({
   );
 
   return (
-    <div className="overflow-x-auto pb-2 pt-1 -mx-1 px-1">
-      <div
-        className="grid gap-x-6"
-        style={{ gridTemplateColumns: `repeat(${nodes.length}, minmax(15rem, 1fr))` }}
-      >
-        {/* Spine — one continuous bar, colored per-step to match each node below it */}
-        <div className="flex" style={{ gridColumn: '1 / -1', gridRow: 2 }}>
-          {nodes.map((_, idx) => (
+    <div className="relative pl-6 border-l-2 border-primary/20 space-y-4">
+      {nodes.map(({ w, i, rangeLabel }, idx) => {
+        const color = STEP_COLORS[idx % STEP_COLORS.length]!;
+        return (
+          <div key={i} className="relative">
             <div
-              key={`spine-${idx}`}
-              className={`h-2 flex-1 ${STEP_COLORS[idx % STEP_COLORS.length]!.bar} ${
-                idx === 0 ? 'rounded-l-full' : ''
-              } ${idx === nodes.length - 1 ? 'rounded-r-full' : ''}`}
+              className={`absolute -left-[31px] top-0 h-4 w-4 rounded-full ${color.bar} ring-4 ring-background`}
             />
-          ))}
-        </div>
-
-        {nodes.map(({ w, i, rangeLabel }, idx) => {
-          const above = idx % 2 === 0;
-          const color = STEP_COLORS[idx % STEP_COLORS.length]!;
-          const rangeBar = (
-            <div
-              className={`px-3 py-1.5 ${color.bar} text-white text-[11px] font-bold flex items-center gap-1.5`}
-            >
-              <Clock className="h-3 w-3" />
-              {rangeLabel}
-            </div>
-          );
-          const card = (
-            <div className={`w-full rounded-lg border ${color.border} bg-card overflow-hidden`}>
-              {!above && rangeBar}
+            <div className={`rounded-lg border ${color.border} bg-card overflow-hidden`}>
+              <div
+                className={`px-3 py-1.5 ${color.bar} text-white text-[11px] font-bold flex items-center gap-1.5`}
+              >
+                <Clock className="h-3 w-3" />
+                {rangeLabel}
+              </div>
               <div className="p-3 space-y-2">
                 <div className="flex items-center gap-1.5">
                   <TrendingUp className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -119,27 +104,10 @@ export function PriceProgressionTimeline({
                   <EvaluationList evaluations={evaluationsByPolicyId[w.id]} showStatus={false} />
                 )}
               </div>
-              {above && rangeBar}
             </div>
-          );
-
-          return (
-            <div
-              key={i}
-              className="flex flex-col items-center"
-              style={{
-                gridColumn: idx + 1,
-                gridRow: above ? 1 : 3,
-                alignSelf: above ? 'end' : 'start',
-              }}
-            >
-              {above && card}
-              <div className={`w-1 h-5 shrink-0 ${color.bar}`} />
-              {!above && card}
-            </div>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

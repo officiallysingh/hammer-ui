@@ -11,7 +11,7 @@ import {
 } from '@repo/api';
 import { PolicyGroupSection } from '../../_components/AuctionPolicyGroupSection';
 import { AuctionUnitSection } from '../../_components/AuctionUnitSection';
-import { groupPoliciesByCategory } from '../../_components/PolicyShared';
+import { groupPoliciesByCategory, buildEvaluationsByPolicy } from '../../_components/PolicyShared';
 import {
   ArrowLeft,
   Pencil,
@@ -72,19 +72,15 @@ export default function AuctionViewPage() {
     const policyIds = Array.from(
       new Set(items.map((p) => p.id).filter((policyId): policyId is string => Boolean(policyId))),
     );
-    const results = await Promise.all(
-      policyIds.map((policyId) =>
-        auctionsApi
-          .evaluateAuctionPolicy(id, policyId)
-          .then((res) => [policyId, res] as const)
-          .catch(() => [policyId, null] as const),
-      ),
-    );
-    const map: Record<string, PolicyEvaluationMap> = {};
-    for (const [policyId, res] of results) {
-      if (res) map[policyId] = res;
+    if (policyIds.length === 0) {
+      setEvaluationsByPolicyId({});
+      setEvaluationsEvaluatedAt(new Date());
+      return;
     }
-    setEvaluationsByPolicyId(map);
+    // Evaluate every policy in a single bulk request (POST /policies/evaluate),
+    // matching the auction policy step, instead of N+1 per-policy calls.
+    const evaluations = await auctionsApi.evaluateAuctionPolicies(id, policyIds).catch(() => null);
+    setEvaluationsByPolicyId(buildEvaluationsByPolicy(evaluations, items));
     setEvaluationsEvaluatedAt(new Date());
   };
 

@@ -408,7 +408,9 @@ export function EvaluationList({
   showStatus?: boolean;
   resultLabel?: string;
 }) {
-  const entries = Object.entries(evaluations ?? {});
+  const entries = Object.entries(evaluations ?? {}).filter(
+    (entry): entry is [string, PolicyEvaluation] => entry[1] != null,
+  );
   if (entries.length === 0) {
     if (!loading) return null;
     return (
