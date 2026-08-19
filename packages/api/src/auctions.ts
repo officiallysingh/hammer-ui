@@ -238,8 +238,8 @@ export interface PolicyEvaluation<E = unknown> {
   details?: Record<string, unknown>;
 }
 
-/** Keyed by policy (or rule) name, as returned by the preview/evaluate endpoints. */
-export type PolicyEvaluationMap = Record<string, PolicyEvaluation>;
+/** Keyed by policy name or id, as returned by the preview/evaluate endpoints. */
+export type PolicyEvaluationMap = Record<string, PolicyEvaluation | null>;
 
 // ── Workflow step creation ──────────────────────────────────────────────────
 
@@ -497,6 +497,18 @@ export const auctionsApi = {
   evaluateAuctionPolicy: async (id: string, policyId: string): Promise<PolicyEvaluationMap> => {
     const response = await apiClient.post<PolicyEvaluationMap>(
       `/api/v1/auctions/${id}/policies/${policyId}/evaluate`,
+    );
+    return response.data;
+  },
+
+  /** Evaluates all saved policies, or only the given policy ids, in one request. */
+  evaluateAuctionPolicies: async (
+    id: string,
+    policyIds?: string[],
+  ): Promise<Record<string, PolicyEvaluationMap>> => {
+    const response = await apiClient.post<Record<string, PolicyEvaluationMap>>(
+      `/api/v1/auctions/${id}/policies/evaluate`,
+      policyIds ?? [],
     );
     return response.data;
   },

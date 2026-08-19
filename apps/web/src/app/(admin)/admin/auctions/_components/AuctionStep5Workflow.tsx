@@ -574,6 +574,7 @@ export function AuctionStep5Workflow({
   const [reordering, setReordering] = useState(false);
   const [reorderError, setReorderError] = useState<string | null>(null);
   const [addStepOpen, setAddStepOpen] = useState(false);
+  const [addStepOrder, setAddStepOrder] = useState(1);
   const [editingStep, setEditingStep] = useState<AuctionWorkflowStep | null>(null);
   const [deletingStep, setDeletingStep] = useState<AuctionWorkflowStep | null>(null);
   const [deletingStepBusy, setDeletingStepBusy] = useState(false);
@@ -676,6 +677,11 @@ export function AuctionStep5Workflow({
   const hasTnCStep = workflow.some((s) => resolveStr(s.type) === 'TNC_FORM_STEP');
   const hasBankDetailStep = workflow.some((s) => resolveStr(s.type) === 'BANK_DETAIL_FORM_STEP');
 
+  const openAddStep = (order: number) => {
+    setAddStepOrder(order);
+    setAddStepOpen(true);
+  };
+
   // Reorder handler
   const handleReorder = useCallback(
     async (newSteps: AuctionWorkflowStep[]) => {
@@ -775,17 +781,6 @@ export function AuctionStep5Workflow({
               <span className="text-[10px] text-muted-foreground hidden sm:inline select-none">
                 Drag to reorder
               </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1.5 text-xs"
-                disabled={loading}
-                onClick={() => setAddStepOpen(true)}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add Step
-              </Button>
             </div>
           </div>
 
@@ -811,7 +806,7 @@ export function AuctionStep5Workflow({
                   variant="outline"
                   size="sm"
                   className="gap-1.5"
-                  onClick={() => setAddStepOpen(true)}
+                  onClick={() => openAddStep(1)}
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Add first step
@@ -819,6 +814,18 @@ export function AuctionStep5Workflow({
               </div>
             ) : (
               <>
+                {/* Insert before the first step. */}
+                <div className="flex items-center justify-center py-1">
+                  <button
+                    type="button"
+                    onClick={() => openAddStep(1)}
+                    className="flex items-center gap-1 px-3 py-1 rounded-full text-xs text-muted-foreground hover:text-primary hover:bg-primary/5 border border-dashed border-border hover:border-primary/40 transition-all"
+                    title="Add step here"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add step
+                  </button>
+                </div>
                 {workflow.map((step, i) => (
                   <div key={step.id ?? i}>
                     <div
@@ -870,7 +877,7 @@ export function AuctionStep5Workflow({
                     <div className="flex items-center justify-center py-1">
                       <button
                         type="button"
-                        onClick={() => setAddStepOpen(true)}
+                        onClick={() => openAddStep(i + 2)}
                         className="flex items-center gap-1 px-3 py-1 rounded-full text-xs text-muted-foreground hover:text-primary hover:bg-primary/5 border border-dashed border-border hover:border-primary/40 transition-all"
                         title="Add step here"
                       >
@@ -880,19 +887,6 @@ export function AuctionStep5Workflow({
                     </div>
                   </div>
                 ))}
-                {/* Bottom Add Step button */}
-                <div className="flex justify-center pt-1 pb-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => setAddStepOpen(true)}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add Step
-                  </Button>
-                </div>
               </>
             )}
           </div>
@@ -1064,7 +1058,7 @@ export function AuctionStep5Workflow({
         auctionId={auctionId}
         open={addStepOpen}
         onOpenChange={setAddStepOpen}
-        nextOrder={workflow.length + 1}
+        insertionOrder={addStepOrder}
         hasTnCStep={hasTnCStep}
         hasBankDetailStep={hasBankDetailStep}
         workflow={workflow}

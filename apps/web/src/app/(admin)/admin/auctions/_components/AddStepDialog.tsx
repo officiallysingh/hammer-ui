@@ -49,7 +49,7 @@ export function AddStepDialog({
   auctionId,
   open,
   onOpenChange,
-  nextOrder,
+  insertionOrder,
   hasTnCStep,
   hasBankDetailStep,
   workflow,
@@ -58,7 +58,7 @@ export function AddStepDialog({
   auctionId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  nextOrder: number;
+  insertionOrder: number;
   hasTnCStep: boolean;
   hasBankDetailStep: boolean;
   /** Current workflow steps — used to enforce Bank Details ordering ahead of refundable Pre Payment steps. */
@@ -77,7 +77,7 @@ export function AddStepDialog({
   const [pendingPaymentPhase, setPendingPaymentPhase] = useState<PaymentPhase | null>(null);
 
   // Shared order field (used by FORM_STEP, TNC_FORM_STEP and BANK_DETAIL_FORM_STEP)
-  const [selectedOrder, setSelectedOrder] = useState(nextOrder);
+  const [selectedOrder, setSelectedOrder] = useState(insertionOrder);
 
   // FORM_STEP state
   const [formQuery, setFormQuery] = useState('');
@@ -105,10 +105,10 @@ export function AddStepDialog({
   const [offsetMinutes, setOffsetMinutes] = useState('0');
   const [heads, setHeads] = useState<PolicyHeadRQ[]>([emptyHead()]);
 
-  // Keep selectedOrder in sync when dialog opens or nextOrder changes
+  // Keep the internal order in sync when the dialog opens or insertion slot changes.
   useEffect(() => {
-    setSelectedOrder(nextOrder);
-  }, [nextOrder, open]);
+    setSelectedOrder(insertionOrder);
+  }, [insertionOrder, open]);
 
   useEffect(() => {
     if (
@@ -209,31 +209,6 @@ export function AddStepDialog({
       const order = s.order ?? Infinity;
       return min === null || order < min ? order : min;
     }, null);
-
-  // Order dropdown — positions 1..nextOrder (insert at any position). Extended to
-  // cover `selectedOrder` too: when returning to the Payment step form after the
-  // Bank Detail detour below, its order is bumped past the original `nextOrder`.
-  const orderOptions = Array.from({ length: Math.max(nextOrder, selectedOrder) }, (_, i) => i + 1);
-
-  const OrderField = () => (
-    <div className="space-y-1.5">
-      <Label htmlFor="stepOrder" className="text-xs font-medium">
-        Position in workflow
-      </Label>
-      <select
-        id="stepOrder"
-        value={selectedOrder}
-        onChange={(e) => setSelectedOrder(Number(e.target.value))}
-        className="w-full rounded-md border border-input bg-background px-3 py-[7px] text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-      >
-        {orderOptions.map((o) => (
-          <option key={o} value={o}>
-            Step {o}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
 
   const submitFormStep = async () => {
     if (!selectedType) {
@@ -450,8 +425,6 @@ export function AddStepDialog({
               disabled={hasTnCStep}
               onClick={() => {
                 if (hasTnCStep) return;
-                // Terms & Conditions should come first in the workflow by default.
-                setSelectedOrder(1);
                 setMode('TNC_FORM_STEP');
               }}
               className={`text-left rounded-lg border p-4 transition-colors space-y-1 ${
@@ -591,8 +564,6 @@ export function AddStepDialog({
               </div>
             )}
 
-            <OrderField />
-
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="ghost" size="sm" onClick={() => setMode('choose')}>
                 Back
@@ -668,8 +639,6 @@ export function AddStepDialog({
               )}
             </div>
 
-            <OrderField />
-
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="ghost" size="sm" onClick={() => setMode('choose')}>
                 Back
@@ -722,8 +691,6 @@ export function AddStepDialog({
                 are saved — add this Bank Detail step first, then you&apos;ll return to finish it.
               </p>
             )}
-
-            <OrderField />
 
             <div className="flex justify-end gap-2 pt-2">
               <Button
@@ -882,8 +849,6 @@ export function AddStepDialog({
                 ))}
               </div>
             </div>
-
-            <OrderField />
 
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="ghost" size="sm" onClick={() => setMode('choose')}>

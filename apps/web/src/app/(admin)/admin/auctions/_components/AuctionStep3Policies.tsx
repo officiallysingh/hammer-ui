@@ -370,8 +370,8 @@ export function AuctionStep3Policies({
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // In edit mode: if skipping (no changes to save), navigate directly.
-    if (isEditMode && onSkip) {
+    // In edit mode, skip only when the parent confirmed there are no changes.
+    if (onSkip) {
       onSkip();
       return;
     }
@@ -424,20 +424,10 @@ export function AuctionStep3Policies({
             new Set(savedPolicies.map((p) => p.id).filter((id): id is string => Boolean(id))),
           );
           if (auctionId && policyIds.length > 0) {
-            Promise.all(
-              policyIds.map((policyId) =>
-                auctionsApi
-                  .evaluateAuctionPolicy(auctionId, policyId)
-                  .then((res) => [policyId, res] as const)
-                  .catch(() => [policyId, null] as const),
-              ),
-            ).then((results) => {
-              const map: Record<string, PolicyEvaluationMap> = {};
-              for (const [policyId, res] of results) {
-                if (res) map[policyId] = res;
-              }
-              setEvaluationsByPolicyId(map);
-            });
+            auctionsApi
+              .evaluateAuctionPolicies(auctionId, policyIds)
+              .then((evaluations) => setEvaluationsByPolicyId(evaluations))
+              .catch(() => setEvaluationsByPolicyId({}));
           }
         }
 
@@ -984,7 +974,7 @@ export function AuctionStep3Policies({
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Saving...
               </>
-            ) : isEditMode ? (
+            ) : isEditMode && onSkip ? (
               'Skip'
             ) : (
               'Preview & Continue'
