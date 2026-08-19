@@ -3,7 +3,12 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
 import { Input, Label } from '@repo/ui';
-import type { PolicyItemRQ } from '@repo/api';
+import type {
+  AuctionWorkflowStep,
+  PolicyEvaluationMap,
+  PolicyHeadRQ,
+  PolicyItemRQ,
+} from '@repo/api';
 import { resolveStr as resolveStrShared } from '@/components/common/admin/format';
 
 // Re-export the shared resolveStr under the same local name so existing
@@ -123,6 +128,116 @@ const POLICY_CATEGORY_ORDER = [
   'WINNER_DETERMINATION',
   'WINNER_PRICE_DETERMINATION',
 ];
+
+/**
+ * Converts the flat bulk `/policies/evaluate` response (`Record<policyId, PolicyEvaluation>`)
+ * into the shape the read-only card components expect (`Record<policyId, PolicyEvaluationMap>`),
+ * keying each policy's evaluation by its name so `EvaluationList` renders one card per policy
+ * instead of walking the evaluation's own fields (`result`, `description`, …) as keys.
+ */
+export function buildEvaluationsByPolicy(
+  evaluations: PolicyEvaluationMap | null | undefined,
+  savedPolicies: PolicyItemRQ[],
+): Record<string, PolicyEvaluationMap> {
+  const nameById = new Map<string, string>();
+  const collectNames = (list: PolicyItemRQ[]) => {
+    for (const item of list) {
+      if (item.id && item.name) nameById.set(item.id, item.name);
+      if (item.policies?.length) collectNames(item.policies);
+    }
+  };
+  collectNames(savedPolicies);
+
+  const result: Record<string, PolicyEvaluationMap> = {};
+  for (const [policyId, evaluation] of Object.entries(evaluations ?? {})) {
+    if (!evaluation) continue;
+    const name = nameById.get(policyId) ?? policyId;
+    result[policyId] = { [name]: evaluation };
+  }
+  return result;
+}
+
+/** Reads a PAYMENT_STEP's editable fields from the workflow step, falling back to
+ *  the embedded payment policy object (`step.policy`) — the backend may return the
+ *  payment config nested there instead of at the top level of the step. */
+export function paymentStepData(step: AuctionWorkflowStep): {
+  phase: string;
+  mode: string;
+  offset?: string;
+  heads: PolicyHeadRQ[];
+} {
+  const policy = step.policy as (PolicyItemRQ & { phase?: string }) | undefined;
+  return {
+    phase: resolveStr(step.phase) || resolveStr(policy?.phase) || '',
+    mode: resolveStr(step.mode) || resolveStr(policy?.mode) || '',
+    offset: step.offset ?? policy?.schedule?.offset,
+    heads: (step.heads?.length ? step.heads : policy?.heads) ?? [],
+  };
+}
+
+/** True when a workflow step is a Pre Payment with at least one refundable head —
+ *  such steps require a Bank Detail step positioned before them. */
+export function isRefundablePrePayment(s: AuctionWorkflowStep): boolean {
+  return (
+    resolveStr(s.type) === 'PAYMENT_STEP' &&
+    resolveStr(s.phase) === 'PRE_PAYMENT' &&
+    paymentStepData(s).heads.some((h) => h.refundable)
+  );
+}
+
+export interface WorkflowStepTypesAllowed {
+  form: boolean;
+  tnc: boolean;
+  bank: boolean;
+  prePayment: boolean;
+  postPayment: boolean;
+}
+
+/** Which step types may be inserted at a given 1-based insertion order.
+ *  Enforces the workflow's structural rules:
+ *  - Bank Details only before refundable Pre Payments (and only once per workflow).
+ *  - Only Pre Payments may be inserted between a Pre Payment and its Bank Details.
+ *  - Post Payments always form the final segment of the workflow. */
+export function allowedStepTypesAt(
+  workflow: AuctionWorkflowStep[],
+  insertionOrder: number,
+  hasTnCStep: boolean,
+  hasBankDetailStep: boolean,
+): WorkflowStepTypesAllowed {
+  const idx = insertionOrder - 1;
+  const isPayment = (s: AuctionWorkflowStep | undefined, phase: string) =>
+    !!s && resolveStr(s.type) === 'PAYMENT_STEP' && resolveStr(s.phase) === phase;
+  const isBank = (s: AuctionWorkflowStep | undefined) =>
+    !!s && resolveStr(s.type) === 'BANK_DETAIL_FORM_STEP';
+
+  const prevStep = idx > 0 ? workflow[idx - 1] : undefined;
+  const nextStep = idx < workflow.length ? workflow[idx] : undefined;
+
+  const firstPostIdx = workflow.findIndex((s) => isPayment(s, 'POST_PAYMENT'));
+  // Insertion lands inside the post-payment tail when it sits at/after the first
+  // Post Payment — only more Post Payments are allowed there.
+  const inTail = firstPostIdx >= 0 && idx > firstPostIdx;
+  const inPreBankGap = isPayment(prevStep, 'PRE_PAYMENT') && isBank(nextStep);
+
+  const earliestRefundablePreOrder = workflow
+    .filter((s) => isRefundablePrePayment(s))
+    .reduce<number | null>((min, s) => {
+      const order = s.order ?? Infinity;
+      return min === null || order < min ? order : min;
+    }, null);
+
+  const nonPostAllowed = !inTail && !inPreBankGap;
+  return {
+    form: nonPostAllowed,
+    tnc: nonPostAllowed && !hasTnCStep,
+    bank:
+      nonPostAllowed &&
+      !hasBankDetailStep &&
+      (earliestRefundablePreOrder === null || insertionOrder <= earliestRefundablePreOrder),
+    prePayment: nonPostAllowed || inPreBankGap,
+    postPayment: (firstPostIdx < 0 || idx >= firstPostIdx) && !inPreBankGap,
+  };
+}
 
 /** Groups a flat policies array back into `[categoryKey, items]` pairs, in
  *  canonical category order (unknown categories trail, in first-seen order). */

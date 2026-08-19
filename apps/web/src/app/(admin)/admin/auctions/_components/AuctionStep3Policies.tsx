@@ -10,6 +10,7 @@ import {
   POLICY_CATEGORY_DESCRIPTIONS,
   PRICE_CHANGE_TYPE_OPTIONS,
   categoryForPolicyType,
+  buildEvaluationsByPolicy,
 } from './PolicyShared';
 import {
   mapSavedPolicies,
@@ -426,7 +427,9 @@ export function AuctionStep3Policies({
           if (auctionId && policyIds.length > 0) {
             auctionsApi
               .evaluateAuctionPolicies(auctionId, policyIds)
-              .then((evaluations) => setEvaluationsByPolicyId(evaluations))
+              .then((evaluations) =>
+                setEvaluationsByPolicyId(buildEvaluationsByPolicy(evaluations, savedPolicies)),
+              )
               .catch(() => setEvaluationsByPolicyId({}));
           }
         }
@@ -558,6 +561,45 @@ export function AuctionStep3Policies({
           (() => {
             const savedItems = form.preconditions.map((p, i) => ({ p, i })).filter(({ p }) => p.id);
             const usedTypes = form.preconditions.map((p) => p.type).filter(Boolean);
+
+            // Edit mode: no precondition was ever created — offer an explicit Add button
+            if (isEditMode && form.preconditions.length === 0) {
+              const opts = getGroupOptions('PRECONDITION');
+              return (
+                <div className="rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/20 dark:bg-sky-950/10 p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Preconditions</p>
+                    <p className="text-xs text-muted-foreground">No preconditions created yet.</p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={() => {
+                      const first = opts.find((opt) => !usedTypes.includes(opt.value)) ?? opts[0];
+                      const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
+                      onChange({
+                        preconditions: [
+                          ...form.preconditions,
+                          {
+                            type: first?.value ?? '',
+                            name: defaults?.name ?? '',
+                            description: defaults?.description ?? '',
+                            count: '',
+                            validationDays: '',
+                            validationHours: '0',
+                          },
+                        ],
+                      });
+                    }}
+                  >
+                    Add
+                  </Button>
+                </div>
+              );
+            }
+
             return (
               <div className="space-y-3">
                 {savedItems.length > 0 && (

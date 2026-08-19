@@ -35,8 +35,11 @@ import {
   fmtLabel,
   categoryForPolicyType,
   parseOffsetDuration,
+  buildEvaluationsByPolicy,
+  paymentStepData,
+  isRefundablePrePayment,
 } from './PolicyShared';
-import { PolicyItemCard } from './PolicyEvaluationDisplay';
+import { PolicyItemCard, EvaluationList } from './PolicyEvaluationDisplay';
 import { AddStepDialog } from './AddStepDialog';
 import { EditStepDialog } from './EditStepDialog';
 import Tip from '@/components/common/admin/Tip';
@@ -76,6 +79,21 @@ function fmtDateTime(iso?: string | null): string {
   } catch {
     return iso;
   }
+}
+
+/** Wraps the flat `/workflow/evaluate` response (`Record<stepId, PolicyEvaluation>`)
+ *  keyed by step name so `EvaluationList` renders one card per workflow step. */
+function buildStepEvaluations(
+  evaluations: PolicyEvaluationMap | null | undefined,
+  steps: AuctionWorkflowStep[],
+): Record<string, PolicyEvaluationMap> {
+  const result: Record<string, PolicyEvaluationMap> = {};
+  for (const [stepId, evaluation] of Object.entries(evaluations ?? {})) {
+    if (!evaluation) continue;
+    const name = steps.find((s) => s.id === stepId)?.name ?? stepId;
+    result[stepId] = { [name]: evaluation };
+  }
+  return result;
 }
 
 function NumberSelect({
@@ -161,7 +179,7 @@ function formatOffsetLabel(iso?: string): string {
 // ── Payment step (view-only) — mode/offset/heads collected by PAYMENT_STEP ────
 
 function PaymentStepPreview({ step }: { step: AuctionWorkflowStep }) {
-  const phase = resolveStr(step.phase);
+  const { phase, mode, offset, heads } = paymentStepData(step);
   return (
     <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3 text-xs">
       <div className="flex flex-wrap gap-x-4 gap-y-1">
@@ -171,19 +189,19 @@ function PaymentStepPreview({ step }: { step: AuctionWorkflowStep }) {
             {phase === 'PRE_PAYMENT' ? 'Pre Payment' : 'Post Payment'}
           </span>
         </span>
-        {step.mode && (
+        {mode && (
           <span className="text-muted-foreground">
-            Mode: <span className="text-foreground font-medium">{fmtLabel(step.mode)}</span>
+            Mode: <span className="text-foreground font-medium">{fmtLabel(mode)}</span>
           </span>
         )}
         <span className="text-muted-foreground">
-          Offset:{' '}
-          <span className="text-foreground font-medium">{formatOffsetLabel(step.offset)}</span>
+          {phase === 'PRE_PAYMENT' ? 'Offset from auction start:' : 'Offset from auction end:'}{' '}
+          <span className="text-foreground font-medium">{formatOffsetLabel(offset)}</span>
         </span>
       </div>
-      {(step.heads?.length ?? 0) > 0 && (
+      {heads.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {step.heads!.map((h, i) => (
+          {heads.map((h, i) => (
             <div key={i} className="rounded-md border border-border/50 bg-muted/20 px-2.5 py-1.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium text-foreground">{h.name}</span>
@@ -296,6 +314,7 @@ function WorkflowStepCard({
   isDragTarget,
   participationPolicies,
   evaluationsByPolicyId,
+  evaluationsByStepId,
   onEdit,
   onDelete,
 }: {
@@ -306,6 +325,7 @@ function WorkflowStepCard({
   isDragTarget?: boolean;
   participationPolicies?: PolicyItemRQ[];
   evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
+  evaluationsByStepId?: Record<string, PolicyEvaluationMap>;
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
@@ -424,6 +444,16 @@ function WorkflowStepCard({
               </span>
             )}
           </div>
+
+          {/* Step-level evaluation from the bulk /workflow/evaluate result */}
+          {step.id && evaluationsByStepId?.[step.id] && (
+            <div className="mt-1.5 space-y-1">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                Evaluation
+              </p>
+              <EvaluationList evaluations={evaluationsByStepId[step.id]} />
+            </div>
+          )}
 
           {/* Step status details — e.g. transaction ref, bank verification status */}
           {step.status?.details && Object.keys(step.status.details).length > 0 && (
@@ -547,12 +577,24 @@ function WorkflowStepCard({
 function violatesBankBeforeRefundablePayment(list: AuctionWorkflowStep[]): boolean {
   const bankIdx = list.findIndex((s) => resolveStr(s.type) === 'BANK_DETAIL_FORM_STEP');
   return list.some((s, i) => {
-    if (resolveStr(s.type) !== 'PAYMENT_STEP' || resolveStr(s.phase) !== 'PRE_PAYMENT') {
-      return false;
-    }
-    if (!(s.heads ?? []).some((h) => h.refundable)) return false;
+    if (!isRefundablePrePayment(s)) return false;
     return bankIdx === -1 || bankIdx > i;
   });
+}
+
+// Post Payment steps always form the final segment of the workflow — no non-post
+// step may appear after a Post Payment.
+function violatesPostPaymentLast(list: AuctionWorkflowStep[]): boolean {
+  let seenPost = false;
+  for (const s of list) {
+    const isPost = resolveStr(s.type) === 'PAYMENT_STEP' && resolveStr(s.phase) === 'POST_PAYMENT';
+    if (isPost) {
+      seenPost = true;
+      continue;
+    }
+    if (seenPost) return true;
+  }
+  return false;
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -569,6 +611,9 @@ export function AuctionStep5Workflow({
   const [workflow, setWorkflow] = useState<AuctionWorkflowStep[]>([]);
   const [participationPolicies, setParticipationPolicies] = useState<PolicyItemRQ[]>([]);
   const [evaluationsByPolicyId, setEvaluationsByPolicyId] = useState<
+    Record<string, PolicyEvaluationMap>
+  >({});
+  const [evaluationsByStepId, setEvaluationsByStepId] = useState<
     Record<string, PolicyEvaluationMap>
   >({});
   const [reordering, setReordering] = useState(false);
@@ -620,7 +665,8 @@ export function AuctionStep5Workflow({
           allItems.filter((p) => categoryForPolicyType(p.type) === 'PARTICIPATION'),
         );
 
-        // Evaluate every saved policy (workflow-embedded + auction-level) by id.
+        // Evaluate every saved policy (workflow-embedded + auction-level) by id,
+        // in a single bulk request (POST /policies/evaluate) instead of N+1 calls.
         const policyIds = Array.from(
           new Set(
             [...wf.flatMap((s) => s.policies ?? []), ...allItems]
@@ -628,21 +674,25 @@ export function AuctionStep5Workflow({
               .filter((id): id is string => Boolean(id)),
           ),
         );
-        Promise.all(
-          policyIds.map((policyId) =>
-            auctionsApi
-              .evaluateAuctionPolicy(auctionId, policyId)
-              .then((res) => [policyId, res] as const)
-              .catch(() => [policyId, null] as const),
-          ),
-        ).then((results) => {
-          if (!mounted) return;
-          const map: Record<string, PolicyEvaluationMap> = {};
-          for (const [policyId, res] of results) {
-            if (res) map[policyId] = res;
-          }
-          setEvaluationsByPolicyId(map);
-        });
+        if (policyIds.length > 0) {
+          auctionsApi
+            .evaluateAuctionPolicies(auctionId, policyIds)
+            .then((evals) => {
+              if (mounted) setEvaluationsByPolicyId(buildEvaluationsByPolicy(evals, allItems));
+            })
+            .catch(() => {});
+        }
+
+        // Evaluate all workflow steps in a single bulk request (POST /workflow/evaluate).
+        const stepIds = wf.map((s) => s.id).filter((id): id is string => Boolean(id));
+        if (stepIds.length > 0) {
+          auctionsApi
+            .evaluateWorkflowSteps(auctionId, stepIds)
+            .then((evals) => {
+              if (mounted) setEvaluationsByStepId(buildStepEvaluations(evals, wf));
+            })
+            .catch(() => {});
+        }
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -712,6 +762,10 @@ export function AuctionStep5Workflow({
       setReorderError(
         'A refundable Pre Payment step must have its Bank Detail step positioned before it.',
       );
+      return;
+    }
+    if (violatesPostPaymentLast(next)) {
+      setReorderError('Post Payment steps must always be the last steps in the workflow.');
       return;
     }
     handleReorder(next);
@@ -864,6 +918,7 @@ export function AuctionStep5Workflow({
                         isDragTarget={dragOverIdx === i}
                         participationPolicies={participationPolicies}
                         evaluationsByPolicyId={evaluationsByPolicyId}
+                        evaluationsByStepId={evaluationsByStepId}
                         onEdit={() => setEditingStep(step)}
                         onDelete={() => setDeletingStep(step)}
                         dragHandleProps={{

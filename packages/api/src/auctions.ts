@@ -412,7 +412,7 @@ export const auctionsApi = {
   evaluateWorkflowSteps: async (id: string, stepIds?: string[]): Promise<PolicyEvaluationMap> => {
     const response = await apiClient.post<PolicyEvaluationMap>(
       `/api/v1/auctions/${id}/workflow/evaluate`,
-      stepIds?.length ? { stepIds } : {},
+      stepIds?.length ? stepIds : [],
     );
     return response.data;
   },
@@ -501,12 +501,15 @@ export const auctionsApi = {
     return response.data;
   },
 
-  /** Evaluates all saved policies, or only the given policy ids, in one request. */
+  /** Evaluates all saved policies, or only the given policy ids, in one request.
+   *  The backend returns one flat entry per policy id — each value is a single
+   *  {@link PolicyEvaluation}, NOT a nested name-keyed map (unlike the per-policy
+   *  evaluate endpoint). */
   evaluateAuctionPolicies: async (
     id: string,
     policyIds?: string[],
-  ): Promise<Record<string, PolicyEvaluationMap>> => {
-    const response = await apiClient.post<Record<string, PolicyEvaluationMap>>(
+  ): Promise<PolicyEvaluationMap> => {
+    const response = await apiClient.post<PolicyEvaluationMap>(
       `/api/v1/auctions/${id}/policies/evaluate`,
       policyIds ?? [],
     );

@@ -20,6 +20,7 @@ import {
   DayHourMinuteFields,
   formatOffsetDuration,
   parseOffsetDuration,
+  paymentStepData,
 } from './PolicyShared';
 import { parseApiError } from '@/lib/api-errors';
 
@@ -65,7 +66,7 @@ export function EditStepDialog({
   const isExplicit = step ? !step.implicit : false;
   const isTnCStep = stepType === 'TNC_FORM_STEP';
   const isPaymentStep = stepType === 'PAYMENT_STEP';
-  const paymentPhase = resolveStr((step as AuctionWorkflowStep | null)?.phase);
+  const paymentPhase = step ? paymentStepData(step).phase : '';
 
   useEffect(() => {
     if (!step) return;
@@ -75,12 +76,13 @@ export function EditStepDialog({
     setTncFile(null);
     setError(null);
 
-    setPaymentModeValue(resolveStr(step.mode));
-    const { days, hours, minutes } = parseOffsetDuration(step.offset);
+    const payment = paymentStepData(step);
+    setPaymentModeValue(payment.mode);
+    const { days, hours, minutes } = parseOffsetDuration(payment.offset);
     setOffsetDays(days);
     setOffsetHours(hours);
     setOffsetMinutes(minutes);
-    setHeads(step.heads ?? []);
+    setHeads(payment.heads);
   }, [step]);
 
   useEffect(() => {
@@ -247,7 +249,11 @@ export function EditStepDialog({
                 </div>
 
                 <DayHourMinuteFields
-                  label="Offset from auction end time"
+                  label={
+                    paymentPhase === 'PRE_PAYMENT'
+                      ? 'Offset from auction start time'
+                      : 'Offset from auction end time'
+                  }
                   daysValue={offsetDays}
                   hoursValue={offsetHours}
                   minutesValue={offsetMinutes}
