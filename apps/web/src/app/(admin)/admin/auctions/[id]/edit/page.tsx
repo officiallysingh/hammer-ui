@@ -531,6 +531,7 @@ export default function EditAuctionPage() {
           onBack={() => setStep(3)}
           onNext={() => setStep(5)}
           onFinish={() => router.push('/admin/auctions')}
+          saveMode="direct"
         />
       )}
 

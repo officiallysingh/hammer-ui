@@ -41,6 +41,12 @@ export interface AuctionWorkflowStep {
   phase?: PaymentPhase | Record<string, string>;
   offset?: string;
   heads?: PolicyHeadRQ[];
+  prePayment?: boolean;
+  postPayment?: boolean;
+  /** PARTICIPATION_FORM_STEP fields. */
+  manualApproval?: boolean;
+  preStartValidationDuration?: string;
+  tncText?: string;
   implicit?: boolean;
   status?: {
     type?: string | Record<string, string>;
@@ -106,6 +112,10 @@ export interface AuctionVM {
   protocol?: AuctionProtocol;
   monetaryOptions?: AuctionMonetaryOptions;
   schedule?: AuctionSchedule;
+  /** Raw top-level times as returned by the API — also folded into `schedule`
+   *  by {@link auctionsApi.withSchedule}. */
+  startTime?: string;
+  endTime?: string;
   unit?: AuctionUnitVM;
   units?: AuctionUnit[];
   blobs?: string[];
@@ -201,6 +211,8 @@ export interface PolicyItemRQ {
   type?: string;
   name?: string;
   description?: string;
+  /** Lifecycle phase the policy applies in (e.g. `PARTICIPATION`, `AUCTION`, `CLEARING`). */
+  phase?: string | Record<string, string>;
   basis?: string;
   value?: number;
   order?: number;
@@ -247,7 +259,8 @@ export type WorkflowStepType =
   | 'FORM_STEP'
   | 'TNC_FORM_STEP'
   | 'PAYMENT_STEP'
-  | 'BANK_DETAIL_FORM_STEP';
+  | 'BANK_DETAIL_FORM_STEP'
+  | 'PARTICIPATION_FORM_STEP';
 
 export interface AddFormStepRQ {
   type: 'FORM_STEP';
@@ -285,11 +298,24 @@ export interface AddPaymentStepRQ {
   heads: PolicyHeadRQ[];
 }
 
+/** Mirrors the backend `ParticipationFormStep.of(...)` factory — collects a
+ *  managed custom form from participants before they can join the auction. */
+export interface AddParticipationFormStepRQ {
+  type: 'PARTICIPATION_FORM_STEP';
+  name?: string;
+  description?: string;
+  order?: number;
+  manualApproval?: boolean;
+  preStartValidationDuration?: string;
+  typeId: string;
+}
+
 export type AddWorkflowStepRQ =
   | AddFormStepRQ
   | AddTnCFormStepRQ
   | AddBankDetailFormStepRQ
-  | AddPaymentStepRQ;
+  | AddPaymentStepRQ
+  | AddParticipationFormStepRQ;
 
 export type AuctionPoliciesRQ = PolicyItemRQ[];
 
@@ -310,6 +336,18 @@ export const auctionsApi = {
 
   updateAuction: async (id: string, data: AuctionUpdationRQ): Promise<void> => {
     await apiClient.patch(`/api/v1/auctions/${id}`, data);
+  },
+
+  /** The raw payload carries `startTime`/`endTime` at the top level — fold them
+   *  into `schedule` so consumers can rely on the VM shape everywhere. */
+  withSchedule: <T extends { startTime?: string; endTime?: string; schedule?: AuctionSchedule }>(
+    auction: T,
+  ): T => {
+    if (auction.schedule || (!auction.startTime && !auction.endTime)) return auction;
+    return {
+      ...auction,
+      schedule: { startTime: auction.startTime, endTime: auction.endTime },
+    };
   },
 
   getAuctions: async (filter: AuctionsFilter = {}): Promise<PaginatedAuctions> => {
@@ -337,14 +375,18 @@ export const auctionsApi = {
       },
       headers: expand?.length ? { 'x-expand': expand } : undefined,
     });
-    return response.data;
+    const paginated = response.data;
+    if (paginated.content?.length) {
+      return { ...paginated, content: paginated.content.map((a) => auctionsApi.withSchedule(a)) };
+    }
+    return paginated;
   },
 
   getAuctionById: async (id: string, expand?: string[]): Promise<AuctionVM> => {
     const response = await apiClient.get<AuctionVM>(`/api/v1/auctions/${id}`, {
       headers: expand?.length ? { 'x-expand': expand } : undefined,
     });
-    return response.data;
+    return auctionsApi.withSchedule(response.data);
   },
 
   deleteAuction: async (id: string): Promise<void> => {

@@ -16,16 +16,26 @@ import {
   Landmark,
   FileText,
   ShieldCheck,
+  UserCheck,
   Upload,
   Pencil,
   Trash2,
 } from 'lucide-react';
-import { Button, Label, DateTimePicker } from '@repo/ui';
+import {
+  Button,
+  Label,
+  DateTimePicker,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@repo/ui';
 import {
   auctionsApi,
+  AddWorkflowStepRQ,
   AuctionWorkflowStep,
-  PolicyItemRQ,
   PolicyEvaluationMap,
+  PolicyItemRQ,
   PropertyDef,
 } from '@repo/api';
 import { DismissibleError, FieldError } from './AuctionShared';
@@ -52,6 +62,14 @@ interface Props {
   onNext?: () => void;
   onFinish: () => void;
   showScheduleOnly?: boolean;
+  /**
+   * 'draft' (default): added steps accumulate locally as drafts and are
+   * preview-evaluated + persisted together on Continue — used by the
+   * new-auction wizard where nothing is saved yet.
+   * 'direct': each added step is persisted immediately, one by one — used by
+   * the edit flow where steps are already saved on the server.
+   */
+  saveMode?: 'draft' | 'direct';
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -151,6 +169,8 @@ function StepTypeIcon({ type, className }: { type?: unknown; className?: string 
       return <Landmark className={className} />;
     case 'TNC_FORM_STEP':
       return <ShieldCheck className={className} />;
+    case 'PARTICIPATION_FORM_STEP':
+      return <UserCheck className={className} />;
     default:
       return <FileText className={className} />;
   }
@@ -174,6 +194,42 @@ function formatOffsetLabel(iso?: string): string {
     Number(minutes) > 0 ? `${minutes}m` : null,
   ].filter(Boolean);
   return parts.length ? parts.join(' ') : '0m';
+}
+
+/** Turns an unsaved step request into a displayable step projection so drafts
+ *  render identically to persisted ones. */
+function projectDraft(id: string, rq: AddWorkflowStepRQ): AuctionWorkflowStep {
+  const shared = { id, name: rq.name, description: rq.description };
+  switch (rq.type) {
+    case 'PAYMENT_STEP':
+      return {
+        ...shared,
+        type: 'PAYMENT_STEP',
+        mode: rq.mode,
+        phase: rq.phase,
+        offset: rq.offset,
+        heads: rq.heads,
+      };
+    case 'TNC_FORM_STEP':
+      return { ...shared, type: 'TNC_FORM_STEP', tncText: rq.tncText };
+    case 'PARTICIPATION_FORM_STEP':
+      return {
+        ...shared,
+        type: 'PARTICIPATION_FORM_STEP',
+        manualApproval: rq.manualApproval,
+        preStartValidationDuration: rq.preStartValidationDuration,
+        embedded: { typeId: rq.typeId },
+      };
+    case 'FORM_STEP':
+      return { ...shared, type: 'FORM_STEP', embedded: { typeId: rq.typeId } };
+    default:
+      return { ...shared, type: 'BANK_DETAIL_FORM_STEP' };
+  }
+}
+
+/** Keeps `order` contiguous (1..n) after any local mutation of the combined list. */
+function resequence(steps: AuctionWorkflowStep[]): AuctionWorkflowStep[] {
+  return steps.map((s, i) => (s.order === i + 1 ? s : { ...s, order: i + 1 }));
 }
 
 // ── Payment step (view-only) — mode/offset/heads collected by PAYMENT_STEP ────
@@ -304,13 +360,42 @@ function FormStepPropertiesPreview({ properties }: { properties: PropertyDef[] }
   );
 }
 
+// ── Participation form step (view-only) — collected by PARTICIPATION_FORM_STEP ─
+
+function ParticipationFormPreview({ step }: { step: AuctionWorkflowStep }) {
+  return (
+    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3 text-xs">
+      <p className="text-muted-foreground">
+        Participant submits this registration form to join the auction.
+      </p>
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        <span className="text-muted-foreground">
+          Manual approval:{' '}
+          <span className="text-foreground font-medium">
+            {step.manualApproval ? 'Required' : 'Not required'}
+          </span>
+        </span>
+        <span className="text-muted-foreground">
+          Submissions validated within:{' '}
+          <span className="text-foreground font-medium">
+            {formatOffsetLabel(step.preStartValidationDuration)}
+          </span>{' '}
+          before auction start
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ── Workflow step accordion card ──────────────────────────────────────────────
 
 function WorkflowStepCard({
   auctionId,
   step,
   index,
+  isDraft,
   dragHandleProps,
+  dragDisabled,
   isDragTarget,
   participationPolicies,
   evaluationsByPolicyId,
@@ -321,7 +406,9 @@ function WorkflowStepCard({
   auctionId: string;
   step: AuctionWorkflowStep;
   index: number;
+  isDraft?: boolean;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
+  dragDisabled?: boolean;
   isDragTarget?: boolean;
   participationPolicies?: PolicyItemRQ[];
   evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
@@ -349,8 +436,12 @@ function WorkflowStepCard({
         {/* Drag handle */}
         <div
           {...dragHandleProps}
-          className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground shrink-0 touch-none"
-          title="Drag to reorder"
+          className={`shrink-0 touch-none ${
+            dragDisabled
+              ? 'cursor-not-allowed text-muted-foreground/20'
+              : 'cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground'
+          }`}
+          title={dragDisabled ? 'Save draft steps to enable reordering' : 'Drag to reorder'}
         >
           <GripVertical className="h-4 w-4" />
         </div>
@@ -381,6 +472,13 @@ function WorkflowStepCard({
           )}
         </div>
 
+        {/* Draft chip */}
+        {isDraft && (
+          <span className="rounded-full bg-amber-500/15 text-amber-600 px-2 py-0.5 text-[10px] font-medium shrink-0">
+            Draft
+          </span>
+        )}
+
         {/* Edit step */}
         {onEdit && (
           <Tip label="Edit step">
@@ -398,7 +496,7 @@ function WorkflowStepCard({
 
         {/* Delete step — implicit steps are auto-generated by the backend and can't be removed */}
         {onDelete && !step.implicit && (
-          <Tip label="Delete step">
+          <Tip label={isDraft ? 'Remove draft step' : 'Delete step'}>
             <Button
               type="button"
               variant="ghost"
@@ -495,8 +593,19 @@ function WorkflowStepCard({
             </div>
           )}
 
-          {/* Custom form step — properties embedded on the step itself, view-only */}
-          {resolveStr(step.type) === 'FORM_STEP' &&
+          {/* Participation form step — approval/validation settings, view-only */}
+          {resolveStr(step.type) === 'PARTICIPATION_FORM_STEP' && (
+            <div className="mt-1.5 space-y-1">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                Participation
+              </p>
+              <ParticipationFormPreview step={step} />
+            </div>
+          )}
+
+          {/* Custom/participation form step — properties embedded on the step itself, view-only */}
+          {(resolveStr(step.type) === 'FORM_STEP' ||
+            resolveStr(step.type) === 'PARTICIPATION_FORM_STEP') &&
             (step.embedded?.properties?.length ?? 0) > 0 && (
               <div className="mt-1.5 space-y-1">
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
@@ -511,6 +620,7 @@ function WorkflowStepCard({
           {(() => {
             const isParticipationStep =
               resolveStr(step.type) === 'PARTICIPATION_STEP' ||
+              resolveStr(step.type) === 'PARTICIPATION_FORM_STEP' ||
               (participationPolicies ?? []).some((p) => p.name && p.name === step.name);
             const embeddedPolicies =
               step.policies && step.policies.length > 0
@@ -547,7 +657,7 @@ function WorkflowStepCard({
           {(() => {
             const isTnCStep = resolveStr(step.type) === 'TNC_FORM_STEP';
             if (!isTnCStep) return null;
-            const tncText = (step as AuctionWorkflowStep & { tncText?: string }).tncText;
+            const tncText = step.tncText;
 
             return (
               <div className="mt-2 space-y-2">
@@ -605,10 +715,16 @@ export function AuctionStep5Workflow({
   onNext,
   onFinish,
   showScheduleOnly = false,
+  saveMode = 'draft',
 }: Props) {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<'schedule' | 'publish' | null>(null);
+  const [saving, setSaving] = useState<'schedule' | 'publish' | 'save' | null>(null);
+  /** Combined list — persisted steps mixed with local draft projections (ids `draft-*`). */
   const [workflow, setWorkflow] = useState<AuctionWorkflowStep[]>([]);
+  /** Draft step requests keyed by their local draft id — the payloads sent on save. */
+  const [draftRequests, setDraftRequests] = useState<Record<string, AddWorkflowStepRQ>>({});
+  const draftIdSeq = useRef(1);
+
   const [participationPolicies, setParticipationPolicies] = useState<PolicyItemRQ[]>([]);
   const [evaluationsByPolicyId, setEvaluationsByPolicyId] = useState<
     Record<string, PolicyEvaluationMap>
@@ -625,6 +741,14 @@ export function AuctionStep5Workflow({
   const [deletingStepBusy, setDeletingStepBusy] = useState(false);
   const [deleteStepError, setDeleteStepError] = useState<string | null>(null);
 
+  // Preview-before-save review state (mirrors the policies step's review dialog)
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewData, setReviewData] = useState<
+    { id: string; label: string; evaluations: PolicyEvaluationMap | null }[]
+  >([]);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   // Schedule state
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -639,6 +763,8 @@ export function AuctionStep5Workflow({
   const dragIndexRef = useRef<number | null>(null);
   const dragHandleActiveRef = useRef(false);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+
+  const hasDrafts = Object.keys(draftRequests).length > 0;
 
   const clearErr = (f: string) =>
     setFieldErrors((p) => {
@@ -709,6 +835,45 @@ export function AuctionStep5Workflow({
       .catch(() => {});
   }, [auctionId]);
 
+  // ── Local draft management ───────────────────────────────────────────────
+
+  const addDraft = (rq: AddWorkflowStepRQ) => {
+    const id = `draft-${draftIdSeq.current++}`;
+    const projected = { ...projectDraft(id, rq), order: rq.order };
+    setDraftRequests((prev) => ({ ...prev, [id]: rq }));
+    setWorkflow((prev) =>
+      resequence([
+        ...prev.slice(0, (rq.order ?? prev.length + 1) - 1),
+        projected,
+        ...prev.slice(Math.max((rq.order ?? prev.length + 1) - 1, 0)),
+      ]),
+    );
+  };
+
+  const removeDraft = (id: string) => {
+    setDraftRequests((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setWorkflow((prev) => resequence(prev.filter((s) => s.id !== id)));
+  };
+
+  // ── Step creation ────────────────────────────────────────────────────────
+  // Draft mode buffers the request locally until Continue previews and saves
+  // everything together; direct mode persists each step immediately (errors
+  // propagate back into AddStepDialog, which stays open).
+  const handleAddStep = async (rq: AddWorkflowStepRQ) => {
+    if (saveMode !== 'direct') {
+      addDraft(rq);
+      return;
+    }
+    await auctionsApi.addWorkflowStep(auctionId, rq);
+    reloadWorkflow();
+  };
+
+  // ── Saved-step mutations (direct API) ────────────────────────────────────
+
   const handleDeleteStep = async () => {
     if (!deletingStep) return;
     setDeletingStepBusy(true);
@@ -726,21 +891,25 @@ export function AuctionStep5Workflow({
 
   const hasTnCStep = workflow.some((s) => resolveStr(s.type) === 'TNC_FORM_STEP');
   const hasBankDetailStep = workflow.some((s) => resolveStr(s.type) === 'BANK_DETAIL_FORM_STEP');
+  const hasParticipationFormStep = workflow.some(
+    (s) => resolveStr(s.type) === 'PARTICIPATION_FORM_STEP',
+  );
 
   const openAddStep = (order: number) => {
     setAddStepOrder(order);
     setAddStepOpen(true);
   };
 
-  // Reorder handler
+  // Reorder handler — only reachable while there are no unsaved drafts, so the
+  // list consists purely of persisted steps and can be synced immediately.
   const handleReorder = useCallback(
     async (newSteps: AuctionWorkflowStep[]) => {
-      setWorkflow(newSteps);
+      setWorkflow(resequence(newSteps));
       setReordering(true);
       setReorderError(null);
       try {
         const order: Record<string, number> = {};
-        newSteps.forEach((s, i) => {
+        resequence(newSteps).forEach((s, i) => {
           if (s.id) order[s.id] = i + 1;
         });
         await auctionsApi.reorderWorkflowSteps(auctionId, order);
@@ -754,7 +923,7 @@ export function AuctionStep5Workflow({
   );
 
   const moveStep = (from: number, to: number) => {
-    if (from === to) return;
+    if (from === to || hasDrafts) return;
     const next = [...workflow];
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved!);
@@ -769,6 +938,69 @@ export function AuctionStep5Workflow({
       return;
     }
     handleReorder(next);
+  };
+
+  // ── Preview-then-save flow ───────────────────────────────────────────────
+
+  const handleContinue = () => {
+    if (!hasDrafts) {
+      onNext?.();
+      return;
+    }
+    runReview();
+  };
+
+  const runReview = async () => {
+    setReviewOpen(true);
+    setReviewLoading(true);
+    setSaveError(null);
+    setReviewData([]);
+
+    const draftSteps = workflow
+      .map((step, index) => ({ step, index }))
+      .filter(({ step }) => draftRequests[step.id])
+      .sort((a, b) => (a.step.order ?? 0) - (b.step.order ?? 0));
+
+    const results = await Promise.all(
+      draftSteps.map(async ({ step, index }) => {
+        const rq = draftRequests[step.id];
+        return {
+          id: step.id,
+          label: stepDisplayName(step, index),
+          evaluations: rq
+            ? await auctionsApi.previewWorkflowStep(auctionId, rq).catch(() => null)
+            : null,
+        };
+      }),
+    );
+
+    setReviewData(results);
+    setReviewLoading(false);
+  };
+
+  const confirmSaveAll = async () => {
+    setSaving('save');
+    setSaveError(null);
+    try {
+      const orderedDrafts = workflow
+        .filter((s) => draftRequests[s.id])
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      // Persisted one-by-one in ascending order — the backend shifts subsequent
+      // steps down per insert, reproducing exactly the arrangement shown here.
+      for (const step of orderedDrafts) {
+        const rq = draftRequests[step.id];
+        if (!rq) continue;
+        await auctionsApi.addWorkflowStep(auctionId, rq);
+      }
+      setDraftRequests({});
+      setReviewOpen(false);
+      reloadWorkflow();
+      onNext?.();
+    } catch (err) {
+      setSaveError(parseApiError(err).general ?? 'Failed to save workflow steps.');
+    } finally {
+      setSaving(null);
+    }
   };
 
   // Schedule compute
@@ -838,10 +1070,17 @@ export function AuctionStep5Workflow({
             </div>
           </div>
 
-          {/* Error */}
+          {/* Errors / notices */}
           {reorderError && (
             <div className="px-4 py-2 text-xs text-destructive bg-destructive/5 border-b border-destructive/20">
               {reorderError}
+            </div>
+          )}
+          {hasDrafts && (
+            <div className="px-4 py-2 text-xs bg-amber-500/10 border-b border-amber-500/20 text-amber-700 dark:text-amber-400">
+              {Object.keys(draftRequests).length} unsaved step
+              {Object.keys(draftRequests).length !== 1 ? 's' : ''} — marked as Draft, they are
+              evaluated and saved together when you continue.
             </div>
           )}
 
@@ -880,68 +1119,79 @@ export function AuctionStep5Workflow({
                     Add step
                   </button>
                 </div>
-                {workflow.map((step, i) => (
-                  <div key={step.id ?? i}>
-                    <div
-                      draggable
-                      onDragStart={(e) => {
-                        if (!dragHandleActiveRef.current) {
-                          e.preventDefault();
-                          return;
-                        }
-                        dragIndexRef.current = i;
-                        e.dataTransfer.effectAllowed = 'move';
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        setDragOverIdx(i);
-                      }}
-                      onDragLeave={() => setDragOverIdx(null)}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        const from = dragIndexRef.current;
-                        if (from !== null && from !== i) moveStep(from, i);
-                        dragIndexRef.current = null;
-                        setDragOverIdx(null);
-                      }}
-                      onDragEnd={() => {
-                        dragHandleActiveRef.current = false;
-                        dragIndexRef.current = null;
-                        setDragOverIdx(null);
-                      }}
-                      className={`transition-opacity ${dragOverIdx === i ? 'opacity-50' : ''}`}
-                    >
-                      <WorkflowStepCard
-                        auctionId={auctionId}
-                        step={step}
-                        index={i}
-                        isDragTarget={dragOverIdx === i}
-                        participationPolicies={participationPolicies}
-                        evaluationsByPolicyId={evaluationsByPolicyId}
-                        evaluationsByStepId={evaluationsByStepId}
-                        onEdit={() => setEditingStep(step)}
-                        onDelete={() => setDeletingStep(step)}
-                        dragHandleProps={{
-                          onPointerDown: () => {
-                            dragHandleActiveRef.current = true;
-                          },
+                {workflow.map((step, i) => {
+                  const isDraft = step.id.startsWith('draft-');
+                  return (
+                    <div key={step.id}>
+                      <div
+                        draggable={!hasDrafts}
+                        onDragStart={(e) => {
+                          if (!dragHandleActiveRef.current) {
+                            e.preventDefault();
+                            return;
+                          }
+                          dragIndexRef.current = i;
+                          e.dataTransfer.effectAllowed = 'move';
                         }}
-                      />
-                    </div>
-                    {/* Insert-between button */}
-                    <div className="flex items-center justify-center py-1">
-                      <button
-                        type="button"
-                        onClick={() => openAddStep(i + 2)}
-                        className="flex items-center gap-1 px-3 py-1 rounded-full text-xs text-muted-foreground hover:text-primary hover:bg-primary/5 border border-dashed border-border hover:border-primary/40 transition-all"
-                        title="Add step here"
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setDragOverIdx(i);
+                        }}
+                        onDragLeave={() => setDragOverIdx(null)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const from = dragIndexRef.current;
+                          if (from !== null && from !== i) moveStep(from, i);
+                          dragIndexRef.current = null;
+                          setDragOverIdx(null);
+                        }}
+                        onDragEnd={() => {
+                          dragHandleActiveRef.current = false;
+                          dragIndexRef.current = null;
+                          setDragOverIdx(null);
+                        }}
+                        className={`transition-opacity ${dragOverIdx === i ? 'opacity-50' : ''}`}
                       >
-                        <Plus className="h-3 w-3" />
-                        Add step
-                      </button>
+                        <WorkflowStepCard
+                          auctionId={auctionId}
+                          step={step}
+                          index={i}
+                          isDraft={isDraft}
+                          isDragTarget={dragOverIdx === i}
+                          dragDisabled={hasDrafts}
+                          participationPolicies={participationPolicies}
+                          evaluationsByPolicyId={evaluationsByPolicyId}
+                          evaluationsByStepId={evaluationsByStepId}
+                          onEdit={!isDraft && !hasDrafts ? () => setEditingStep(step) : undefined}
+                          onDelete={
+                            isDraft
+                              ? () => removeDraft(step.id)
+                              : !hasDrafts
+                                ? () => setDeletingStep(step)
+                                : undefined
+                          }
+                          dragHandleProps={{
+                            onPointerDown: () => {
+                              if (!hasDrafts) dragHandleActiveRef.current = true;
+                            },
+                          }}
+                        />
+                      </div>
+                      {/* Insert-between button */}
+                      <div className="flex items-center justify-center py-1">
+                        <button
+                          type="button"
+                          onClick={() => openAddStep(i + 2)}
+                          className="flex items-center gap-1 px-3 py-1 rounded-full text-xs text-muted-foreground hover:text-primary hover:bg-primary/5 border border-dashed border-border hover:border-primary/40 transition-all"
+                          title="Add step here"
+                        >
+                          <Plus className="h-3 w-3" />
+                          Add step
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </>
             )}
           </div>
@@ -1103,21 +1353,26 @@ export function AuctionStep5Workflow({
             </Button>
           </div>
         ) : (
-          <Button type="button" onClick={onNext} disabled={saving !== null} className="gap-2">
-            Continue <ArrowRight className="h-4 w-4" />
+          <Button
+            type="button"
+            onClick={handleContinue}
+            disabled={saving !== null}
+            className="gap-2"
+          >
+            {hasDrafts ? 'Preview & Continue' : 'Continue'} <ArrowRight className="h-4 w-4" />
           </Button>
         )}
       </div>
 
       <AddStepDialog
-        auctionId={auctionId}
         open={addStepOpen}
         onOpenChange={setAddStepOpen}
         insertionOrder={addStepOrder}
         hasTnCStep={hasTnCStep}
         hasBankDetailStep={hasBankDetailStep}
+        hasParticipationFormStep={hasParticipationFormStep}
         workflow={workflow}
-        onAdded={reloadWorkflow}
+        onAdd={handleAddStep}
       />
 
       <EditStepDialog
@@ -1145,6 +1400,82 @@ export function AuctionStep5Workflow({
           setDeleteStepError(null);
         }}
       />
+
+      {/* ── Preview-before-save review dialog ─────────────────────────────── */}
+      <Dialog
+        open={reviewOpen}
+        onOpenChange={(o) => {
+          if (!o && saving !== 'save') setReviewOpen(false);
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Review workflow evaluation</DialogTitle>
+          </DialogHeader>
+
+          {reviewLoading ? (
+            <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-sm">Evaluating workflow steps...</span>
+            </div>
+          ) : (
+            <div className="space-y-3 py-1">
+              {reviewData.map((r) => (
+                <div
+                  key={r.id}
+                  className="rounded-lg border border-border/60 bg-muted/10 p-3 space-y-2"
+                >
+                  <h4 className="text-xs font-semibold text-foreground">{r.label}</h4>
+                  {r.evaluations ? (
+                    <EvaluationList evaluations={r.evaluations} />
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No evaluation available.</p>
+                  )}
+                </div>
+              ))}
+              {reviewData.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  No workflow step evaluations available.
+                </p>
+              )}
+            </div>
+          )}
+
+          {saveError && (
+            <p className="text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-md px-3 py-2">
+              {saveError}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setReviewOpen(false)}
+              disabled={saving === 'save'}
+            >
+              Back to edit
+            </Button>
+            <Button
+              type="button"
+              onClick={confirmSaveAll}
+              disabled={saving !== null || reviewLoading}
+              className="gap-2"
+            >
+              {saving === 'save' ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  Save & Continue <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

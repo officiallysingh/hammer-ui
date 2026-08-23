@@ -1,7 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, CheckCircle2, Search, Upload, Landmark, CreditCard } from 'lucide-react';
+import {
+  Loader2,
+  CheckCircle2,
+  Search,
+  Upload,
+  Landmark,
+  CreditCard,
+  UserCheck,
+} from 'lucide-react';
 import {
   Button,
   Label,
@@ -21,6 +29,7 @@ import {
   ManagedTypeVM,
   PaymentPhase,
   PolicyHeadRQ,
+  AddWorkflowStepRQ,
 } from '@repo/api';
 import { DismissibleError } from './AuctionShared';
 import {
@@ -32,7 +41,6 @@ import {
   isRefundablePrePayment,
 } from './PolicyShared';
 import { PropertyFormPreview } from '../../metadata/_components/PropertyFormPreview';
-import { sanitizeProperties } from '../../metadata/_components/types';
 import { parseApiError } from '@/lib/api-errors';
 
 type AddStepMode =
@@ -41,7 +49,8 @@ type AddStepMode =
   | 'TNC_FORM_STEP'
   | 'BANK_DETAIL_FORM_STEP'
   | 'PRE_PAYMENT_STEP'
-  | 'POST_PAYMENT_STEP';
+  | 'POST_PAYMENT_STEP'
+  | 'PARTICIPATION_FORM_STEP';
 
 function emptyHead(): PolicyHeadRQ {
   return { name: '', description: '', basis: 'AMOUNT_BASED', value: 0, refundable: false };
@@ -52,30 +61,39 @@ function isRichTextEmpty(html: string): boolean {
   return !html.replace(/<[^>]*>/g, '').trim();
 }
 
+/**
+ * Builds a draft workflow step request locally — nothing is persisted here.
+ * The caller accumulates drafts and saves them all at once (after previewing)
+ * via POST /workflow/add, mirroring the policies step's review-then-save flow.
+ */
 export function AddStepDialog({
-  auctionId,
   open,
   onOpenChange,
   insertionOrder,
   hasTnCStep,
   hasBankDetailStep,
+  hasParticipationFormStep,
   workflow,
-  onAdded,
+  onAdd,
 }: {
-  auctionId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   insertionOrder: number;
   hasTnCStep: boolean;
   hasBankDetailStep: boolean;
-  /** Current workflow steps — used to enforce Bank Details ordering ahead of refundable Pre Payment steps. */
+  hasParticipationFormStep: boolean;
+  /** Combined (saved + draft) workflow steps — used to enforce ordering constraints. */
   workflow: AuctionWorkflowStep[];
-  onAdded: () => void;
+  /** Receives the fully-built step request. May return a promise — when it does
+   *  (direct-save mode) the dialog stays open until it resolves and surfaces any
+   *  rejection as an inline error instead of closing. */
+  onAdd: (step: AddWorkflowStepRQ) => void | Promise<void>;
 }) {
   const [mode, setMode] = useState<AddStepMode>('choose');
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // True when the last submitPaymentStep failure was specifically "needs a Bank
+  // True while an awaited onAdd (direct-save mode) is in flight.
+  const [savingStep, setSavingStep] = useState(false);
+  // True when the last validation failure was specifically "needs a Bank
   // Detail step first" — offers a one-click way into the Bank Detail step's own form.
   const [needsBankDetailStep, setNeedsBankDetailStep] = useState(false);
   // Set while walking the "add Bank Detail step first" detour from the Payment step
@@ -83,10 +101,10 @@ export function AddStepDialog({
   // once the admin explicitly submits the Bank Detail step form.
   const [pendingPaymentPhase, setPendingPaymentPhase] = useState<PaymentPhase | null>(null);
 
-  // Shared order field (used by FORM_STEP, TNC_FORM_STEP and BANK_DETAIL_FORM_STEP)
+  // Shared order field (used by every concrete step form)
   const [selectedOrder, setSelectedOrder] = useState(insertionOrder);
 
-  // FORM_STEP state
+  // Managed-form picker state — shared by FORM_STEP and PARTICIPATION_FORM_STEP
   const [formQuery, setFormQuery] = useState('');
   const [formSearching, setFormSearching] = useState(false);
   const [formResults, setFormResults] = useState<ManagedTypeListItemFull[]>([]);
@@ -111,6 +129,12 @@ export function AddStepDialog({
   const [offsetHours, setOffsetHours] = useState('0');
   const [offsetMinutes, setOffsetMinutes] = useState('0');
   const [heads, setHeads] = useState<PolicyHeadRQ[]>([emptyHead()]);
+
+  // PARTICIPATION_FORM_STEP state
+  const [partManualApproval, setPartManualApproval] = useState(false);
+  const [partValDays, setPartValDays] = useState('0');
+  const [partValHours, setPartValHours] = useState('0');
+  const [partValMinutes, setPartValMinutes] = useState('0');
 
   // Keep the internal order in sync when the dialog opens or insertion slot changes.
   useEffect(() => {
@@ -156,11 +180,34 @@ export function AddStepDialog({
     setOffsetHours('0');
     setOffsetMinutes('0');
     setHeads([emptyHead()]);
+    setPartManualApproval(false);
+    setPartValDays('0');
+    setPartValHours('0');
+    setPartValMinutes('0');
   };
 
   const close = () => {
     onOpenChange(false);
     reset();
+  };
+
+  /** Runs onAdd and closes only on success — lets direct-save callers surface
+   *  API errors inline while draft mode resolves synchronously. */
+  const runSubmit = async (buildRq: () => AddWorkflowStepRQ, onSuccess?: () => void) => {
+    setSavingStep(true);
+    setError(null);
+    try {
+      await onAdd(buildRq());
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        close();
+      }
+    } catch (err) {
+      setError(parseApiError(err).general ?? 'Failed to add step. Please try again.');
+    } finally {
+      setSavingStep(false);
+    }
   };
 
   const searchFormTypes = useCallback((q: string) => {
@@ -187,7 +234,8 @@ export function AddStepDialog({
   };
 
   useEffect(() => {
-    if (open && mode === 'FORM_STEP') searchFormTypes(formQuery);
+    if (open && (mode === 'FORM_STEP' || mode === 'PARTICIPATION_FORM_STEP'))
+      searchFormTypes(formQuery);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, mode]);
 
@@ -215,31 +263,42 @@ export function AddStepDialog({
   // Step types valid at this insertion point, given the workflow's structural
   // rules (Bank Details before refundable Pre Payments, only Pre Payments between
   // a Pre Payment and its Bank Details, Post Payments always last).
-  const allowed = allowedStepTypesAt(workflow, selectedOrder, hasTnCStep, hasBankDetailStep);
+  const allowed = allowedStepTypesAt(
+    workflow,
+    selectedOrder,
+    hasTnCStep,
+    hasBankDetailStep,
+    hasParticipationFormStep,
+  );
 
-  const submitFormStep = async () => {
+  const submitFormStep = () => {
     if (!selectedType) {
       setError('Please select a form template.');
       return;
     }
-    setSubmitting(true);
-    setError(null);
-    try {
-      await auctionsApi.addWorkflowStep(auctionId, {
-        type: 'FORM_STEP',
-        name: selectedType.name,
-        description: selectedType.description || selectedType.name,
-        order: selectedOrder,
-        typeId: selectedType.id,
-      });
-      onAdded();
-      close();
-    } catch (err) {
-      const parsed = parseApiError(err);
-      setError(parsed.general ?? 'Failed to add step.');
-    } finally {
-      setSubmitting(false);
+    void runSubmit(() => ({
+      type: 'FORM_STEP',
+      name: selectedType.name,
+      description: selectedType.description || selectedType.name,
+      order: selectedOrder,
+      typeId: selectedType.id,
+    }));
+  };
+
+  const submitParticipationFormStep = () => {
+    if (!selectedType) {
+      setError('Please select a registration form template.');
+      return;
     }
+    void runSubmit(() => ({
+      type: 'PARTICIPATION_FORM_STEP',
+      name: selectedType.name,
+      description: selectedType.description || selectedType.name,
+      order: selectedOrder,
+      manualApproval: partManualApproval,
+      preStartValidationDuration: formatOffsetDuration(partValDays, partValHours, partValMinutes),
+      typeId: selectedType.id,
+    }));
   };
 
   const submitTncStep = async () => {
@@ -247,39 +306,33 @@ export function AddStepDialog({
       setError('Provide either Terms and Conditions text or upload a document.');
       return;
     }
-    setSubmitting(true);
-    setError(null);
-    try {
-      let tncBlobId: string | undefined;
-      if (tncFile) {
+    let tncBlobId: string | undefined;
+    if (tncFile) {
+      try {
         setUploadingTnc(true);
         const blob = await blobsApi.upload(tncFile, {
           bucket: 'auction-workflow',
           classifier: 'DOCUMENT',
         });
-        setUploadingTnc(false);
         tncBlobId = blob.id || undefined;
+      } catch (err) {
+        setError(parseApiError(err).general ?? 'Failed to upload document.');
+        return;
+      } finally {
+        setUploadingTnc(false);
       }
-      await auctionsApi.addWorkflowStep(auctionId, {
-        type: 'TNC_FORM_STEP',
-        name: tncName.trim() || undefined,
-        description: tncDescription.trim() || undefined,
-        order: selectedOrder,
-        tncText: isRichTextEmpty(tncText) ? undefined : tncText,
-        tncBlobId,
-      });
-      onAdded();
-      close();
-    } catch (err) {
-      const parsed = parseApiError(err);
-      setError(parsed.general ?? 'Failed to add step.');
-    } finally {
-      setSubmitting(false);
-      setUploadingTnc(false);
     }
+    void runSubmit(() => ({
+      type: 'TNC_FORM_STEP',
+      name: tncName.trim() || undefined,
+      description: tncDescription.trim() || undefined,
+      order: selectedOrder,
+      tncText: isRichTextEmpty(tncText) ? undefined : tncText,
+      tncBlobId,
+    }));
   };
 
-  const submitBankDetailStep = async () => {
+  const submitBankDetailStep = () => {
     if (
       earliestRefundablePrePaymentOrder !== null &&
       selectedOrder > earliestRefundablePrePaymentOrder
@@ -289,33 +342,25 @@ export function AddStepDialog({
       );
       return;
     }
-    setSubmitting(true);
-    setError(null);
-    try {
-      await auctionsApi.addWorkflowStep(auctionId, {
+    void runSubmit(
+      () => ({
         type: 'BANK_DETAIL_FORM_STEP',
         name: 'Bank Details',
         description: 'Participant provides bank details for payouts',
         order: selectedOrder,
-      } as Parameters<typeof auctionsApi.addWorkflowStep>[1]);
-      onAdded();
-      if (pendingPaymentPhase) {
-        // Came from the Payment step's "needs Bank Detail first" detour — return to
-        // that (still-filled) form, now one position later since Bank Detail took
-        // this slot, so the admin can review and explicitly submit it themselves.
-        const phase = pendingPaymentPhase;
-        setPendingPaymentPhase(null);
-        setSelectedOrder((o) => o + 1);
-        setMode(phase === 'PRE_PAYMENT' ? 'PRE_PAYMENT_STEP' : 'POST_PAYMENT_STEP');
-      } else {
-        close();
-      }
-    } catch (err) {
-      const parsed = parseApiError(err);
-      setError(parsed.general ?? 'Failed to add step.');
-    } finally {
-      setSubmitting(false);
-    }
+      }),
+      pendingPaymentPhase
+        ? () => {
+            // Came from the Payment step's "needs Bank Detail first" detour — return to
+            // that (still-filled) form, now one position later since Bank Detail took
+            // this slot, so the admin can review and explicitly submit it themselves.
+            const phase = pendingPaymentPhase;
+            setPendingPaymentPhase(null);
+            setSelectedOrder((o) => o + 1);
+            setMode(phase === 'PRE_PAYMENT' ? 'PRE_PAYMENT_STEP' : 'POST_PAYMENT_STEP');
+          }
+        : undefined,
+    );
   };
 
   const addHead = () => setHeads((prev) => [...prev, emptyHead()]);
@@ -351,28 +396,25 @@ export function AddStepDialog({
       );
       return;
     }
-    setSubmitting(true);
-    setError(null);
-    try {
-      await auctionsApi.addWorkflowStep(auctionId, {
-        type: 'PAYMENT_STEP',
-        name: paymentName.trim() || undefined,
-        description: paymentDescription.trim() || undefined,
-        order: selectedOrder,
-        mode: paymentModeValue,
-        phase,
-        offset: formatOffsetDuration(offsetDays, offsetHours, offsetMinutes),
-        heads,
-      });
-      onAdded();
-      close();
-    } catch (err) {
-      const parsed = parseApiError(err);
-      setError(parsed.general ?? 'Failed to add step.');
-    } finally {
-      setSubmitting(false);
-    }
+    void runSubmit(() => ({
+      type: 'PAYMENT_STEP',
+      name: paymentName.trim() || undefined,
+      description: paymentDescription.trim() || undefined,
+      order: selectedOrder,
+      mode: paymentModeValue,
+      phase,
+      offset: formatOffsetDuration(offsetDays, offsetHours, offsetMinutes),
+      heads,
+    }));
   };
+
+  const backTarget = pendingPaymentPhase
+    ? () => {
+        const phase = pendingPaymentPhase;
+        setPendingPaymentPhase(null);
+        setMode(phase === 'PRE_PAYMENT' ? 'PRE_PAYMENT_STEP' : 'POST_PAYMENT_STEP');
+      }
+    : () => setMode('choose');
 
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : close())}>
@@ -389,7 +431,9 @@ export function AddStepDialog({
                     ? 'Add Pre Payment Step'
                     : mode === 'POST_PAYMENT_STEP'
                       ? 'Add Post Payment Step'
-                      : 'Add Terms and Conditions Form Step'}
+                      : mode === 'PARTICIPATION_FORM_STEP'
+                        ? 'Add Participation Form Step'
+                        : 'Add Terms and Conditions Form Step'}
           </DialogTitle>
         </DialogHeader>
 
@@ -432,6 +476,28 @@ export function AddStepDialog({
                 {allowed.form
                   ? 'Pick a managed form template. Can be added multiple times.'
                   : 'Not allowed at this position — only Pre Payments go between a Pre Payment and its Bank Details.'}
+              </p>
+            </button>
+            <button
+              type="button"
+              disabled={!allowed.participationForm}
+              onClick={() => allowed.participationForm && setMode('PARTICIPATION_FORM_STEP')}
+              className={`text-left rounded-lg border p-4 transition-colors space-y-1 ${
+                allowed.participationForm
+                  ? 'border-border hover:border-primary/50 hover:bg-muted/30'
+                  : 'border-border/50 opacity-50 cursor-not-allowed'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <UserCheck className="h-4 w-4 text-muted-foreground shrink-0" />
+                <p className="text-sm font-semibold text-foreground">Participation Form Step</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {allowed.participationForm
+                  ? 'Collect registration/KYC details before participants can join. Only one allowed.'
+                  : hasParticipationFormStep
+                    ? 'Already added — only one is allowed per workflow.'
+                    : 'Not allowed at this position — Post Payments must stay last.'}
               </p>
             </button>
             <button
@@ -520,8 +586,13 @@ export function AddStepDialog({
           </div>
         )}
 
-        {mode === 'FORM_STEP' && (
+        {(mode === 'FORM_STEP' || mode === 'PARTICIPATION_FORM_STEP') && (
           <div className="space-y-3 py-1">
+            <p className="text-xs text-muted-foreground">
+              {mode === 'PARTICIPATION_FORM_STEP'
+                ? 'Participant fills this form to register for the auction. Optionally require manual approval of each submission.'
+                : 'Pick a managed form template the participant fills in during this step.'}
+            </p>
             <div className="space-y-1">
               <Label className="text-xs font-medium text-muted-foreground">
                 Search form templates
@@ -592,6 +663,29 @@ export function AddStepDialog({
               </div>
             )}
 
+            {mode === 'PARTICIPATION_FORM_STEP' && (
+              <>
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer pt-1">
+                  <input
+                    type="checkbox"
+                    checked={partManualApproval}
+                    onChange={(e) => setPartManualApproval(e.target.checked)}
+                    className="h-4 w-4 border-input text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  Require manual approval of each submission
+                </label>
+                <DayHourMinuteFields
+                  label="Validate submissions within (before auction start)"
+                  daysValue={partValDays}
+                  hoursValue={partValHours}
+                  minutesValue={partValMinutes}
+                  onDaysChange={setPartValDays}
+                  onHoursChange={setPartValHours}
+                  onMinutesChange={setPartValMinutes}
+                />
+              </>
+            )}
+
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="ghost" size="sm" onClick={() => setMode('choose')}>
                 Back
@@ -599,12 +693,12 @@ export function AddStepDialog({
               <Button
                 type="button"
                 size="sm"
-                onClick={submitFormStep}
-                disabled={submitting || !selectedType}
+                onClick={mode === 'FORM_STEP' ? submitFormStep : submitParticipationFormStep}
+                disabled={!selectedType || savingStep}
                 className="gap-2"
               >
-                {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Add
+                {savingStep && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {savingStep ? 'Adding…' : 'Add'}
               </Button>
             </div>
           </div>
@@ -675,11 +769,11 @@ export function AddStepDialog({
                 type="button"
                 size="sm"
                 onClick={submitTncStep}
-                disabled={submitting}
+                disabled={uploadingTnc || savingStep}
                 className="gap-2"
               >
-                {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                {uploadingTnc ? 'Uploading...' : 'Add'}
+                {(uploadingTnc || savingStep) && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {uploadingTnc ? 'Uploading...' : savingStep ? 'Adding…' : 'Add'}
               </Button>
             </div>
           </div>
@@ -716,36 +810,23 @@ export function AddStepDialog({
             {pendingPaymentPhase && (
               <p className="text-xs text-muted-foreground">
                 Your {pendingPaymentPhase === 'PRE_PAYMENT' ? 'Pre' : 'Post'} Payment step details
-                are saved — add this Bank Detail step first, then you&apos;ll return to finish it.
+                are kept — add this Bank Detail step first, then you&apos;ll return to finish it.
               </p>
             )}
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  if (pendingPaymentPhase) {
-                    const phase = pendingPaymentPhase;
-                    setPendingPaymentPhase(null);
-                    setMode(phase === 'PRE_PAYMENT' ? 'PRE_PAYMENT_STEP' : 'POST_PAYMENT_STEP');
-                  } else {
-                    setMode('choose');
-                  }
-                }}
-              >
+              <Button type="button" variant="ghost" size="sm" onClick={backTarget}>
                 Back
               </Button>
               <Button
                 type="button"
                 size="sm"
                 onClick={submitBankDetailStep}
-                disabled={submitting}
+                disabled={savingStep}
                 className="gap-2"
               >
-                {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Add Bank Detail Step
+                {savingStep && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {savingStep ? 'Adding…' : 'Add Bank Detail Step'}
               </Button>
             </div>
           </div>
@@ -892,11 +973,11 @@ export function AddStepDialog({
                 onClick={() =>
                   submitPaymentStep(mode === 'PRE_PAYMENT_STEP' ? 'PRE_PAYMENT' : 'POST_PAYMENT')
                 }
-                disabled={submitting}
+                disabled={savingStep}
                 className="gap-2"
               >
-                {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Add
+                {savingStep && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {savingStep ? 'Adding…' : 'Add'}
               </Button>
             </div>
           </div>

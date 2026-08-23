@@ -62,17 +62,24 @@ export function EditStepDialog({
   const [offsetMinutes, setOffsetMinutes] = useState('0');
   const [heads, setHeads] = useState<PolicyHeadRQ[]>([]);
 
+  // PARTICIPATION_FORM_STEP fields
+  const [manualApproval, setManualApproval] = useState(false);
+  const [valDays, setValDays] = useState('0');
+  const [valHours, setValHours] = useState('0');
+  const [valMinutes, setValMinutes] = useState('0');
+
   const stepType = resolveStr(step?.type);
   const isExplicit = step ? !step.implicit : false;
   const isTnCStep = stepType === 'TNC_FORM_STEP';
   const isPaymentStep = stepType === 'PAYMENT_STEP';
+  const isParticipationFormStep = stepType === 'PARTICIPATION_FORM_STEP';
   const paymentPhase = step ? paymentStepData(step).phase : '';
 
   useEffect(() => {
     if (!step) return;
     setName(step.name ?? '');
     setDescription(step.description ?? '');
-    setTncText((step as AuctionWorkflowStep & { tncText?: string }).tncText ?? '');
+    setTncText(step.tncText ?? '');
     setTncFile(null);
     setError(null);
 
@@ -83,6 +90,12 @@ export function EditStepDialog({
     setOffsetHours(hours);
     setOffsetMinutes(minutes);
     setHeads(payment.heads);
+
+    setManualApproval(!!step.manualApproval);
+    const val = parseOffsetDuration(step.preStartValidationDuration);
+    setValDays(val.days);
+    setValHours(val.hours);
+    setValMinutes(val.minutes);
   }, [step]);
 
   useEffect(() => {
@@ -146,6 +159,12 @@ export function EditStepDialog({
               phase: paymentPhase as 'PRE_PAYMENT' | 'POST_PAYMENT',
               offset: formatOffsetDuration(offsetDays, offsetHours, offsetMinutes),
               heads,
+            }
+          : {}),
+        ...(isExplicit && isParticipationFormStep
+          ? {
+              manualApproval,
+              preStartValidationDuration: formatOffsetDuration(valDays, valHours, valMinutes),
             }
           : {}),
       });
@@ -214,6 +233,32 @@ export function EditStepDialog({
                     />
                   </label>
                 </div>
+              </>
+            )}
+
+            {isExplicit && isParticipationFormStep && (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Participant submits this registration form to join the auction.
+                </p>
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={manualApproval}
+                    onChange={(e) => setManualApproval(e.target.checked)}
+                    className="h-4 w-4 border-input text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  Require manual approval of each submission
+                </label>
+                <DayHourMinuteFields
+                  label="Validate submissions within (before auction start)"
+                  daysValue={valDays}
+                  hoursValue={valHours}
+                  minutesValue={valMinutes}
+                  onDaysChange={setValDays}
+                  onHoursChange={setValHours}
+                  onMinutesChange={setValMinutes}
+                />
               </>
             )}
 

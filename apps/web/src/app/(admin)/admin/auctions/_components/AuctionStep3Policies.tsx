@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, Plus } from 'lucide-react';
 import { auctionsApi, PolicyEvaluationMap, PolicyItemRQ } from '@repo/api';
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@repo/ui';
 import { DismissibleError, SelectOption } from './AuctionShared';
@@ -591,10 +591,30 @@ export function AuctionStep3Policies({
               return null;
             const savedItems = form.preconditions.map((p, i) => ({ p, i })).filter(({ p }) => p.id);
             const usedTypes = form.preconditions.map((p) => p.type).filter(Boolean);
+            const opts = getGroupOptions('PRECONDITION');
+            const canAddMore = usedTypes.length < opts.length;
+            const allSaved = form.preconditions.length > 0 && form.preconditions.every((p) => p.id);
+
+            const addDraft = () => {
+              const first = opts.find((opt) => !usedTypes.includes(opt.value)) ?? opts[0];
+              const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
+              onChange({
+                preconditions: [
+                  ...form.preconditions,
+                  {
+                    type: first?.value ?? '',
+                    name: defaults?.name ?? '',
+                    description: defaults?.description ?? '',
+                    count: '',
+                    validationDays: '',
+                    validationHours: '0',
+                  },
+                ],
+              });
+            };
 
             // Edit mode: no precondition was ever created — offer an explicit Add button
             if (isEditMode && form.preconditions.length === 0) {
-              const opts = getGroupOptions('PRECONDITION');
               return (
                 <div
                   key="PRECONDITION"
@@ -609,23 +629,7 @@ export function AuctionStep3Policies({
                     size="sm"
                     variant="outline"
                     className="shrink-0"
-                    onClick={() => {
-                      const first = opts.find((opt) => !usedTypes.includes(opt.value)) ?? opts[0];
-                      const defaults = first ? POLICY_DEFAULTS[first.value] : undefined;
-                      onChange({
-                        preconditions: [
-                          ...form.preconditions,
-                          {
-                            type: first?.value ?? '',
-                            name: defaults?.name ?? '',
-                            description: defaults?.description ?? '',
-                            count: '',
-                            validationDays: '',
-                            validationHours: '0',
-                          },
-                        ],
-                      });
-                    }}
+                    onClick={addDraft}
                   >
                     Add
                   </Button>
@@ -686,13 +690,33 @@ export function AuctionStep3Policies({
                     )}
                   </div>
                 )}
-                <PolicyPreconditionsSection
-                  preconditions={form.preconditions}
-                  onChange={(v) => onChange({ preconditions: v })}
-                  options={getGroupOptions('PRECONDITION')}
-                  fieldErrors={fieldErrors}
-                  groupDescription={getGroupDescription('PRECONDITION')}
-                />
+                {/*
+                 * When every precondition is already saved, the full editor below would
+                 * render an empty draft list ("No preconditions") right under the saved
+                 * cards — show a lightweight Add affordance instead.
+                 */}
+                {allSaved ? (
+                  canAddMore && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="gap-1"
+                      onClick={addDraft}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add precondition
+                    </Button>
+                  )
+                ) : (
+                  <PolicyPreconditionsSection
+                    preconditions={form.preconditions}
+                    onChange={(v) => onChange({ preconditions: v })}
+                    options={getGroupOptions('PRECONDITION')}
+                    fieldErrors={fieldErrors}
+                    groupDescription={getGroupDescription('PRECONDITION')}
+                  />
+                )}
               </div>
             );
           }
