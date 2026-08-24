@@ -8,10 +8,17 @@ import {
   PolicyItemRQ,
   AuctionPoliciesRQ,
   PolicyEvaluationMap,
+  AuctionWorkflowStep,
 } from '@repo/api';
 import { PolicyGroupSection } from '../../_components/AuctionPolicyGroupSection';
 import { AuctionUnitSection } from '../../_components/AuctionUnitSection';
-import { groupPoliciesByCategory, buildEvaluationsByPolicy } from '../../_components/PolicyShared';
+import {
+  groupPoliciesByCategory,
+  buildEvaluationsByPolicy,
+  parseIsoDurationMs,
+  humanizeIsoDuration,
+  fmtLabel,
+} from '../../_components/PolicyShared';
 import {
   ArrowLeft,
   Pencil,
@@ -30,6 +37,8 @@ import {
   Sparkles,
   ChevronRight,
   TrendingUp,
+  Users,
+  CreditCard,
 } from 'lucide-react';
 import {
   Button,
@@ -48,6 +57,235 @@ import { StatusBadge } from '@/components/common/admin/AuctionStatusBadge';
 import { formatDateTime, formatLabel, resolveStr } from '@/components/common/admin/format';
 import { DetailRow, PageLoading, SectionCard } from '@/components/common/admin/SectionCard';
 
+// ── Timeline model ────────────────────────────────────────────────────────────
+
+interface TimelineNode {
+  id: string;
+  label: string;
+  Icon: typeof Clock;
+  dotClass: string;
+  labelClass: string;
+  title: string;
+  /** Single point in time (or start of range). */
+  time?: string;
+  /** End of range — shown below `time` for price windows. */
+  timeTo?: string;
+  subs: string[];
+}
+
+const WINDOW_COLORS = [
+  { dot: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' },
+  { dot: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' },
+  { dot: 'bg-blue-500', text: 'text-blue-600 dark:text-blue-400' },
+  { dot: 'bg-indigo-500', text: 'text-indigo-600 dark:text-indigo-400' },
+  { dot: 'bg-violet-500', text: 'text-violet-600 dark:text-violet-400' },
+  { dot: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' },
+];
+
+const PARTICIPATION_STEP_TYPES = [
+  'FORM_STEP',
+  'TNC_FORM_STEP',
+  'BANK_DETAIL_FORM_STEP',
+  'PARTICIPATION_FORM_STEP',
+];
+
+function headsSummary(heads?: AuctionWorkflowStep['heads']): string {
+  return (heads ?? [])
+    .map((head) => {
+      const amount =
+        resolveStr(head.basis) === 'PERCENTAGE_BASED'
+          ? `${head.value}%`
+          : `₹${head.value?.toLocaleString() ?? head.value}`;
+      return `${head.name} ${amount}${head.refundable ? ' (refundable)' : ''}`;
+    })
+    .join(', ');
+}
+
+/** Folds schedule + policies + workflow into a chronological list of dated
+ *  milestones: pre-payment deadlines, participant validation, bidding open,
+ *  price-progression windows, close (+ extension rule) and post-payment.
+ *  Offsets resolve against start/end once scheduled; unscheduled auctions
+ *  fall back to relative descriptions ("24h before start"). */
+function buildScheduleTimeline(
+  auction: AuctionVM,
+  policies: AuctionPoliciesRQ | null,
+  workflow: AuctionWorkflowStep[],
+): TimelineNode[] {
+  const nodes: TimelineNode[] = [];
+  const startIso = auction.schedule?.startTime ?? auction.startTime;
+  const endIso = auction.schedule?.endTime ?? auction.endTime;
+  const startMs = startIso ? new Date(startIso).getTime() : null;
+  const endMs = endIso ? new Date(endIso).getTime() : null;
+
+  // Pre-payment deadlines — due within `offset` before the auction starts.
+  workflow
+    .filter(
+      (step) =>
+        resolveStr(step.type) === 'PAYMENT_STEP' &&
+        (resolveStr(step.phase) === 'PRE_PAYMENT' || step.prePayment === true),
+    )
+    .forEach((step) => {
+      const off = parseIsoDurationMs(step.offset);
+      const heads = headsSummary(step.heads);
+      nodes.push({
+        id: `prepay-${step.id}`,
+        label: 'Pre-Payment Due',
+        Icon: CreditCard,
+        dotClass: 'bg-rose-500',
+        labelClass: 'text-rose-600 dark:text-rose-400',
+        title: step.name || 'Pre Payment',
+        time: startMs != null ? formatDateTime(new Date(startMs - off).toISOString()) : undefined,
+        subs: [
+          startMs != null
+            ? `Must be completed ${humanizeIsoDuration(off)} before bidding opens.`
+            : `Due ${humanizeIsoDuration(off)} before bidding opens (start not scheduled yet).`,
+          heads && `Heads: ${heads}`,
+        ].filter((s): s is string => Boolean(s)),
+      });
+    });
+
+  // Participant validation cutoffs (e.g. minimum participants) — checked
+  // `preStartValidationDuration` before start; unmet means cancellation.
+  (policies ?? [])
+    .filter(
+      (policy) =>
+        resolveStr(policy.phase) === 'PARTICIPATION' &&
+        (policy.preStartValidationDuration || policy.count != null),
+    )
+    .forEach((policy) => {
+      const dur = parseIsoDurationMs(policy.preStartValidationDuration);
+      nodes.push({
+        id: `validate-${policy.id ?? policy.order ?? policy.name}`,
+        label: 'Participant Validation',
+        Icon: Users,
+        dotClass: 'bg-amber-500',
+        labelClass: 'text-amber-600 dark:text-amber-400',
+        title: policy.name || fmtLabel(policy.type) || 'Validation',
+        time:
+          startMs != null && dur > 0
+            ? formatDateTime(new Date(startMs - dur).toISOString())
+            : undefined,
+        subs: [
+          policy.count != null
+            ? `Requires at least ${policy.count} participants, otherwise the auction is cancelled.`
+            : '',
+          dur > 0 ? `Checked ${humanizeIsoDuration(dur)} before the start time.` : '',
+        ].filter((s): s is string => Boolean(s)),
+      });
+    });
+
+  if (startIso) {
+    const participationSteps = workflow.filter((step) =>
+      PARTICIPATION_STEP_TYPES.includes(resolveStr(step.type)),
+    );
+    nodes.push({
+      id: 'start',
+      label: 'Auction Opens',
+      Icon: Calendar,
+      dotClass: 'bg-emerald-500',
+      labelClass: 'text-emerald-600 dark:text-emerald-400',
+      title: 'Bidding opens',
+      time: formatDateTime(startIso),
+      subs: [
+        participationSteps.length > 0
+          ? `Participation flow: ${participationSteps.map((step) => step.name).join(' → ')}`
+          : '',
+      ].filter(Boolean),
+    });
+  }
+
+  // Price progression windows — sequential by each child's windowDuration;
+  // a zero duration (`PT0S`) or the final child runs until close.
+  let windowNo = 0;
+  (policies ?? [])
+    .filter((policy) => resolveStr(policy.type) === 'PRICE_PROGRESSION_POLICY')
+    .forEach((wrapper) => {
+      const children = [...(wrapper.policies ?? [])].sort(
+        (a, b) => (a.order ?? 0) - (b.order ?? 0),
+      );
+      let cum = 0;
+      children.forEach((child, i) => {
+        const color = WINDOW_COLORS[windowNo % WINDOW_COLORS.length]!;
+        windowNo += 1;
+        const dur = parseIsoDurationMs(child.windowDuration);
+        const runsTillEnd = i === children.length - 1 || dur === 0;
+        const fromMs = startMs != null ? startMs + cum : null;
+        const toMs = fromMs != null && endMs != null ? (runsTillEnd ? endMs : fromMs + dur) : null;
+        nodes.push({
+          id: `window-${child.id ?? `${wrapper.id}-${i}`}`,
+          label: 'Price Window',
+          Icon: TrendingUp,
+          dotClass: color.dot,
+          labelClass: color.text,
+          title: child.name || fmtLabel(child.type) || 'Price change',
+          time: fromMs != null ? formatDateTime(new Date(fromMs).toISOString()) : undefined,
+          timeTo: toMs != null ? formatDateTime(new Date(toMs).toISOString()) : undefined,
+          subs: [
+            fromMs == null
+              ? runsTillEnd
+                ? `Applies from ${humanizeIsoDuration(cum)} after start until close.`
+                : `Applies between ${humanizeIsoDuration(cum)} and ${humanizeIsoDuration(cum + dur)} after start.`
+              : '',
+            child.value != null
+              ? `Bid step of ₹${child.value.toLocaleString()} with multiplier${
+                  (child.steps?.length ?? 0) > 1 ? 's' : ''
+                } ${(child.steps ?? []).join(', ')}.`
+              : '',
+          ].filter((s): s is string => Boolean(s)),
+        });
+        cum += dur;
+      });
+    });
+
+  if (endIso) {
+    const ext = (policies ?? []).find((policy) => resolveStr(policy.type) === 'EXTENSION_POLICY');
+    nodes.push({
+      id: 'end',
+      label: 'Auction Closes',
+      Icon: Clock,
+      dotClass: 'bg-indigo-500',
+      labelClass: 'text-indigo-600 dark:text-indigo-400',
+      title: 'Bidding closes',
+      time: formatDateTime(endIso),
+      subs: [
+        ext
+          ? `Late bids extend the close by ${humanizeIsoDuration(parseIsoDurationMs(ext.duration))}${
+              (ext.limit ?? 0) > 0 ? `, up to ${ext.limit} extensions` : ' (unlimited extensions)'
+            }.`
+          : '',
+        'Winner determination applies once bidding closes.',
+      ].filter(Boolean),
+    });
+
+    // Post-payment deadlines — settle within `offset` after the close.
+    workflow
+      .filter(
+        (step) =>
+          resolveStr(step.type) === 'PAYMENT_STEP' &&
+          (resolveStr(step.phase) === 'POST_PAYMENT' || step.postPayment === true),
+      )
+      .forEach((step) => {
+        const off = parseIsoDurationMs(step.offset);
+        const heads = headsSummary(step.heads);
+        nodes.push({
+          id: `postpay-${step.id}`,
+          label: 'Post-Payment Due',
+          Icon: CreditCard,
+          dotClass: 'bg-violet-500',
+          labelClass: 'text-violet-600 dark:text-violet-400',
+          title: step.name || 'Post Payment',
+          time: formatDateTime(new Date(endMs! + off).toISOString()),
+          subs: [
+            `Must be settled within ${humanizeIsoDuration(off)} after the auction closes.`,
+            heads && `Heads: ${heads}`,
+          ].filter((s): s is string => Boolean(s)),
+        });
+      });
+  }
+
+  return nodes;
+}
+
 // ── Main Auction View Page ─────────────────────────────────────────────────────
 
 export default function AuctionViewPage() {
@@ -60,6 +298,7 @@ export default function AuctionViewPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [auction, setAuction] = useState<AuctionVM | null>(null);
   const [policies, setPolicies] = useState<AuctionPoliciesRQ | null>(null);
+  const [workflow, setWorkflow] = useState<AuctionWorkflowStep[]>([]);
   const [evaluationsByPolicyId, setEvaluationsByPolicyId] = useState<
     Record<string, PolicyEvaluationMap>
   >({});
@@ -89,11 +328,13 @@ export default function AuctionViewPage() {
     Promise.all([
       auctionsApi.getAuctionById(id, ['*']),
       auctionsApi.getAuctionPolicies(id).catch(() => null),
+      auctionsApi.getAuctionWorkflow(id).catch(() => [] as AuctionWorkflowStep[]),
     ])
-      .then(([a, pol]) => {
+      .then(([a, pol, wf]) => {
         if (cancelled) return;
         setAuction(a);
         setPolicies(pol);
+        setWorkflow(wf ?? []);
         // Only auto-evaluate on first load when the auction is in a state where
         // evaluation results could have moved (SCHEDULED / RUNNING). For CREATED
         // / COMPLETED / CANCELLED, evaluations are stable — skip the N+1 to
@@ -266,6 +507,10 @@ export default function AuctionViewPage() {
       groups: otherGroups,
     });
   }
+
+  // Dated milestones for the Schedule & Timeline tab (payment deadlines,
+  // validation cutoff, price windows, close, settlement).
+  const timelineNodes = buildScheduleTimeline(auction, policies, workflow);
 
   return (
     <div className="space-y-6 pb-12 max-w-7xl mx-auto">
@@ -634,11 +879,11 @@ export default function AuctionViewPage() {
             <CardHeader className="border-b border-border bg-muted/30 p-5">
               <CardTitle className="text-base font-bold flex items-center gap-2.5">
                 <Clock className="h-5 w-5 text-primary" />
-                <span>Schedule</span>
+                <span>Schedule &amp; Timeline</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
-              {!auction.schedule?.startTime && !auction.schedule?.endTime ? (
+              {timelineNodes.length === 0 ? (
                 <div className="flex flex-col items-center justify-center text-center py-6 gap-3">
                   <div className="p-3 rounded-full bg-muted text-muted-foreground">
                     <Calendar className="h-6 w-6" />
@@ -661,10 +906,17 @@ export default function AuctionViewPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="relative pl-6 border-l-2 border-primary/20 space-y-8">
-                  <div className="relative">
-                    <div className="absolute -left-[31px] top-0 h-4 w-4 rounded-full bg-blue-500 ring-4 ring-background" />
-                    <div className="space-y-1">
+                <div className="relative space-y-8">
+                  {/* vertical rail */}
+                  <div className="absolute left-[8.5rem] top-0 bottom-0 w-0.5 bg-primary/20 pointer-events-none" />
+
+                  {/* Created — static anchor */}
+                  <div className="relative flex items-start gap-4">
+                    <div className="w-32 shrink-0 text-right pt-0.5">
+                      <p className="text-xs text-muted-foreground leading-tight">—</p>
+                    </div>
+                    <div className="shrink-0 relative z-10 h-4 w-4 rounded-full bg-blue-500 ring-4 ring-background mt-0.5" />
+                    <div className="flex-1 space-y-1 pb-2">
                       <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
                         Created
                       </p>
@@ -675,39 +927,51 @@ export default function AuctionViewPage() {
                     </div>
                   </div>
 
-                  {auction.schedule?.startTime && (
-                    <div className="relative">
-                      <div className="absolute -left-[31px] top-0 h-4 w-4 rounded-full bg-emerald-500 ring-4 ring-background" />
-                      <div className="space-y-1">
-                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-                          Start
+                  {timelineNodes.map((node) => (
+                    <div key={node.id} className="relative flex items-start gap-4">
+                      {/* Time column */}
+                      <div className="w-32 shrink-0 text-right pt-0.5 space-y-0.5">
+                        {node.time ? (
+                          <>
+                            <p className="text-xs font-medium text-foreground/80 leading-tight">
+                              {node.time}
+                            </p>
+                            {node.timeTo && (
+                              <>
+                                <p className="text-[10px] text-muted-foreground leading-none">↓</p>
+                                <p className="text-xs font-medium text-foreground/80 leading-tight">
+                                  {node.timeTo}
+                                </p>
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-xs text-muted-foreground leading-tight italic">
+                            not scheduled
+                          </p>
+                        )}
+                      </div>
+                      {/* Dot */}
+                      <div
+                        className={`shrink-0 relative z-10 h-4 w-4 rounded-full ${node.dotClass} ring-4 ring-background mt-0.5`}
+                      />
+                      {/* Content */}
+                      <div className="flex-1 space-y-1 pb-2">
+                        <p
+                          className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${node.labelClass}`}
+                        >
+                          <node.Icon className="h-3 w-3" />
+                          {node.label}
                         </p>
-                        <p className="text-sm font-semibold text-foreground">
-                          Auction opens — {formatDateTime(auction.schedule.startTime)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Bidding becomes available to participants.
-                        </p>
+                        <p className="text-sm font-semibold text-foreground">{node.title}</p>
+                        {node.subs.map((sub, i) => (
+                          <p key={i} className="text-xs text-muted-foreground">
+                            {sub}
+                          </p>
+                        ))}
                       </div>
                     </div>
-                  )}
-
-                  {auction.schedule?.endTime && (
-                    <div className="relative">
-                      <div className="absolute -left-[31px] top-0 h-4 w-4 rounded-full bg-indigo-500 ring-4 ring-background" />
-                      <div className="space-y-1">
-                        <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                          End
-                        </p>
-                        <p className="text-sm font-semibold text-foreground">
-                          Auction closes — {formatDateTime(auction.schedule.endTime)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Winner is determined and post-payment is triggered.
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                  ))}
                 </div>
               )}
             </CardContent>

@@ -1,7 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle2, Clock, Pencil, Trash2, XCircle, IndianRupee } from 'lucide-react';
+import {
+  CheckCircle2,
+  Clock,
+  Pencil,
+  Trash2,
+  XCircle,
+  IndianRupee,
+  ArrowRight,
+} from 'lucide-react';
 import { auctionsApi, type PolicyEvaluation, type PolicyEvaluationMap } from '@repo/api';
 import { Badge, Button } from '@repo/ui';
 import Tip from '@/components/common/admin/Tip';
@@ -77,7 +85,10 @@ type DetailRender =
   | { kind: 'block'; rows: [string, string, string?][]; label?: string }
   | { kind: 'payment-block'; amount: string; description: string; refundable?: string }
   | { kind: 'date-chip'; date: string; text: string }
-  | { kind: 'pending-message'; text: string };
+  | { kind: 'pending-message'; text: string }
+  | { kind: 'window-range'; from: string; to: string; note?: string }
+  | { kind: 'deadline'; date: string; note?: string }
+  | { kind: 'html-block'; html: string };
 
 function formatAmount(value: unknown): string {
   if (value == null || value === '') return '';
@@ -89,6 +100,36 @@ function formatAmount(value: unknown): string {
       : num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
   return str;
+}
+
+/** True when an amount string is purely numeric (currency-formatted already). */
+function isNumericAmount(str: string): boolean {
+  return str !== '' && !Number.isNaN(parseFloat(str)) && /^[\d,.]+$/.test(str);
+}
+
+/** Backend refundable values arrive as `"true"`/`"false"` strings — normalize for display. */
+function normalizeRefundable(value: unknown): string | undefined {
+  const str = formatValue(value);
+  if (!str) return undefined;
+  if (str === 'true' || str === 'Yes') return 'Yes';
+  if (str === 'false' || str === 'No') return 'No';
+  return str;
+}
+
+/** Detail texts the backend uses to signal a value that can't be resolved yet. */
+const PENDING_DETAIL_PATTERN =
+  /couldn'?t determine|could not determine|not completed yet|would be evaluated once|not available yet/i;
+
+/** Friendlier labels for raw detail keys. */
+const LABEL_OVERRIDES: Record<string, string> = {
+  timeWindow: 'Time Window',
+  timeWindowAlt: 'Applicability',
+  deadline: 'Payment Deadline',
+  tnc: 'Terms & Conditions',
+};
+
+function labelFor(key: string): string {
+  return LABEL_OVERRIDES[key] ?? fmtLabel(key);
 }
 
 function renderDetail(value: unknown): DetailRender | null {
@@ -166,33 +207,101 @@ function buildDetailItems(
       .map(([key]) => key)
       .filter((key) => Object.prototype.hasOwnProperty.call(details, `${key}Description`)),
   );
+  // Companion keys folded into the `timeWindow` entry's own rendering below.
+  const hasTimeWindow = descriptionKeys.has('timeWindow') || 'timeWindow' in details;
 
   return entries
     .filter(([key]) => !isDescriptionOf(key, descriptionKeys))
+    .filter(
+      ([key]) => !(hasTimeWindow && (key === 'timeWindowAlt' || key === 'timeWindowDescription')),
+    )
     .map(([key, value]) => {
+      // Price progression window — `{ "from display string": "to display string" }`
+      // plus a human sentence; render as a highlighted from → till block.
+      if (key === 'timeWindow') {
+        const note =
+          typeof details.timeWindowDescription === 'string'
+            ? details.timeWindowDescription.trim()
+            : undefined;
+        const obj =
+          value != null && typeof value === 'object' && !Array.isArray(value)
+            ? (value as Record<string, unknown>)
+            : null;
+        const firstEntry = obj ? Object.entries(obj)[0] : undefined;
+        if (firstEntry?.[0] && firstEntry[1]) {
+          return {
+            key,
+            label: labelFor(key),
+            rendered: {
+              kind: 'window-range',
+              from: String(firstEntry[0]),
+              to: String(firstEntry[1]),
+              note,
+            } as DetailRender,
+          };
+        }
+        // Unscheduled auction — backend explains applicability via alt/description.
+        const text =
+          (typeof details.timeWindowAlt === 'string' ? details.timeWindowAlt.trim() : '') || note;
+        return text
+          ? {
+              key,
+              label: LABEL_OVERRIDES.timeWindowAlt!,
+              rendered: { kind: 'pending-message', text },
+            }
+          : null;
+      }
+
+      // Payment step deadline — single display date plus explanatory sentence.
+      if (key === 'deadline') {
+        const note =
+          typeof details.deadlineDescription === 'string'
+            ? details.deadlineDescription.trim()
+            : undefined;
+        if (!value) return null;
+        return {
+          key,
+          label: labelFor(key),
+          rendered: { kind: 'deadline', date: String(value), note } as DetailRender,
+        };
+      }
+
+      // TnC step evaluation embeds the raw accepted HTML — render it like the
+      // wizard's TnC preview instead of dumping markup as plain text.
+      if (key === 'tnc' && typeof value === 'string' && /<[a-z][\s>]/i.test(value)) {
+        return {
+          key,
+          label: labelFor(key),
+          rendered: { kind: 'html-block', html: value } as DetailRender,
+        };
+      }
+
       const descValue = details[`${key}Description`];
       if (typeof descValue === 'string' && descValue.trim()) {
+        const text = descValue.trim();
         const obj = value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
         if (obj && isNestedPaymentBlock(obj)) {
           return {
             key,
-            label: fmtLabel(key),
+            label: labelFor(key),
             rendered: {
               kind: 'payment-block',
               amount: formatAmount(obj.amount ?? ''),
               description: formatValue(obj.description) || '',
-              refundable: formatValue(obj.refundable),
+              refundable: normalizeRefundable(obj.refundable),
             } as DetailRender,
           };
         }
         return {
           key,
-          label: fmtLabel(key),
-          rendered: { kind: 'chip', text: descValue.trim() },
+          label: labelFor(key),
+          rendered: PENDING_DETAIL_PATTERN.test(text)
+            ? ({ kind: 'pending-message', text } as DetailRender)
+            : { kind: 'chip', text },
         };
       }
       const rendered = renderDetail(value);
-      return rendered ? { key, label: fmtLabel(key), rendered } : null;
+      return rendered ? { key, label: labelFor(key), rendered } : null;
     })
     .filter(
       (item): item is { key: string; label: string; rendered: DetailRender } => item !== null,
@@ -267,7 +376,15 @@ export function EvaluationCard({
 
       {/* Description */}
       {evaluation.description && (
-        <p className="text-muted-foreground/80 leading-relaxed">{evaluation.description}</p>
+        <p
+          className={
+            !resultStr && evaluation.condition == null
+              ? 'text-muted-foreground/70 italic'
+              : 'text-muted-foreground/80 leading-relaxed'
+          }
+        >
+          {evaluation.description}
+        </p>
       )}
 
       {/* Result - pending message style */}
@@ -347,11 +464,13 @@ export function EvaluationCard({
             </div>
           ) : d.rendered.kind === 'payment-block' ? (
             <div className="rounded-lg border border-border/50 bg-background/60 px-3 py-2 space-y-1">
-              {d.rendered.refundable && (
+              {d.rendered.amount && (
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-muted-foreground">Amount</span>
                   <span className="text-sm font-bold text-foreground">
-                    <span className="text-xs text-muted-foreground mr-0.5">₹</span>
+                    {isNumericAmount(d.rendered.amount) && (
+                      <span className="text-xs text-muted-foreground mr-0.5">₹</span>
+                    )}
                     {d.rendered.amount}
                   </span>
                 </div>
@@ -363,13 +482,46 @@ export function EvaluationCard({
                 <div className="flex justify-between items-center pt-0.5 border-t border-border/30">
                   <span className="text-[10px] text-muted-foreground">Refundable</span>
                   <span
-                    className={`text-[10px] font-medium ${d.rendered.refundable === 'Yes' || d.rendered.refundable === 'true' ? 'text-emerald-600' : 'text-red-500'}`}
+                    className={`text-[10px] font-medium ${d.rendered.refundable === 'Yes' ? 'text-emerald-600' : 'text-red-500'}`}
                   >
                     {d.rendered.refundable}
                   </span>
                 </div>
               )}
             </div>
+          ) : d.rendered.kind === 'pending-message' ? (
+            <div className="flex items-center gap-2 rounded-md bg-amber-500/5 border border-amber-200/50 px-2.5 py-1.5 text-amber-700 dark:text-amber-400">
+              <Clock className="h-3.5 w-3.5 shrink-0" />
+              <span className="text-[11px]">{d.rendered.text}</span>
+            </div>
+          ) : d.rendered.kind === 'window-range' ? (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 space-y-1">
+              <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="font-semibold text-foreground">{d.rendered.from}</span>
+                <ArrowRight className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+                <span className="font-semibold text-foreground">{d.rendered.to}</span>
+              </div>
+              {d.rendered.note && (
+                <p className="text-[10px] text-muted-foreground/70">{d.rendered.note}</p>
+              )}
+            </div>
+          ) : d.rendered.kind === 'deadline' ? (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 space-y-1">
+              <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="font-semibold text-foreground">{d.rendered.date}</span>
+              </div>
+              {d.rendered.note && (
+                <p className="text-[10px] text-muted-foreground/70">{d.rendered.note}</p>
+              )}
+            </div>
+          ) : d.rendered.kind === 'html-block' ? (
+            <div
+              className="prose prose-sm dark:prose-invert max-w-none max-h-44 overflow-y-auto rounded-lg border
+                      border-border bg-background p-3 [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4"
+              dangerouslySetInnerHTML={{ __html: d.rendered.html }}
+            />
           ) : d.rendered.kind === 'block' ? (
             <div className="rounded-lg border border-border/50 bg-background/60 divide-y divide-border/30 overflow-hidden">
               {d.rendered.rows.map(([k, v, desc]) => (

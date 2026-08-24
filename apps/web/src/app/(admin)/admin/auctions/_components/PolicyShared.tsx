@@ -134,25 +134,40 @@ const POLICY_CATEGORY_ORDER = [
  * into the shape the read-only card components expect (`Record<policyId, PolicyEvaluationMap>`),
  * keying each policy's evaluation by its name so `EvaluationList` renders one card per policy
  * instead of walking the evaluation's own fields (`result`, `description`, …) as keys.
+ *
+ * Composite policies (e.g. PRICE_PROGRESSION_POLICY wrapping STEP_BASED windows) evaluate to a
+ * bare "see child policies" stub — their children's evaluations are folded into the parent's
+ * entry so the parent card shows real results instead of a lone sentence.
  */
 export function buildEvaluationsByPolicy(
   evaluations: PolicyEvaluationMap | null | undefined,
   savedPolicies: PolicyItemRQ[],
 ): Record<string, PolicyEvaluationMap> {
   const nameById = new Map<string, string>();
-  const collectNames = (list: PolicyItemRQ[]) => {
+  const childrenById = new Map<string, PolicyItemRQ[]>();
+  const collect = (list: PolicyItemRQ[]) => {
     for (const item of list) {
       if (item.id && item.name) nameById.set(item.id, item.name);
-      if (item.policies?.length) collectNames(item.policies);
+      if (item.id && item.policies?.length) {
+        childrenById.set(item.id, item.policies);
+        collect(item.policies);
+      }
     }
   };
-  collectNames(savedPolicies);
+  collect(savedPolicies);
 
   const result: Record<string, PolicyEvaluationMap> = {};
   for (const [policyId, evaluation] of Object.entries(evaluations ?? {})) {
     if (!evaluation) continue;
     const name = nameById.get(policyId) ?? policyId;
-    result[policyId] = { [name]: evaluation };
+    const entry: PolicyEvaluationMap = { [name]: evaluation };
+    for (const child of childrenById.get(policyId) ?? []) {
+      if (!child.id) continue;
+      const childEval = evaluations?.[child.id];
+      if (!childEval) continue;
+      entry[child.name || child.id!] = childEval;
+    }
+    result[policyId] = entry;
   }
   return result;
 }
@@ -191,6 +206,7 @@ export interface WorkflowStepTypesAllowed {
   bank: boolean;
   prePayment: boolean;
   postPayment: boolean;
+  participationForm: boolean;
 }
 
 /** Which step types may be inserted at a given 1-based insertion order.
@@ -203,6 +219,7 @@ export function allowedStepTypesAt(
   insertionOrder: number,
   hasTnCStep: boolean,
   hasBankDetailStep: boolean,
+  hasParticipationFormStep = false,
 ): WorkflowStepTypesAllowed {
   const idx = insertionOrder - 1;
   const isPayment = (s: AuctionWorkflowStep | undefined, phase: string) =>
@@ -236,6 +253,7 @@ export function allowedStepTypesAt(
       (earliestRefundablePreOrder === null || insertionOrder <= earliestRefundablePreOrder),
     prePayment: nonPostAllowed || inPreBankGap,
     postPayment: (firstPostIdx < 0 || idx >= firstPostIdx) && !inPreBankGap,
+    participationForm: nonPostAllowed && !hasParticipationFormStep,
   };
 }
 
@@ -418,6 +436,31 @@ export function parseOffsetDuration(iso?: string): {
     hours: match?.[2] ?? '0',
     minutes: match?.[3] ?? '0',
   };
+}
+
+/** Parses an ISO-8601 duration (`PnDTnHnMnS`, also weeks) into milliseconds.
+ *  Returns 0 for absent/unparseable input, so `PT0S` ("till end") reads as 0. */
+export function parseIsoDurationMs(iso?: string | null): number {
+  if (!iso) return 0;
+  const m = /^P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/.exec(iso);
+  if (!m) return 0;
+  const [w = 0, d = 0, h = 0, min = 0, s = 0] = m
+    .slice(1)
+    .map((part) => parseFloat(part ?? '0') || 0);
+  return ((w * 7 + d) * 24 + h) * 3600000 + min * 60000 + s * 1000;
+}
+
+/** Humanizes milliseconds as a compact duration string, e.g. `25h 2m`, `1d 4h`, `10m`. */
+export function humanizeIsoDuration(ms: number): string {
+  if (!ms || ms <= 0) return '0m';
+  const d = Math.floor(ms / 86400000);
+  const h = Math.floor((ms % 86400000) / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  const parts: string[] = [];
+  if (d > 0) parts.push(`${d}d`);
+  if (h > 0) parts.push(`${h}h`);
+  if (m > 0) parts.push(`${m}m`);
+  return parts.length > 0 ? parts.join(' ') : '<1m';
 }
 
 /** Select-dropdown styling shared with the Price Progression window's Time Window fields. */

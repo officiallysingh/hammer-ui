@@ -54,10 +54,16 @@ export function TagsCategorySection({
     label: c.name,
   }));
 
-  // When categories are selected, only show those groups in the subcategory select
+  // When categories are selected, only show those groups in the subcategory select.
+  // Fall back to allCategories when the filter would result in an empty list — this
+  // prevents subcategories from disappearing during the async load of allCategories
+  // or when the category IDs in the listing response don't yet match the master list.
   const filteredCategories =
     value.categories.length > 0
-      ? allCategories.filter((c) => value.categories.includes(c.id))
+      ? (() => {
+          const filtered = allCategories.filter((c) => value.categories.includes(c.id));
+          return filtered.length > 0 ? filtered : allCategories;
+        })()
       : allCategories;
 
   const selectedCategoryOpts = categoryOptions.filter((o) => value.categories.includes(o.value));

@@ -64,7 +64,17 @@ export const initialStep2: Step2State = {
   lockedTags: [],
 };
 
-/** Derives the real AuctionUnitType from the atomic item list length */
+/** Extracts a category/subcategory ID from a value that the backend may return
+ *  as either a plain string (the id) or a full object { id, name, icon }. */
+function resolveCatId(value: unknown): string {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value !== null && 'id' in value) {
+    return String((value as { id: unknown }).id);
+  }
+  return '';
+}
+
 function deriveAtomicType(itemCount: number): AuctionUnitType {
   return itemCount <= 1 ? 'SINGLE_UNIT' : 'BUNDLE';
 }
@@ -153,17 +163,12 @@ export function AuctionStep2Units({
           const { summary, listing } = results[fi]!;
           newSummaries[i] = summary;
           newNames[i] = summary.name;
-          if (listing.category?.id) {
-            cats = [...new Set([...cats, listing.category.id])];
-            lockedCats = [...new Set([...lockedCats, listing.category.id])];
+          const catId = resolveCatId(listing.category);
+          if (catId) {
+            cats = [...new Set([...cats, catId])];
+            lockedCats = [...new Set([...lockedCats, catId])];
           }
-          const subCat = listing.subCategory;
-          const subCatId =
-            typeof subCat === 'object' && subCat
-              ? subCat.id
-              : typeof subCat === 'string'
-                ? subCat
-                : '';
+          const subCatId = resolveCatId(listing.subCategory);
           if (subCatId) {
             subCats = [...new Set([...subCats, subCatId])];
             lockedSubCats = [...new Set([...lockedSubCats, subCatId])];
@@ -211,13 +216,12 @@ export function AuctionStep2Units({
     let lockedTags = [...form.lockedTags];
     try {
       const listing = await listingsApi.getListingById(id);
-      if (listing.category?.id) {
-        cats = [...new Set([...cats, listing.category.id])];
-        lockedCats = [...new Set([...lockedCats, listing.category.id])];
+      const catId = resolveCatId(listing.category);
+      const subCatId = resolveCatId(listing.subCategory);
+      if (catId) {
+        cats = [...new Set([...cats, catId])];
+        lockedCats = [...new Set([...lockedCats, catId])];
       }
-      const subCat = listing.subCategory;
-      const subCatId =
-        typeof subCat === 'object' && subCat ? subCat.id : typeof subCat === 'string' ? subCat : '';
       if (subCatId) {
         subCats = [...new Set([...subCats, subCatId])];
         lockedSubCats = [...new Set([...lockedSubCats, subCatId])];
@@ -274,13 +278,12 @@ export function AuctionStep2Units({
     let lockedTags = [...form.lockedTags];
     try {
       const listing = await listingsApi.getListingById(id);
-      if (listing.category?.id) {
-        cats = [...new Set([...cats, listing.category.id])];
-        lockedCats = [...new Set([...lockedCats, listing.category.id])];
+      const catId = resolveCatId(listing.category);
+      if (catId) {
+        cats = [...new Set([...cats, catId])];
+        lockedCats = [...new Set([...lockedCats, catId])];
       }
-      const subCat = listing.subCategory;
-      const subCatId =
-        typeof subCat === 'object' && subCat ? subCat.id : typeof subCat === 'string' ? subCat : '';
+      const subCatId = resolveCatId(listing.subCategory);
       if (subCatId) {
         subCats = [...new Set([...subCats, subCatId])];
         lockedSubCats = [...new Set([...lockedSubCats, subCatId])];
