@@ -66,8 +66,10 @@ interface TimelineNode {
   dotClass: string;
   labelClass: string;
   title: string;
-  /** Absolute datetime (or from → till range) once the auction is scheduled. */
+  /** Single point in time (or start of range). */
   time?: string;
+  /** End of range — shown below `time` for price windows. */
+  timeTo?: string;
   subs: string[];
 }
 
@@ -110,8 +112,8 @@ function buildScheduleTimeline(
   workflow: AuctionWorkflowStep[],
 ): TimelineNode[] {
   const nodes: TimelineNode[] = [];
-  const startIso = auction.schedule?.startTime;
-  const endIso = auction.schedule?.endTime;
+  const startIso = auction.schedule?.startTime ?? auction.startTime;
+  const endIso = auction.schedule?.endTime ?? auction.endTime;
   const startMs = startIso ? new Date(startIso).getTime() : null;
   const endMs = endIso ? new Date(endIso).getTime() : null;
 
@@ -216,12 +218,8 @@ function buildScheduleTimeline(
           dotClass: color.dot,
           labelClass: color.text,
           title: child.name || fmtLabel(child.type) || 'Price change',
-          time:
-            fromMs != null && toMs != null
-              ? `${formatDateTime(new Date(fromMs).toISOString())} → ${formatDateTime(
-                  new Date(toMs).toISOString(),
-                )}`
-              : undefined,
+          time: fromMs != null ? formatDateTime(new Date(fromMs).toISOString()) : undefined,
+          timeTo: toMs != null ? formatDateTime(new Date(toMs).toISOString()) : undefined,
           subs: [
             fromMs == null
               ? runsTillEnd
@@ -908,11 +906,17 @@ export default function AuctionViewPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="relative pl-6 border-l-2 border-primary/20 space-y-8">
+                <div className="relative space-y-8">
+                  {/* vertical rail */}
+                  <div className="absolute left-[8.5rem] top-0 bottom-0 w-0.5 bg-primary/20 pointer-events-none" />
+
                   {/* Created — static anchor */}
-                  <div className="relative">
-                    <div className="absolute -left-[31px] top-0 h-4 w-4 rounded-full bg-blue-500 ring-4 ring-background" />
-                    <div className="space-y-1">
+                  <div className="relative flex items-start gap-4">
+                    <div className="w-32 shrink-0 text-right pt-0.5">
+                      <p className="text-xs text-muted-foreground leading-tight">—</p>
+                    </div>
+                    <div className="shrink-0 relative z-10 h-4 w-4 rounded-full bg-blue-500 ring-4 ring-background mt-0.5" />
+                    <div className="flex-1 space-y-1 pb-2">
                       <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
                         Created
                       </p>
@@ -924,11 +928,35 @@ export default function AuctionViewPage() {
                   </div>
 
                   {timelineNodes.map((node) => (
-                    <div key={node.id} className="relative">
+                    <div key={node.id} className="relative flex items-start gap-4">
+                      {/* Time column */}
+                      <div className="w-32 shrink-0 text-right pt-0.5 space-y-0.5">
+                        {node.time ? (
+                          <>
+                            <p className="text-xs font-medium text-foreground/80 leading-tight">
+                              {node.time}
+                            </p>
+                            {node.timeTo && (
+                              <>
+                                <p className="text-[10px] text-muted-foreground leading-none">↓</p>
+                                <p className="text-xs font-medium text-foreground/80 leading-tight">
+                                  {node.timeTo}
+                                </p>
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-xs text-muted-foreground leading-tight italic">
+                            not scheduled
+                          </p>
+                        )}
+                      </div>
+                      {/* Dot */}
                       <div
-                        className={`absolute -left-[31px] top-0 h-4 w-4 rounded-full ${node.dotClass} ring-4 ring-background`}
+                        className={`shrink-0 relative z-10 h-4 w-4 rounded-full ${node.dotClass} ring-4 ring-background mt-0.5`}
                       />
-                      <div className="space-y-1">
+                      {/* Content */}
+                      <div className="flex-1 space-y-1 pb-2">
                         <p
                           className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${node.labelClass}`}
                         >
@@ -936,12 +964,6 @@ export default function AuctionViewPage() {
                           {node.label}
                         </p>
                         <p className="text-sm font-semibold text-foreground">{node.title}</p>
-                        {node.time && (
-                          <p className="text-sm font-medium text-foreground/90 flex items-center gap-1.5">
-                            <Calendar className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
-                            {node.time}
-                          </p>
-                        )}
                         {node.subs.map((sub, i) => (
                           <p key={i} className="text-xs text-muted-foreground">
                             {sub}
