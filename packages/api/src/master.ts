@@ -301,16 +301,47 @@ export const masterApi = {
     includeSubCategories = false,
     phrases?: string[],
   ): Promise<CategoryVM[]> => {
-    const response = await apiClient.get('/api/v1/master/categories', {
-      headers: { 'x-expand': includeSubCategories },
+    const response = await apiClient.get<CategoryVM[]>('/api/v1/master/categories', {
       params: phrases?.length ? { phrases } : undefined,
     });
-    return response.data;
+    const categories = response.data;
+
+    if (!includeSubCategories) return categories;
+
+    // The /categories endpoint never returns subCategories — fetch them separately
+    // from /sub-categories (with x-expand: true to get the category reference back)
+    // and stitch them into each parent category.
+    try {
+      const subResponse = await apiClient.get<SubCategoryVM[]>('/api/v1/master/sub-categories', {
+        headers: { 'x-expand': 'true' },
+      });
+      const allSubs: SubCategoryVM[] = subResponse.data;
+
+      // Group subcategories by their parent category id
+      const subsByCatId = new Map<string, SubCategoryVM[]>();
+      for (const sub of allSubs) {
+        const catId =
+          sub.category && typeof sub.category === 'object'
+            ? sub.category.id
+            : String(sub.category ?? '');
+        if (!catId) continue;
+        const bucket = subsByCatId.get(catId);
+        if (bucket) bucket.push(sub);
+        else subsByCatId.set(catId, [sub]);
+      }
+
+      return categories.map((c) => ({
+        ...c,
+        subCategories: subsByCatId.get(c.id) ?? [],
+      }));
+    } catch {
+      return categories;
+    }
   },
 
   getCategoryById: async (id: string, includeSubCategories = false): Promise<CategoryVM> => {
     const response = await apiClient.get(`/api/v1/master/categories/${id}`, {
-      headers: { 'x-expand': includeSubCategories },
+      headers: { 'x-expand': includeSubCategories ? 'true' : 'false' },
     });
     return response.data;
   },
@@ -338,7 +369,7 @@ export const masterApi = {
     includeCategory = false,
   ): Promise<SubCategoryVM[]> => {
     const response = await apiClient.get(`/api/v1/master/categories/${categoryId}/sub-categories`, {
-      headers: { 'x-expand': includeCategory },
+      headers: { 'x-expand': includeCategory ? 'true' : 'false' },
     });
     return response.data;
   },

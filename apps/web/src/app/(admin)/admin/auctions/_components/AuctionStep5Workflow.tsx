@@ -964,13 +964,17 @@ export function AuctionStep5Workflow({
     const results = await Promise.all(
       draftSteps.map(async ({ step, index }) => {
         const rq = draftRequests[step.id];
-        return {
-          id: step.id,
-          label: stepDisplayName(step, index),
-          evaluations: rq
-            ? await auctionsApi.previewWorkflowStep(auctionId, rq).catch(() => null)
-            : null,
-        };
+        const label = stepDisplayName(step, index);
+        if (!rq) return { id: step.id, label, evaluations: null };
+        try {
+          const evaluation = await auctionsApi.previewWorkflowStep(auctionId, rq);
+          // previewWorkflowStep returns a single PolicyEvaluation — wrap it into
+          // a PolicyEvaluationMap so EvaluationList can render it as a named card.
+          const evaluations: PolicyEvaluationMap = { [label]: evaluation };
+          return { id: step.id, label, evaluations };
+        } catch {
+          return { id: step.id, label, evaluations: null };
+        }
       }),
     );
 
@@ -1425,11 +1429,13 @@ export function AuctionStep5Workflow({
                   key={r.id}
                   className="rounded-lg border border-border/60 bg-muted/10 p-3 space-y-2"
                 >
-                  <h4 className="text-xs font-semibold text-foreground">{r.label}</h4>
                   {r.evaluations ? (
                     <EvaluationList evaluations={r.evaluations} />
                   ) : (
-                    <p className="text-xs text-muted-foreground">No evaluation available.</p>
+                    <>
+                      <h4 className="text-xs font-semibold text-foreground">{r.label}</h4>
+                      <p className="text-xs text-muted-foreground">No evaluation available.</p>
+                    </>
                   )}
                 </div>
               ))}

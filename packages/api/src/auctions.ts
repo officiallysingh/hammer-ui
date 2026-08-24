@@ -439,11 +439,8 @@ export const auctionsApi = {
   },
 
   /** Evaluates a draft workflow step that hasn't been saved yet. */
-  previewWorkflowStep: async (
-    id: string,
-    data: AddWorkflowStepRQ,
-  ): Promise<PolicyEvaluationMap> => {
-    const response = await apiClient.post<PolicyEvaluationMap>(
+  previewWorkflowStep: async (id: string, data: AddWorkflowStepRQ): Promise<PolicyEvaluation> => {
+    const response = await apiClient.post<PolicyEvaluation>(
       `/api/v1/auctions/${id}/workflow/preview`,
       data,
     );
