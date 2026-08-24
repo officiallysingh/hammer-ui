@@ -187,12 +187,15 @@ function stepDisplayName(step: AuctionWorkflowStep, index: number): string {
 }
 
 function formatOffsetLabel(iso?: string): string {
-  const { days, hours, minutes } = parseOffsetDuration(iso);
-  const parts = [
-    Number(days) > 0 ? `${days}d` : null,
-    Number(hours) > 0 ? `${hours}h` : null,
-    Number(minutes) > 0 ? `${minutes}m` : null,
-  ].filter(Boolean);
+  const raw = parseOffsetDuration(iso);
+  // Normalise — backend may return PT72H instead of P3DT0H0M
+  const totalMinutes = Number(raw.days) * 24 * 60 + Number(raw.hours) * 60 + Number(raw.minutes);
+  const d = Math.floor(totalMinutes / (24 * 60));
+  const h = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const m = totalMinutes % 60;
+  const parts = [d > 0 ? `${d}d` : null, h > 0 ? `${h}h` : null, m > 0 ? `${m}m` : null].filter(
+    Boolean,
+  );
   return parts.length ? parts.join(' ') : '0m';
 }
 
@@ -986,16 +989,21 @@ export function AuctionStep5Workflow({
     setSaving('save');
     setSaveError(null);
     try {
-      const orderedDrafts = workflow
-        .filter((s) => draftRequests[s.id])
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-      // Persisted one-by-one in ascending order — the backend shifts subsequent
-      // steps down per insert, reproducing exactly the arrangement shown here.
-      for (const step of orderedDrafts) {
-        const rq = draftRequests[step.id];
-        if (!rq) continue;
-        await auctionsApi.addWorkflowStep(auctionId, rq);
-      }
+      // Build the full ordered workflow payload — persisted steps keep their id,
+      // draft steps are included as new entries (no id).
+      const steps: AddWorkflowStepRQ[] = workflow
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        .map((step) => {
+          const draft = draftRequests[step.id];
+          if (draft) {
+            // New step — send the draft request at the correct order
+            return { ...draft, order: step.order };
+          }
+          // Existing persisted step — include its id so the backend keeps it
+          return { ...(step as unknown as AddWorkflowStepRQ), id: step.id, order: step.order };
+        });
+
+      await auctionsApi.setAuctionWorkflow(auctionId, steps);
       setDraftRequests({});
       setReviewOpen(false);
       reloadWorkflow();
@@ -1424,21 +1432,16 @@ export function AuctionStep5Workflow({
             </div>
           ) : (
             <div className="space-y-3 py-1">
-              {reviewData.map((r) => (
-                <div
-                  key={r.id}
-                  className="rounded-lg border border-border/60 bg-muted/10 p-3 space-y-2"
-                >
-                  {r.evaluations ? (
-                    <EvaluationList evaluations={r.evaluations} />
-                  ) : (
-                    <>
-                      <h4 className="text-xs font-semibold text-foreground">{r.label}</h4>
-                      <p className="text-xs text-muted-foreground">No evaluation available.</p>
-                    </>
-                  )}
-                </div>
-              ))}
+              {reviewData.map((r) =>
+                r.evaluations ? (
+                  <EvaluationList key={r.id} evaluations={r.evaluations} />
+                ) : (
+                  <div key={r.id} className="rounded-lg border border-border/60 bg-muted/10 p-3">
+                    <h4 className="text-xs font-semibold text-foreground">{r.label}</h4>
+                    <p className="text-xs text-muted-foreground mt-1">No evaluation available.</p>
+                  </div>
+                ),
+              )}
               {reviewData.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-6">
                   No workflow step evaluations available.

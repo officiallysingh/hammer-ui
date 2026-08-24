@@ -29,6 +29,22 @@ function isRichTextEmpty(html: string): boolean {
   return !html.replace(/<[^>]*>/g, '').trim();
 }
 
+/** Parses any ISO-8601 duration into { days, hours, minutes }, normalising
+ *  purely-hour durations like PT72H into 3d 0h 0m so values always fit the
+ *  day/hour/minute dropdowns (hours capped at 0-23). */
+function parseOffsetDurationNormalized(iso?: string): {
+  days: string;
+  hours: string;
+  minutes: string;
+} {
+  const raw = parseOffsetDuration(iso);
+  const totalMinutes = Number(raw.days) * 24 * 60 + Number(raw.hours) * 60 + Number(raw.minutes);
+  const d = Math.floor(totalMinutes / (24 * 60));
+  const h = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const m = totalMinutes % 60;
+  return { days: String(d), hours: String(h), minutes: String(m) };
+}
+
 /**
  * Edits a workflow step's own fields. Implicit steps (auto-created by the backend)
  * only allow name/description to change — order changes only via drag-reorder, and
@@ -85,14 +101,14 @@ export function EditStepDialog({
 
     const payment = paymentStepData(step);
     setPaymentModeValue(payment.mode);
-    const { days, hours, minutes } = parseOffsetDuration(payment.offset);
+    const { days, hours, minutes } = parseOffsetDurationNormalized(payment.offset);
     setOffsetDays(days);
     setOffsetHours(hours);
     setOffsetMinutes(minutes);
     setHeads(payment.heads);
 
     setManualApproval(!!step.manualApproval);
-    const val = parseOffsetDuration(step.preStartValidationDuration);
+    const val = parseOffsetDurationNormalized(step.preStartValidationDuration);
     setValDays(val.days);
     setValHours(val.hours);
     setValMinutes(val.minutes);

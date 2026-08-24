@@ -414,6 +414,13 @@ export const auctionsApi = {
     await apiClient.post(`/api/v1/auctions/${id}/workflow/reorder`, order);
   },
 
+  /** Replaces the entire auction workflow in one call.
+   *  Accepts the full ordered list of steps (persisted + new).
+   *  Persisted steps must include their `id`; new steps omit it. */
+  setAuctionWorkflow: async (id: string, steps: AddWorkflowStepRQ[]): Promise<void> => {
+    await apiClient.post(`/api/v1/auctions/${id}/workflow`, steps);
+  },
+
   /** Adds a step to the auction workflow. */
   addWorkflowStep: async (id: string, data: AddWorkflowStepRQ): Promise<void> => {
     await apiClient.post(`/api/v1/auctions/${id}/workflow/add`, data);
