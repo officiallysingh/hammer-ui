@@ -833,21 +833,34 @@ export default function AuctionViewPage() {
               </div>
             ) : (
               <div className="p-5">
-                <div className="relative pl-6 border-l-2 border-primary/20 space-y-8">
+                <div className="relative space-y-8">
+                  {/* vertical rail */}
+                  <div className="absolute left-[8.5rem] top-0 bottom-0 w-0.5 bg-primary/20 pointer-events-none" />
                   {policyStages.map((stage) => (
-                    <div key={stage.id} className="relative">
+                    <div key={stage.id} className="relative flex items-start gap-4">
+                      {/* Time column */}
+                      <div className="w-32 shrink-0 text-right pt-0.5">
+                        {stage.dateLine ? (
+                          <p className="text-xs font-medium text-foreground/80 leading-tight">
+                            {stage.dateLine.includes('—')
+                              ? stage.dateLine.split('—')[1]?.trim()
+                              : stage.dateLine}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground leading-tight italic">—</p>
+                        )}
+                      </div>
+                      {/* Dot */}
                       <div
-                        className={`absolute -left-[31px] top-0 h-4 w-4 rounded-full ${stage.dotClassName} ring-4 ring-background`}
+                        className={`shrink-0 relative z-10 h-4 w-4 rounded-full ${stage.dotClassName} ring-4 ring-background mt-0.5`}
                       />
-                      <div className="space-y-2">
+                      {/* Content */}
+                      <div className="flex-1 space-y-2 pb-2">
                         <p
                           className={`text-xs font-bold uppercase tracking-wider ${stage.textClassName}`}
                         >
                           {stage.label}
                         </p>
-                        {stage.dateLine && (
-                          <p className="text-sm font-semibold text-foreground">{stage.dateLine}</p>
-                        )}
                         {stage.subLine && (
                           <p className="text-xs text-muted-foreground">{stage.subLine}</p>
                         )}

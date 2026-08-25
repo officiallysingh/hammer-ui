@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, RotateCcw, Trash2, CheckCircle2, XCircle, Star } from 'lucide-react';
+import { Plus, RotateCcw, Trash2, CheckCircle2, XCircle, Star, Upload } from 'lucide-react';
 import { Button, Label, DatePicker, TimePicker, DateTimePicker, YearPicker } from '@repo/ui';
 import type { PropertyDef } from '@repo/api';
 import { resolveAttrs } from './attribute-protocol';
@@ -822,6 +822,84 @@ function PreviewScalarField({
           </option>
         ))}
       </select>
+    );
+  }
+
+  // ── File upload ───────────────────────────────────────────────────────────────
+  if (dataType === 'FILE') {
+    const accept = attrs['html:accept'];
+    const isImage = !!accept?.includes('image');
+    return (
+      <label className="flex flex-col items-center gap-2 cursor-pointer rounded-lg border-2 border-dashed border-border hover:border-primary/40 hover:bg-muted/20 transition-colors py-6 px-4 text-center">
+        <Upload className="h-6 w-6 text-muted-foreground/40" />
+        <span className="text-sm font-medium text-foreground">
+          {value ? String(value) : 'Drag & drop or click to browse'}
+        </span>
+        {accept && <span className="text-[10px] text-muted-foreground/50">{accept}</span>}
+        {!isImage && <span className="text-[10px] text-muted-foreground/50">File upload</span>}
+        <input
+          type="file"
+          accept={accept}
+          className="sr-only"
+          onChange={(e) => onChange(e.target.files?.[0]?.name ?? '')}
+        />
+      </label>
+    );
+  }
+
+  // ── Duration (PT…) ────────────────────────────────────────────────────────────
+  if (dataType === 'DURATION') {
+    const parts = /^PT?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(String(value ?? ''));
+    const [h, m, s] = [parts?.[1] ?? '0', parts?.[2] ?? '0', parts?.[3] ?? '0'];
+    const emit = (hv: string, mv: string, sv: string) =>
+      onChange(`PT${hv || 0}H${mv || 0}M${sv || 0}S`);
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        {[
+          { label: 'h', val: h, set: (v: string) => emit(v, m, s) },
+          { label: 'min', val: m, set: (v: string) => emit(h, v, s) },
+          { label: 'sec', val: s, set: (v: string) => emit(h, m, v) },
+        ].map(({ label, val, set }) => (
+          <div key={label} className="flex items-center gap-1">
+            <input
+              type="number"
+              min="0"
+              value={val}
+              onChange={(e) => set(e.target.value)}
+              className={`w-16 ${numBase}`}
+            />
+            <span className="text-xs text-muted-foreground">{label}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // ── Period (P…) ───────────────────────────────────────────────────────────────
+  if (dataType === 'PERIOD') {
+    const parts = /^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)D)?$/.exec(String(value ?? ''));
+    const [yr, mo, d] = [parts?.[1] ?? '0', parts?.[2] ?? '0', parts?.[3] ?? '0'];
+    const emit = (yv: string, mv: string, dv: string) =>
+      onChange(`P${yv || 0}Y${mv || 0}M${dv || 0}D`);
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        {[
+          { label: 'yr', val: yr, set: (v: string) => emit(v, mo, d) },
+          { label: 'mo', val: mo, set: (v: string) => emit(yr, v, d) },
+          { label: 'd', val: d, set: (v: string) => emit(yr, mo, v) },
+        ].map(({ label, val, set }) => (
+          <div key={label} className="flex items-center gap-1">
+            <input
+              type="number"
+              min="0"
+              value={val}
+              onChange={(e) => set(e.target.value)}
+              className={`w-16 ${numBase}`}
+            />
+            <span className="text-xs text-muted-foreground">{label}</span>
+          </div>
+        ))}
+      </div>
     );
   }
 

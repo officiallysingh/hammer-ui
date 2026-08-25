@@ -324,11 +324,14 @@ export function EvaluationCard({
   evaluation,
   showStatus = true,
   resultLabel = 'Result',
+  hideName = false,
 }: {
   name: string;
   evaluation: PolicyEvaluation;
   showStatus?: boolean;
   resultLabel?: string;
+  /** Hide the name header — used when the parent card already shows it. */
+  hideName?: boolean;
 }) {
   const statusType = showStatus ? resolveStr(evaluation.status?.type) : '';
   const { className, Icon } = statusStyle(statusType);
@@ -357,22 +360,42 @@ export function EvaluationCard({
   return (
     <div className="rounded-lg border border-border/60 bg-card/50 p-3 space-y-2 text-xs">
       {/* Header row */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="font-semibold text-foreground text-sm">{name}</span>
-        {statusType && (
-          <span
-            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${className}`}
-          >
-            <Icon className="h-3 w-3" />
-            {fmtLabel(statusType)}
-          </span>
-        )}
-        {showStatus && evaluation.condition === false && (
-          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400 px-2 py-0.5 text-[10px] font-medium">
-            Not yet active
-          </span>
-        )}
-      </div>
+      {!hideName && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-semibold text-foreground text-sm">{name}</span>
+          {statusType && (
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${className}`}
+            >
+              <Icon className="h-3 w-3" />
+              {fmtLabel(statusType)}
+            </span>
+          )}
+          {showStatus && evaluation.condition === false && (
+            <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400 px-2 py-0.5 text-[10px] font-medium">
+              Not yet active
+            </span>
+          )}
+        </div>
+      )}
+      {/* Status badges only (when name is hidden) */}
+      {hideName && (statusType || evaluation.condition === false) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {statusType && (
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${className}`}
+            >
+              <Icon className="h-3 w-3" />
+              {fmtLabel(statusType)}
+            </span>
+          )}
+          {showStatus && evaluation.condition === false && (
+            <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400 px-2 py-0.5 text-[10px] font-medium">
+              Not yet active
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Description */}
       {evaluation.description && (
@@ -554,11 +577,15 @@ export function EvaluationList({
   loading,
   showStatus = true,
   resultLabel = 'Result',
+  policyName,
 }: {
   evaluations?: PolicyEvaluationMap | null;
   loading?: boolean;
   showStatus?: boolean;
   resultLabel?: string;
+  /** When provided, single-entry evaluations whose key matches this name will
+   *  suppress the redundant name header in EvaluationCard. */
+  policyName?: string;
 }) {
   const entries = Object.entries(evaluations ?? {}).filter(
     (entry): entry is [string, PolicyEvaluation] => entry[1] != null,
@@ -574,15 +601,22 @@ export function EvaluationList({
   }
   return (
     <div className="space-y-2">
-      {entries.map(([name, evaluation]) => (
-        <EvaluationCard
-          key={name}
-          name={name}
-          evaluation={evaluation}
-          showStatus={showStatus}
-          resultLabel={resultLabel}
-        />
-      ))}
+      {entries.map(([name, evaluation]) => {
+        const hideName =
+          entries.length === 1 &&
+          !!policyName &&
+          name.trim().toLowerCase() === policyName.trim().toLowerCase();
+        return (
+          <EvaluationCard
+            key={name}
+            name={name}
+            evaluation={evaluation}
+            showStatus={showStatus}
+            resultLabel={resultLabel}
+            hideName={hideName}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -687,6 +721,7 @@ export function PolicyItemCard({
         loading={loadingEvaluation}
         showStatus={showStatus}
         resultLabel={resultLabel}
+        policyName={name || undefined}
       />
 
       <ConfirmDialog
