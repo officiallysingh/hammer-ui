@@ -605,6 +605,10 @@ export default function UsersPage() {
               <UserPlus className="h-4 w-4 mr-1" />
               Add user
             </Button>
+            <Button size="sm" onClick={() => router.push('/admin/test')}>
+              <UserPlus className="h-4 w-4 mr-1" />
+              Add user
+            </Button>
             <Button
               variant="outline"
               size="sm"
