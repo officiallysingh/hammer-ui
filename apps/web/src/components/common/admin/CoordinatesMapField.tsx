@@ -14,6 +14,7 @@ interface CoordinatesMapFieldProps {
   onChange: (value: Coordinates) => void;
   /** Map height in pixels. Defaults to 420 — pass a smaller value for compact forms. */
   mapHeight?: number;
+  disabled?: boolean;
 }
 
 interface NominatimResult {
@@ -35,7 +36,12 @@ const inputBase =
   'w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground/60';
 const numBase = `${inputBase} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`;
 
-export function CoordinatesMapField({ value, onChange, mapHeight }: CoordinatesMapFieldProps) {
+export function CoordinatesMapField({
+  value,
+  onChange,
+  mapHeight,
+  disabled,
+}: CoordinatesMapFieldProps) {
   const coordObj =
     typeof value === 'object' && value !== null && !Array.isArray(value)
       ? (value as Record<string, unknown>)
@@ -122,7 +128,7 @@ export function CoordinatesMapField({ value, onChange, mapHeight }: CoordinatesM
   };
 
   return (
-    <div className="space-y-2">
+    <div className={`space-y-2 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
       {/* Search */}
       <div className="relative">
         <div className="relative">
@@ -134,23 +140,26 @@ export function CoordinatesMapField({ value, onChange, mapHeight }: CoordinatesM
             onFocus={() => results.length > 0 && setShowResults(true)}
             onBlur={() => setTimeout(() => setShowResults(false), 150)}
             placeholder="Search for a place or address…"
+            disabled={disabled}
             className={`${inputBase} pl-8 pr-16`}
           />
           <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
             {searching && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-            <button
-              type="button"
-              onClick={locateMe}
-              disabled={locating}
-              title="Use my current location"
-              className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-muted transition-colors disabled:opacity-50"
-            >
-              {locating ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <LocateFixed className="h-3.5 w-3.5" />
-              )}
-            </button>
+            {!disabled && (
+              <button
+                type="button"
+                onClick={locateMe}
+                disabled={locating}
+                title="Use my current location"
+                className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                {locating ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <LocateFixed className="h-3.5 w-3.5" />
+                )}
+              </button>
+            )}
           </div>
         </div>
 
@@ -192,6 +201,7 @@ export function CoordinatesMapField({ value, onChange, mapHeight }: CoordinatesM
             placeholder="Latitude"
             value={lat ?? ''}
             onChange={(e) => updateManual(e.target.value, lng != null ? String(lng) : '')}
+            disabled={disabled}
             className={numBase}
           />
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">
@@ -207,6 +217,7 @@ export function CoordinatesMapField({ value, onChange, mapHeight }: CoordinatesM
             placeholder="Longitude"
             value={lng ?? ''}
             onChange={(e) => updateManual(lat != null ? String(lat) : '', e.target.value)}
+            disabled={disabled}
             className={numBase}
           />
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none font-mono">

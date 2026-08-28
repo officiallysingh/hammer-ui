@@ -39,6 +39,7 @@ import {
   PropertyDef,
 } from '@repo/api';
 import { DismissibleError, FieldError } from './AuctionShared';
+import { PropertyFormPreview } from '@/app/(admin)/admin/metadata/_components/PropertyFormPreview';
 import {
   SELECT_CLS,
   resolveStr,
@@ -97,21 +98,6 @@ function fmtDateTime(iso?: string | null): string {
   } catch {
     return iso;
   }
-}
-
-/** Wraps the flat `/workflow/evaluate` response (`Record<stepId, PolicyEvaluation>`)
- *  keyed by step name so `EvaluationList` renders one card per workflow step. */
-function buildStepEvaluations(
-  evaluations: PolicyEvaluationMap | null | undefined,
-  steps: AuctionWorkflowStep[],
-): Record<string, PolicyEvaluationMap> {
-  const result: Record<string, PolicyEvaluationMap> = {};
-  for (const [stepId, evaluation] of Object.entries(evaluations ?? {})) {
-    if (!evaluation) continue;
-    const name = steps.find((s) => s.id === stepId)?.name ?? stepId;
-    result[stepId] = { [name]: evaluation };
-  }
-  return result;
 }
 
 function NumberSelect({
@@ -318,51 +304,6 @@ function BankDetailsPreview() {
   );
 }
 
-// ── Custom form step (view-only) — properties collected by FORM_STEP ──────────
-
-function propertyPlaceholder(prop: PropertyDef): string {
-  switch (resolveStr(prop.dataType)) {
-    case 'ADDRESS':
-      return 'Postal address';
-    case 'COORDINATES':
-      return 'Latitude, longitude';
-    case 'BOOLEAN':
-      return 'Yes / No';
-    case 'LOCAL_DATE':
-    case 'LOCAL_DATE_TIME':
-    case 'ZONED_DATE_TIME':
-    case 'INSTANT':
-      return 'Date';
-    case 'FILE':
-      return 'File upload';
-    default:
-      return `Enter ${prop.label.toLowerCase()}`;
-  }
-}
-
-function FormStepPropertiesPreview({ properties }: { properties: PropertyDef[] }) {
-  return (
-    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3 text-xs">
-      <p className="text-muted-foreground">
-        Participant fills in the following details for this step.
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {properties.map((prop) => (
-          <div key={prop.name} className="space-y-1">
-            <span className="text-[11px] font-medium text-muted-foreground">
-              {prop.label}
-              {prop.required && <span className="text-destructive ml-0.5">*</span>}
-            </span>
-            <div className="rounded-md border border-dashed border-border bg-muted/30 px-2.5 py-1.5 text-muted-foreground/70">
-              {propertyPlaceholder(prop)}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ── Participation form step (view-only) — collected by PARTICIPATION_FORM_STEP ─
 
 function ParticipationFormPreview({ step }: { step: AuctionWorkflowStep }) {
@@ -402,7 +343,6 @@ function WorkflowStepCard({
   isDragTarget,
   participationPolicies,
   evaluationsByPolicyId,
-  evaluationsByStepId,
   onEdit,
   onDelete,
 }: {
@@ -415,7 +355,6 @@ function WorkflowStepCard({
   isDragTarget?: boolean;
   participationPolicies?: PolicyItemRQ[];
   evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
-  evaluationsByStepId?: Record<string, PolicyEvaluationMap>;
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
@@ -546,16 +485,6 @@ function WorkflowStepCard({
             )}
           </div>
 
-          {/* Step-level evaluation from the bulk /workflow/evaluate result */}
-          {step.id && evaluationsByStepId?.[step.id] && (
-            <div className="mt-1.5 space-y-1">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-                Evaluation
-              </p>
-              <EvaluationList evaluations={evaluationsByStepId[step.id]} />
-            </div>
-          )}
-
           {/* Step status details — e.g. transaction ref, bank verification status */}
           {step.status?.details && Object.keys(step.status.details).length > 0 && (
             <div className="mt-1.5 space-y-1">
@@ -614,7 +543,7 @@ function WorkflowStepCard({
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
                   Form Fields
                 </p>
-                <FormStepPropertiesPreview properties={step.embedded!.properties!} />
+                <PropertyFormPreview properties={step.embedded!.properties!} disabled={true} />
               </div>
             )}
 
@@ -732,9 +661,6 @@ export function AuctionStep5Workflow({
   const [evaluationsByPolicyId, setEvaluationsByPolicyId] = useState<
     Record<string, PolicyEvaluationMap>
   >({});
-  const [evaluationsByStepId, setEvaluationsByStepId] = useState<
-    Record<string, PolicyEvaluationMap>
-  >({});
   const [reordering, setReordering] = useState(false);
   const [reorderError, setReorderError] = useState<string | null>(null);
   const [addStepOpen, setAddStepOpen] = useState(false);
@@ -808,17 +734,6 @@ export function AuctionStep5Workflow({
             .evaluateAuctionPolicies(auctionId, policyIds)
             .then((evals) => {
               if (mounted) setEvaluationsByPolicyId(buildEvaluationsByPolicy(evals, allItems));
-            })
-            .catch(() => {});
-        }
-
-        // Evaluate all workflow steps in a single bulk request (POST /workflow/evaluate).
-        const stepIds = wf.map((s) => s.id).filter((id): id is string => Boolean(id));
-        if (stepIds.length > 0) {
-          auctionsApi
-            .evaluateWorkflowSteps(auctionId, stepIds)
-            .then((evals) => {
-              if (mounted) setEvaluationsByStepId(buildStepEvaluations(evals, wf));
             })
             .catch(() => {});
         }
@@ -1173,7 +1088,6 @@ export function AuctionStep5Workflow({
                           dragDisabled={hasDrafts}
                           participationPolicies={participationPolicies}
                           evaluationsByPolicyId={evaluationsByPolicyId}
-                          evaluationsByStepId={evaluationsByStepId}
                           onEdit={!isDraft && !hasDrafts ? () => setEditingStep(step) : undefined}
                           onDelete={
                             isDraft
