@@ -1247,7 +1247,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   auctionsApi,
@@ -1284,9 +1284,6 @@ import {
   TrendingUp,
   Users,
   CreditCard,
-  FileText,
-  Landmark,
-  UserCheck,
   GitFork,
 } from 'lucide-react';
 import {
@@ -1310,6 +1307,14 @@ import { DetailRow, PageLoading, SectionCard } from '@/components/common/admin/S
 import { PoliciesTimeline } from './../../_components/timeline/PoliciesTimeline';
 import { WorkflowTimeline } from './../../_components/timeline/WorkflowTimeline';
 import { TimelineNode } from './../../_components/timeline/types';
+import {
+  stepTypeMeta,
+  PaymentStepDetails,
+  BankDetailStepDetails,
+  ParticipationFormStepDetails,
+  TnCStepDetails,
+  FormStepDetails,
+} from './../../_components/WorkflowStepDetails';
 
 // ── Timeline model ────────────────────────────────────────────────────────────
 
@@ -1357,7 +1362,7 @@ function buildScheduleTimeline(
     .filter(
       (step) =>
         resolveStr(step.type) === 'PAYMENT_STEP' &&
-        (resolveStr(step.phase) === 'PRE_PAYMENT' || step.prePayment === true),
+        (resolveStr(step.phase) === 'PRE_AUCTION' || step.prePayment === true),
     )
     .forEach((step) => {
       const off = parseIsoDurationMs(step.offset);
@@ -1500,7 +1505,7 @@ function buildScheduleTimeline(
       .filter(
         (step) =>
           resolveStr(step.type) === 'PAYMENT_STEP' &&
-          (resolveStr(step.phase) === 'POST_PAYMENT' || step.postPayment === true),
+          (resolveStr(step.phase) === 'POST_AUCTION' || step.postPayment === true),
       )
       .forEach((step) => {
         const off = parseIsoDurationMs(step.offset);
@@ -1527,46 +1532,30 @@ function buildScheduleTimeline(
 
 // ── Workflow timeline ─────────────────────────────────────────────────────────
 
-const STEP_TYPE_COLORS: Record<string, { dot: string; text: string; border: string }> = {
-  PARTICIPATION_FORM_STEP: {
-    dot: 'bg-violet-500',
-    text: 'text-violet-600 dark:text-violet-400',
-    border: 'border-violet-500',
-  },
-  FORM_STEP: {
-    dot: 'bg-blue-500',
-    text: 'text-blue-600 dark:text-blue-400',
-    border: 'border-blue-500',
-  },
-  TNC_FORM_STEP: {
-    dot: 'bg-amber-500',
-    text: 'text-amber-600 dark:text-amber-400',
-    border: 'border-amber-500',
-  },
-  BANK_DETAIL_FORM_STEP: {
-    dot: 'bg-emerald-500',
-    text: 'text-emerald-600 dark:text-emerald-400',
-    border: 'border-emerald-500',
-  },
-  PAYMENT_STEP: {
-    dot: 'bg-rose-500',
-    text: 'text-rose-600 dark:text-rose-400',
-    border: 'border-rose-500',
-  },
-};
+/** TNC_FORM_STEP and PARTICIPATION_FORM_STEP are hardcoded PRE_AUCTION server-side
+ *  and never carry an explicit `phase`; Bank Detail steps don't carry one either
+ *  but are always collected before the auction closes. Everything else (Payment,
+ *  Custom Form) now carries an explicit PRE_AUCTION/POST_AUCTION phase. */
+function effectiveStepPhase(step: AuctionWorkflowStep): 'PRE_AUCTION' | 'POST_AUCTION' {
+  return resolveStr(step.phase) === 'POST_AUCTION' ? 'POST_AUCTION' : 'PRE_AUCTION';
+}
 
-function stepTypeIcon(type: string) {
-  switch (type) {
+/** Reuses the same per-step-type detail body the workflow builder's cards render,
+ *  so the read-only view and the editable builder never drift apart. */
+function stepDetails(step: AuctionWorkflowStep): ReactNode {
+  switch (resolveStr(step.type)) {
     case 'PAYMENT_STEP':
-      return CreditCard;
+      return <PaymentStepDetails step={step} />;
     case 'BANK_DETAIL_FORM_STEP':
-      return Landmark;
-    case 'TNC_FORM_STEP':
-      return ShieldCheck;
+      return <BankDetailStepDetails />;
     case 'PARTICIPATION_FORM_STEP':
-      return UserCheck;
+      return <ParticipationFormStepDetails step={step} />;
+    case 'TNC_FORM_STEP':
+      return <TnCStepDetails step={step} />;
+    case 'FORM_STEP':
+      return <FormStepDetails step={step} />;
     default:
-      return FileText;
+      return null;
   }
 }
 
@@ -1582,13 +1571,8 @@ function buildWorkflowTimeline(
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     .map((step): TimelineNode => {
       const typeStr = resolveStr(step.type);
-      const color = STEP_TYPE_COLORS[typeStr] ?? {
-        dot: 'bg-muted-foreground',
-        text: 'text-muted-foreground',
-        border: 'border-muted-foreground',
-      };
-      const Icon = stepTypeIcon(typeStr);
-      const phase = resolveStr(step.phase);
+      const { Icon, dot, text, border } = stepTypeMeta(typeStr);
+      const phase = effectiveStepPhase(step);
       const label = fmtLabel(typeStr) || 'Step';
 
       let time: string | undefined;
@@ -1596,15 +1580,15 @@ function buildWorkflowTimeline(
 
       if (typeStr === 'PAYMENT_STEP' && step.offset) {
         const off = parseIsoDurationMs(step.offset);
-        if (phase === 'PRE_PAYMENT' && startMs != null) {
+        if (phase === 'PRE_AUCTION' && startMs != null) {
           time = formatDateTime(new Date(startMs - off).toISOString());
-        } else if (phase === 'POST_PAYMENT' && endMs != null) {
+        } else if (phase === 'POST_AUCTION' && endMs != null) {
           time = formatDateTime(new Date(endMs + off).toISOString());
         }
       }
 
-      if (typeStr === 'PARTICIPATION_FORM_STEP' && step.preStartValidationDuration) {
-        const dur = parseIsoDurationMs(step.preStartValidationDuration);
+      if (typeStr === 'PARTICIPATION_FORM_STEP' && step.preStartDeadlineDuration) {
+        const dur = parseIsoDurationMs(step.preStartDeadlineDuration);
         if (startMs != null && dur > 0) {
           time = formatDateTime(new Date(startMs - dur).toISOString());
           timeTo = startIso ? formatDateTime(startIso) : undefined;
@@ -1613,23 +1597,19 @@ function buildWorkflowTimeline(
 
       const subs: string[] = [];
       if (step.description) subs.push(step.description);
-      if (typeStr === 'PAYMENT_STEP') {
-        const heads = headsSummary(step.heads);
-        if (heads) subs.push(`Heads: ${heads}`);
-      }
-      if (step.manualApproval) subs.push('Requires manual approval');
 
       return {
         id: step.id ?? `step-${step.order}`,
         label,
         Icon,
-        dotClass: color.dot,
-        labelClass: color.text,
-        borderClass: color.border,
+        dotClass: dot,
+        labelClass: text,
+        borderClass: border,
         title: step.name || label,
         time,
         timeTo,
         subs,
+        details: stepDetails(step),
       };
     });
 }
@@ -1647,6 +1627,9 @@ export default function AuctionViewPage() {
   const [auction, setAuction] = useState<AuctionVM | null>(null);
   const [policies, setPolicies] = useState<AuctionPoliciesRQ | null>(null);
   const [workflow, setWorkflow] = useState<AuctionWorkflowStep[]>([]);
+  const [evaluationsByPolicyId, setEvaluationsByPolicyId] = useState<
+    Record<string, PolicyEvaluationMap>
+  >({});
   const [evaluationsEvaluatedAt, setEvaluationsEvaluatedAt] = useState<Date | null>(null);
 
   const fetchEvaluations = async (items: AuctionPoliciesRQ | null) => {
@@ -1861,10 +1844,17 @@ export default function AuctionViewPage() {
   }
 
   const timelineNodes = buildScheduleTimeline(auction, policies, workflow);
-  const workflowNodes = buildWorkflowTimeline(
-    workflow,
-    auction.schedule?.startTime ?? auction.startTime,
-    auction.schedule?.endTime ?? auction.endTime,
+  const workflowStartIso = auction.schedule?.startTime ?? auction.startTime;
+  const workflowEndIso = auction.schedule?.endTime ?? auction.endTime;
+  const preAuctionWorkflowNodes = buildWorkflowTimeline(
+    workflow.filter((s) => effectiveStepPhase(s) === 'PRE_AUCTION'),
+    workflowStartIso,
+    workflowEndIso,
+  );
+  const postAuctionWorkflowNodes = buildWorkflowTimeline(
+    workflow.filter((s) => effectiveStepPhase(s) === 'POST_AUCTION'),
+    workflowStartIso,
+    workflowEndIso,
   );
 
   return (
@@ -2170,16 +2160,28 @@ export default function AuctionViewPage() {
         </TabsContent>
 
         {/* TAB 4: WORKFLOW */}
-        <TabsContent value="timeline" className="outline-none">
+        <TabsContent value="timeline" className="space-y-6 outline-none">
           <Card className="rounded-2xl border-border bg-card shadow-xs">
             <CardHeader className="border-b border-border bg-muted/30 p-5">
               <CardTitle className="text-base font-bold flex items-center gap-2.5">
                 <GitFork className="h-5 w-5 text-primary" />
-                <span>Workflow Timeline</span>
+                <span>Pre Auction Steps</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
-              <WorkflowTimeline nodes={workflowNodes} />
+              <WorkflowTimeline nodes={preAuctionWorkflowNodes} />
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border-border bg-card shadow-xs">
+            <CardHeader className="border-b border-border bg-muted/30 p-5">
+              <CardTitle className="text-base font-bold flex items-center gap-2.5">
+                <GitFork className="h-5 w-5 text-primary" />
+                <span>Post Auction Steps</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <WorkflowTimeline nodes={postAuctionWorkflowNodes} />
             </CardContent>
           </Card>
         </TabsContent>

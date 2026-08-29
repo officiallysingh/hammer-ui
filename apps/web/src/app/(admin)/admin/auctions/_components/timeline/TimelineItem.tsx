@@ -14,6 +14,8 @@ interface TimelineItemProps {
   badgeClass?: string;
   subs?: string[];
   children?: NestedChild[];
+  /** Rich, step-type-specific detail body rendered below the simple subs list. */
+  details?: React.ReactNode;
   userTip?: string;
   isLast?: boolean;
   durationToNext?: string | null;
@@ -30,6 +32,7 @@ export function TimelineItem({
   badgeClass = 'bg-muted text-muted-foreground',
   subs = [],
   children,
+  details,
   userTip,
   isLast = false,
   durationToNext,
@@ -141,6 +144,8 @@ export function TimelineItem({
                 ))}
               </ul>
             )}
+
+            {details && <div className="mt-3">{details}</div>}
 
             {userTip && (
               <div className="mt-4 flex items-start gap-2 text-sm bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 rounded-lg px-3 py-2">

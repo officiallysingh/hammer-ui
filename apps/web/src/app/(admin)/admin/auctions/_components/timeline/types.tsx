@@ -1,4 +1,5 @@
 import { LucideIcon } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 export interface TimelineNode {
   id: string;
@@ -12,6 +13,9 @@ export interface TimelineNode {
   timeTo?: string;
   subs: string[];
   durationToNext?: string | null;
+  /** Rich, step-type-specific detail body — reuses the same components the
+   *  workflow builder's cards render, so both surfaces stay in sync. */
+  details?: ReactNode;
 }
 
 export interface NestedChild {

@@ -52,6 +52,7 @@ export function WorkflowTimeline({ nodes }: WorkflowTimelineProps) {
               badge={node.label}
               badgeClass={node.labelClass}
               subs={node.subs}
+              details={node.details}
               isLast={isLast}
               durationToNext={durationToNext}
             />

@@ -12,7 +12,13 @@ import {
   DialogTitle,
   RichTextEditor,
 } from '@repo/ui';
-import { auctionsApi, blobsApi, AuctionWorkflowStep, PolicyHeadRQ } from '@repo/api';
+import {
+  auctionsApi,
+  blobsApi,
+  AuctionWorkflowStep,
+  PolicyHeadRQ,
+  WorkflowStepPhase,
+} from '@repo/api';
 import { DismissibleError } from './AuctionShared';
 import {
   resolveStr,
@@ -89,7 +95,9 @@ export function EditStepDialog({
   const isTnCStep = stepType === 'TNC_FORM_STEP';
   const isPaymentStep = stepType === 'PAYMENT_STEP';
   const isParticipationFormStep = stepType === 'PARTICIPATION_FORM_STEP';
+  const isFormStep = stepType === 'FORM_STEP';
   const paymentPhase = step ? paymentStepData(step).phase : '';
+  const formStepPhase = step ? resolveStr(step.phase) : '';
 
   useEffect(() => {
     if (!step) return;
@@ -108,7 +116,7 @@ export function EditStepDialog({
     setHeads(payment.heads);
 
     setManualApproval(!!step.manualApproval);
-    const val = parseOffsetDurationNormalized(step.preStartValidationDuration);
+    const val = parseOffsetDurationNormalized(step.preStartDeadlineDuration);
     setValDays(val.days);
     setValHours(val.hours);
     setValMinutes(val.minutes);
@@ -172,7 +180,7 @@ export function EditStepDialog({
         ...(isExplicit && isPaymentStep
           ? {
               mode: paymentModeValue,
-              phase: paymentPhase as 'PRE_PAYMENT' | 'POST_PAYMENT',
+              phase: paymentPhase as WorkflowStepPhase,
               offset: formatOffsetDuration(offsetDays, offsetHours, offsetMinutes),
               heads,
             }
@@ -180,9 +188,10 @@ export function EditStepDialog({
         ...(isExplicit && isParticipationFormStep
           ? {
               manualApproval,
-              preStartValidationDuration: formatOffsetDuration(valDays, valHours, valMinutes),
+              preStartDeadlineDuration: formatOffsetDuration(valDays, valHours, valMinutes),
             }
           : {}),
+        ...(isExplicit && isFormStep ? { phase: formStepPhase as WorkflowStepPhase } : {}),
       });
       onSaved();
     } catch (err) {
@@ -278,12 +287,21 @@ export function EditStepDialog({
               </>
             )}
 
+            {isExplicit && isFormStep && (
+              <p className="text-xs text-muted-foreground">
+                Phase:{' '}
+                <span className="text-foreground font-medium">
+                  {formStepPhase === 'PRE_AUCTION' ? 'Pre Auction' : 'Post Auction'}
+                </span>
+              </p>
+            )}
+
             {isExplicit && isPaymentStep && (
               <>
                 <p className="text-xs text-muted-foreground">
                   Phase:{' '}
                   <span className="text-foreground font-medium">
-                    {paymentPhase === 'PRE_PAYMENT' ? 'Pre Payment' : 'Post Payment'}
+                    {paymentPhase === 'PRE_AUCTION' ? 'Pre Payment' : 'Post Payment'}
                   </span>
                 </p>
 
@@ -311,7 +329,7 @@ export function EditStepDialog({
 
                 <DayHourMinuteFields
                   label={
-                    paymentPhase === 'PRE_PAYMENT'
+                    paymentPhase === 'PRE_AUCTION'
                       ? 'Offset from auction start time'
                       : 'Offset from auction end time'
                   }
