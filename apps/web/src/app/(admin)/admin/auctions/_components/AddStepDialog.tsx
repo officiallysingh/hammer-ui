@@ -406,6 +406,7 @@ export function AddStepDialog({
         description: 'Participant provides bank details for payouts',
         order: selectedOrder,
         implicit: refundable,
+        phase: pendingPaymentPhase ?? 'PRE_AUCTION',
       }),
       pendingPaymentPhase
         ? () => {

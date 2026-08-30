@@ -4,6 +4,7 @@ import { CreditCard, Landmark, ShieldCheck, UserCheck, FileText, Upload } from '
 import type { LucideIcon } from 'lucide-react';
 import { AuctionWorkflowStep } from '@repo/api';
 import { resolveStr, fmtLabel, paymentStepData, formatOffsetLabel } from './PolicyShared';
+import { PropertyFormPreview } from '@/app/(admin)/admin/metadata/_components/PropertyFormPreview';
 
 /**
  * Per-step-type visual identity and detail rendering, shared between the
@@ -183,14 +184,14 @@ export function ParticipationFormStepDetails({ step }: { step: AuctionWorkflowSt
             {step.manualApproval ? 'Required' : 'Not required'}
           </span>
         </span>
-        <span className="text-muted-foreground">
-          Submissions validated within:{' '}
-          <span className="text-foreground font-medium">
-            {formatOffsetLabel(step.preStartDeadlineDuration)}
-          </span>{' '}
-          before auction start
-        </span>
       </div>
+
+      {(step.embedded?.properties?.length ?? 0) > 0 && (
+        <div className="pt-2 border-t border-border/40">
+          <p className="text-[11px] font-medium text-muted-foreground mb-2">Form Fields</p>
+          <PropertyFormPreview properties={step.embedded!.properties!} disabled={true} />
+        </div>
+      )}
     </div>
   );
 }
@@ -211,11 +212,21 @@ export function TnCStepDetails({ step }: { step: AuctionWorkflowStep }) {
 //    PropertyFormPreview; this just surfaces the before/after-auction phase. ─
 
 export function FormStepDetails({ step }: { step: AuctionWorkflowStep }) {
-  if (!step.phase) return null;
   return (
-    <div className="rounded-lg border border-border/60 bg-card p-3 text-xs flex items-center gap-2">
-      <span className="text-muted-foreground">Collected:</span>
-      <WorkflowStepPhaseBadge phase={step.phase} />
+    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3 text-xs">
+      {step.phase && (
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground">Collected:</span>
+          <WorkflowStepPhaseBadge phase={step.phase} />
+        </div>
+      )}
+
+      {(step.embedded?.properties?.length ?? 0) > 0 && (
+        <div className="pt-2 border-t border-border/40">
+          <p className="text-[11px] font-medium text-muted-foreground mb-2">Form Fields</p>
+          <PropertyFormPreview properties={step.embedded!.properties!} disabled={true} />
+        </div>
+      )}
     </div>
   );
 }

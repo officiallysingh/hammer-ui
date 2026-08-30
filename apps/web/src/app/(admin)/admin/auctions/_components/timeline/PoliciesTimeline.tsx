@@ -1,6 +1,6 @@
 'use client';
 
-import { Users, TrendingUp, Trophy, Clock, ShieldCheck } from 'lucide-react';
+import { Users, TrendingUp, Trophy, Minus, ShieldCheck } from 'lucide-react';
 import { NestedChild } from './types';
 import { TimelineItem } from './TimelineItem';
 import { humanizeIsoDuration, parseIsoDurationMs, fmtLabel } from '../../_components/PolicyShared';
@@ -147,19 +147,69 @@ export function PoliciesTimeline({
           const evaluatedItems = stageItems.filter(hasEvaluation);
           const chipItems = stageItems.filter((item) => !hasEvaluation(item));
 
-          const chips = chipItems.map((item) => {
-            let text = item.name || fmtLabel(item.type);
-            if (item.count != null) text += ` (≥ ${item.count})`;
-            if (item.kth != null) text += ` (${item.kth === 1 ? '1st' : item.kth + 'th'} price)`;
-            if (item.duration)
-              text += ` (${humanizeIsoDuration(parseIsoDurationMs(item.duration))})`;
-            if (item.limit === 0) text += ' • unlimited';
-            return text;
-          });
+          const chipCards =
+            chipItems.length > 0 ? (
+              <div className="space-y-2">
+                {chipItems.map((item, i) => {
+                  const tags: { label: string; value?: string }[] = [];
+                  if (item.count != null) tags.push({ label: 'Min', value: String(item.count) });
+                  if (item.kth != null)
+                    tags.push({
+                      label: 'Price',
+                      value: item.kth === 1 ? '1st' : `${item.kth}th`,
+                    });
+                  if (item.duration)
+                    tags.push({
+                      label: 'Duration',
+                      value: humanizeIsoDuration(parseIsoDurationMs(item.duration)),
+                    });
+                  if (item.limit === 0) tags.push({ label: 'Unlimited extensions' });
+                  if (item.limit != null && item.limit > 0)
+                    tags.push({ label: 'Max extensions', value: String(item.limit) });
+
+                  return (
+                    <div
+                      key={item.id ?? i}
+                      className="rounded-lg border border-border/60 bg-card px-4 py-3 space-y-2 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-semibold text-foreground flex-1">
+                          {item.name || fmtLabel(item.type)}
+                        </p>
+                        {item.type && (
+                          <span className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
+                            {fmtLabel(item.type)}
+                          </span>
+                        )}
+                      </div>
+                      {item.description && (
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {item.description}
+                        </p>
+                      )}
+                      {tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {tags.map((tag, ti) => (
+                            <span
+                              key={ti}
+                              className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-background px-1.5 py-0.5 text-[10px] text-foreground"
+                            >
+                              <span className="text-muted-foreground">{tag.label}</span>
+                              {tag.value && <span className="font-medium">{tag.value}</span>}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : undefined;
 
           const details =
-            evaluatedItems.length > 0 ? (
+            evaluatedItems.length > 0 || chipCards ? (
               <div className="space-y-2">
+                {chipCards}
                 {evaluatedItems.map((item, i) => (
                   <PolicyItemCard
                     key={item.id ?? i}
@@ -167,6 +217,7 @@ export function PoliciesTimeline({
                     policyId={item.id}
                     name={item.name}
                     type={item.type}
+                    description={item.description}
                     evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
                   />
                 ))}
@@ -175,11 +226,13 @@ export function PoliciesTimeline({
 
           const iconMap: Record<string, React.ReactNode> = {
             'before-start': <Users className="h-5 w-5 text-amber-600" />,
-            'auction-start': <Clock className="h-5 w-5 text-emerald-600" />,
+            'auction-start': <Minus className="h-5 w-5 text-emerald-600" />,
             'auction-running': <TrendingUp className="h-5 w-5 text-blue-600" />,
-            'auction-complete': <Clock className="h-5 w-5 text-indigo-600" />,
+            'auction-complete': <Minus className="h-5 w-5 text-indigo-600" />,
             winner: <Trophy className="h-5 w-5 text-violet-600" />,
           };
+
+          const isMarkerStage = stage.id === 'auction-start' || stage.id === 'auction-complete';
 
           return (
             <TimelineItem
@@ -193,14 +246,17 @@ export function PoliciesTimeline({
               }
               actionLabel={stage.label}
               icon={iconMap[stage.id] || <ShieldCheck className="h-5 w-5" />}
-              title={stage.label}
               description={stage.subLine}
               badge={stage.label}
               badgeClass={stage.textClassName}
-              subs={chips}
               details={details}
               isLast={isLast}
               durationToNext={durationToNext}
+              noCard={isMarkerStage}
+              childrenTitle={stage.id === 'auction-running' ? 'Price Progression' : undefined}
+              childrenBadge={
+                stage.id === 'auction-running' ? 'PRICE PROGRESSION POLICY' : undefined
+              }
             >
               {nestedChildren.length > 0 ? nestedChildren : undefined}
             </TimelineItem>

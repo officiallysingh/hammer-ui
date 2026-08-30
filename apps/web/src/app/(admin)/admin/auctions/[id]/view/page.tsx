@@ -1307,6 +1307,7 @@ import { DetailRow, PageLoading, SectionCard } from '@/components/common/admin/S
 // ── Timeline Components ───────────────────────────────────────────────────────
 import { PoliciesTimeline } from './../../_components/timeline/PoliciesTimeline';
 import { WorkflowTimeline } from './../../_components/timeline/WorkflowTimeline';
+import { WorkflowStagesTimeline } from './../../_components/timeline/WorkflowStagesTimeline';
 import { TimelineNode } from './../../_components/timeline/types';
 import {
   stepTypeMeta,
@@ -2177,30 +2178,39 @@ export default function AuctionViewPage() {
         </TabsContent>
 
         {/* TAB 4: WORKFLOW */}
-        <TabsContent value="timeline" className="space-y-6 outline-none">
-          <Card className="rounded-2xl border-border bg-card shadow-xs">
-            <CardHeader className="border-b border-border bg-muted/30 p-5">
-              <CardTitle className="text-base font-bold flex items-center gap-2.5">
-                <GitFork className="h-5 w-5 text-primary" />
-                <span>Pre Auction Steps</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <WorkflowTimeline nodes={preAuctionWorkflowNodes} />
-            </CardContent>
-          </Card>
+        <TabsContent value="timeline" className="space-y-4 outline-none">
+          <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
+            <div className="flex items-start justify-between px-5 py-4 bg-muted/30 border-b border-border gap-3">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0">
+                  <GitFork className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-bold text-foreground truncate">Workflow Timeline</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {workflow.length} step{workflow.length !== 1 ? 's' : ''} configured
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/admin/auctions/${id}/edit`)}
+                className="gap-1.5 text-xs rounded-xl shrink-0"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </Button>
+            </div>
 
-          <Card className="rounded-2xl border-border bg-card shadow-xs">
-            <CardHeader className="border-b border-border bg-muted/30 p-5">
-              <CardTitle className="text-base font-bold flex items-center gap-2.5">
-                <GitFork className="h-5 w-5 text-primary" />
-                <span>Post Auction Steps</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <WorkflowTimeline nodes={postAuctionWorkflowNodes} />
-            </CardContent>
-          </Card>
+            <div className="p-6">
+              <WorkflowStagesTimeline
+                preAuctionNodes={preAuctionWorkflowNodes}
+                postAuctionNodes={postAuctionWorkflowNodes}
+                auction={auction}
+              />
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

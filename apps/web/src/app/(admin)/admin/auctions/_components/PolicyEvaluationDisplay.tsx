@@ -673,6 +673,7 @@ export function PolicyItemCard({
   policyId,
   name,
   type,
+  description,
   evaluations,
   loadingEvaluation,
   showStatus = true,
@@ -687,6 +688,7 @@ export function PolicyItemCard({
   policyId?: string;
   name?: string;
   type?: unknown;
+  description?: string;
   evaluations?: PolicyEvaluationMap | null;
   loadingEvaluation?: boolean;
   showStatus?: boolean;
@@ -760,6 +762,10 @@ export function PolicyItemCard({
           </div>
         )}
       </div>
+
+      {description && (
+        <p className="text-xs text-muted-foreground leading-relaxed px-0.5">{description}</p>
+      )}
 
       {deleteError && <p className="text-xs text-destructive">{deleteError}</p>}
 
