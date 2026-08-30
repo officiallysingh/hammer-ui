@@ -2,7 +2,9 @@
 
 import { StepIndicator } from '@/components/common/admin/StepIndicator';
 
-const AUCTION_STEPS = ['Details', 'Units', 'Policies', 'Workflow', 'Schedule'];
+const AUCTION_STEPS = ['Details', 'Units', 'Policies', 'Workflow', 'Schedule', 'Invitations'];
+/** Invitations is the only optional step — everything else is required. */
+const OPTIONAL_STEPS = [6];
 
 /** Auction-wizard step indicator. In create mode only past steps are clickable;
  *  in edit mode any non-active step is clickable. */
@@ -21,6 +23,7 @@ export function AuctionStepIndicator({
       current={current}
       onStepClick={onStepClick}
       editMode={editMode}
+      optionalSteps={OPTIONAL_STEPS}
     />
   );
 }

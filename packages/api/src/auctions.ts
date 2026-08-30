@@ -187,6 +187,12 @@ export interface AuctionScheduleRQ {
   publish?: boolean;
 }
 
+/** Invites participants to a restricted-access auction by email or phone number. */
+export interface AuctionInvitationRQ {
+  emails?: string[];
+  phoneNumbers?: string[];
+}
+
 export interface AuctionUnitCreationRQ {
   tags?: string[];
   subCategories?: string[];
@@ -403,6 +409,12 @@ export const auctionsApi = {
 
   deleteAuction: async (id: string): Promise<void> => {
     await apiClient.delete(`/api/v1/auctions/${id}`);
+  },
+
+  /** Invites participants to a restricted-access auction by email or phone number.
+   *  Optional step in the wizard — safe to skip if nobody needs a direct invite. */
+  inviteParticipants: async (id: string, data: AuctionInvitationRQ): Promise<void> => {
+    await apiClient.post(`/api/v1/auctions/${id}/invitations`, data);
   },
 
   scheduleAuction: async (id: string, data: AuctionScheduleRQ): Promise<void> => {

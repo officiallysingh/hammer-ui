@@ -1,27 +1,39 @@
 'use client';
 
-import { Activity, AlertCircle, Clock, Info, ShieldCheck, type LucideIcon } from 'lucide-react';
+import {
+  Activity,
+  AlertCircle,
+  Clock,
+  FileEdit,
+  Info,
+  Send,
+  ShieldCheck,
+  Trophy,
+  type LucideIcon,
+} from 'lucide-react';
 import { formatLabel, resolveStr } from './format';
 
 /** Unified auction-status visual mapping shared by the list, view, and step
- *  pages. The colors here are the single source of truth — keep them in sync
- *  with any backend enums you add. */
+ *  pages. Mirrors the backend's `Auction.Status` enum — keep in sync with it:
+ *  DRAFT, SCHEDULED, PUBLISHED, LIVE, CANCELLED, COMPLETED, AWARDED. */
 const STATUS_CONFIG: Record<
   string,
   { bg: string; icon: LucideIcon; animate?: boolean; label?: string }
 > = {
-  CREATED: { bg: 'bg-blue-500/10 text-blue-600 border-blue-500/30', icon: Info },
+  DRAFT: { bg: 'bg-muted text-muted-foreground border-border', icon: FileEdit },
   SCHEDULED: { bg: 'bg-amber-500/10 text-amber-600 border-amber-500/30', icon: Clock },
-  RUNNING: {
+  PUBLISHED: { bg: 'bg-blue-500/10 text-blue-600 border-blue-500/30', icon: Send },
+  LIVE: {
     bg: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30',
     icon: Activity,
     animate: true,
   },
+  CANCELLED: { bg: 'bg-rose-500/10 text-rose-600 border-rose-500/30', icon: AlertCircle },
   COMPLETED: {
     bg: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30',
     icon: ShieldCheck,
   },
-  CANCELLED: { bg: 'bg-rose-500/10 text-rose-600 border-rose-500/30', icon: AlertCircle },
+  AWARDED: { bg: 'bg-violet-500/10 text-violet-600 border-violet-500/30', icon: Trophy },
 };
 
 /** Shared auction-status badge. Use `size="sm"` for table cells, `"md"` for
@@ -39,7 +51,7 @@ export function StatusBadge({
   if (!str) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
-  const cfg = STATUS_CONFIG[str] ?? {
+  const cfg: { bg: string; icon: LucideIcon; animate?: boolean } = STATUS_CONFIG[str] ?? {
     bg: 'bg-muted text-muted-foreground border-border',
     icon: Info,
   };

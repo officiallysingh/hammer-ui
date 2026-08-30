@@ -20,6 +20,8 @@ import {
   Info,
   Search,
   X,
+  CalendarClock,
+  Send,
 } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button, Label, DateTimePicker, Tooltip, TooltipContent, TooltipTrigger } from '@repo/ui';
@@ -176,6 +178,8 @@ export default function AuctionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [confirmPublishId, setConfirmPublishId] = useState<string | null>(null);
   const PAGE_SIZE = 20;
   const [pageIndex, setPageIndex] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -315,6 +319,31 @@ export default function AuctionsPage() {
     }
   };
 
+  // Publishing a SCHEDULED auction keeps its existing start/end times — only the
+  // `publish` flag flips, so this can happen inline from the table without
+  // sending the admin back through the schedule form.
+  const handlePublish = async (auction: AuctionVM) => {
+    const startTime = auction.schedule?.startTime ?? auction.startTime;
+    const endTime = auction.schedule?.endTime ?? auction.endTime;
+    if (!startTime || !endTime) {
+      setError('This auction has no schedule to publish yet.');
+      setConfirmPublishId(null);
+      return;
+    }
+    setPublishingId(auction.id);
+    setConfirmPublishId(null);
+    try {
+      await auctionsApi.scheduleAuction(auction.id, { startTime, endTime, publish: true });
+      setAuctions((prev) =>
+        prev.map((a) => (a.id === auction.id ? { ...a, status: 'PUBLISHED' } : a)),
+      );
+    } catch {
+      setError('Failed to publish auction.');
+    } finally {
+      setPublishingId(null);
+    }
+  };
+
   const columns: ColumnDef<AuctionVM>[] = [
     {
       accessorKey: 'title',
@@ -418,45 +447,82 @@ export default function AuctionsPage() {
     {
       id: 'actions',
       header: '',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-0.5 justify-end">
-          <Tip label="View">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
-              onClick={() => router.push(`/admin/auctions/${row.original.id}/view`)}
-            >
-              <Eye className="h-3.5 w-3.5" />
-            </Button>
-          </Tip>
-          <Tip label="Edit">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
-              onClick={() => router.push(`/admin/auctions/${row.original.id}/edit`)}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-          </Tip>
-          <Tip label="Delete">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={() => setConfirmId(row.original.id)}
-              disabled={deletingId === row.original.id}
-            >
-              {deletingId === row.original.id ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="h-3.5 w-3.5" />
-              )}
-            </Button>
-          </Tip>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const status = resolveStr(row.original.status);
+        // Delete stops being offered once the auction goes public — DRAFT and
+        // SCHEDULED are the only pre-publish states.
+        const canDelete = status === 'DRAFT' || status === 'SCHEDULED';
+        return (
+          <div className="flex items-center gap-0.5 justify-end">
+            <Tip label="View">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+                onClick={() => router.push(`/admin/auctions/${row.original.id}/view`)}
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </Button>
+            </Tip>
+            <Tip label="Edit">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+                onClick={() => router.push(`/admin/auctions/${row.original.id}/edit`)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </Tip>
+            {status === 'DRAFT' && (
+              <Tip label="Schedule">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10"
+                  onClick={() => router.push(`/admin/auctions/${row.original.id}/edit?step=5`)}
+                >
+                  <CalendarClock className="h-3.5 w-3.5" />
+                </Button>
+              </Tip>
+            )}
+            {status === 'SCHEDULED' && (
+              <Tip label="Publish">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-blue-600 hover:bg-blue-500/10"
+                  onClick={() => setConfirmPublishId(row.original.id)}
+                  disabled={publishingId === row.original.id}
+                >
+                  {publishingId === row.original.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Send className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </Tip>
+            )}
+            {canDelete && (
+              <Tip label="Delete">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => setConfirmId(row.original.id)}
+                  disabled={deletingId === row.original.id}
+                >
+                  {deletingId === row.original.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </Tip>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -615,6 +681,18 @@ export default function AuctionsPage() {
           if (confirmId) handleDelete(confirmId);
         }}
         onCancel={() => setConfirmId(null)}
+      />
+
+      <ConfirmDialog
+        open={confirmPublishId !== null}
+        title="Publish auction?"
+        description="This makes the auction publicly visible ahead of its scheduled start time."
+        confirmLabel="Publish"
+        onConfirm={() => {
+          const auction = auctions.find((a) => a.id === confirmPublishId);
+          if (auction) handlePublish(auction);
+        }}
+        onCancel={() => setConfirmPublishId(null)}
       />
     </div>
   );

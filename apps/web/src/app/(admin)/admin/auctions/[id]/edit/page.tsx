@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { auctionsApi, AuctionUpdationRQ, AuctionUnitType } from '@repo/api';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@repo/ui';
@@ -20,6 +20,7 @@ import {
   validatePolicies,
 } from '../../_components/AuctionStep3PolicyMapping';
 import { AuctionStep5Workflow } from '../../_components/AuctionStep5Workflow';
+import { AuctionStep6Invitations } from '../../_components/AuctionStep6Invitations';
 
 /** Derives the UI priceProgression value from the stored auction type key */
 function derivePriceProgression(auctionType: string): string {
@@ -33,9 +34,15 @@ function derivePriceProgression(auctionType: string): string {
 export default function EditAuctionPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [pageLoading, setPageLoading] = useState(true);
-  const [step, setStep] = useState(1);
+  // Lets the auctions table deep-link straight to a step, e.g. `?step=5` to
+  // jump to Schedule without walking through the earlier wizard steps.
+  const [step, setStep] = useState(() => {
+    const requested = parseInt(searchParams.get('step') ?? '', 10);
+    return requested >= 1 && requested <= 6 ? requested : 1;
+  });
 
   const [originalStep1, setOriginalStep1] = useState<Step1State | null>(null);
   const origStep2Ref = useRef({ unitType: '', openingPrice: '', items: [] as string[] });
@@ -539,8 +546,16 @@ export default function EditAuctionPage() {
         <AuctionStep5Workflow
           auctionId={id}
           onBack={() => setStep(4)}
-          onFinish={() => router.push('/admin/auctions')}
+          onFinish={() => setStep(6)}
           showScheduleOnly
+        />
+      )}
+
+      {step === 6 && (
+        <AuctionStep6Invitations
+          auctionId={id}
+          onBack={() => setStep(5)}
+          onFinish={() => router.push('/admin/auctions')}
         />
       )}
     </div>

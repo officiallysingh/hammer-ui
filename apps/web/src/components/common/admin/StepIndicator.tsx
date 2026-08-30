@@ -14,12 +14,16 @@ export function StepIndicator({
    *  the bar should be predictable); "flex" — connectors stretch to fill the
    *  container (good when labels are long and the bar should span full width). */
   connector = 'fixed',
+  /** 1-based step numbers that can be skipped — badged with a distinct accent
+   *  color on their circle so admins can see at a glance which steps aren't required. */
+  optionalSteps = [],
 }: {
   steps: string[];
   current: number;
   onStepClick?: (step: number) => void;
   editMode?: boolean;
   connector?: 'fixed' | 'flex';
+  optionalSteps?: number[];
 }) {
   return (
     <div className={`flex items-center mb-6 ${connector === 'flex' ? 'w-full px-2' : 'gap-2'}`}>
@@ -27,6 +31,7 @@ export function StepIndicator({
         const s = i + 1;
         const done = s < current;
         const active = s === current;
+        const isOptional = optionalSteps.includes(s);
         const clickable = !!onStepClick && (editMode ? !active : done);
         const showConnector = i < steps.length - 1;
         return (
@@ -48,10 +53,14 @@ export function StepIndicator({
                 }
                 className={`flex items-center justify-center h-9 w-9 rounded-full text-sm font-semibold transition-colors ${
                   active
-                    ? 'bg-primary text-primary-foreground ring-4 ring-primary/20'
+                    ? isOptional
+                      ? 'bg-violet-500 text-white ring-4 ring-violet-500/20'
+                      : 'bg-primary text-primary-foreground ring-4 ring-primary/20'
                     : done
                       ? 'bg-emerald-500 text-white'
-                      : 'bg-muted text-muted-foreground'
+                      : isOptional
+                        ? 'bg-violet-500/15 text-violet-600'
+                        : 'bg-muted text-muted-foreground'
                 } ${clickable ? 'cursor-pointer hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-emerald-400/40' : ''}`}
               >
                 {s}
@@ -60,6 +69,7 @@ export function StepIndicator({
                 className={`text-xs font-medium whitespace-nowrap ${active ? 'text-foreground' : 'text-muted-foreground'}`}
               >
                 {label}
+                {isOptional && <span className="text-muted-foreground/70"> (optional)</span>}
               </span>
             </div>
             {showConnector && (

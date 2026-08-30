@@ -1285,6 +1285,7 @@ import {
   Users,
   CreditCard,
   GitFork,
+  RefreshCw,
 } from 'lucide-react';
 import {
   Button,
@@ -1660,7 +1661,7 @@ export default function AuctionViewPage() {
         setPolicies(pol);
         setWorkflow(wf ?? []);
         const status = resolveStr(a.status);
-        const live = status === 'SCHEDULED' || status === 'RUNNING';
+        const live = status === 'SCHEDULED' || status === 'PUBLISHED' || status === 'LIVE';
         if (live) {
           return fetchEvaluations(pol);
         }
@@ -2142,19 +2143,35 @@ export default function AuctionViewPage() {
                   </p>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.push(`/admin/auctions/${id}/edit`)}
-                className="gap-1.5 text-xs rounded-xl shrink-0"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                Edit
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRefreshPolicies}
+                  disabled={reloadingPolicies}
+                  className="gap-1.5 text-xs rounded-xl"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${reloadingPolicies ? 'animate-spin' : ''}`} />
+                  Re-evaluate
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push(`/admin/auctions/${id}/edit`)}
+                  className="gap-1.5 text-xs rounded-xl"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit
+                </Button>
+              </div>
             </div>
 
             <div className="p-6">
-              <PoliciesTimeline stages={policyStages} auction={auction} />
+              <PoliciesTimeline
+                stages={policyStages}
+                auction={auction}
+                evaluationsByPolicyId={evaluationsByPolicyId}
+              />
             </div>
           </div>
         </TabsContent>

@@ -5,7 +5,8 @@ import { NestedChild } from './types';
 import { TimelineItem } from './TimelineItem';
 import { humanizeIsoDuration, parseIsoDurationMs, fmtLabel } from '../../_components/PolicyShared';
 import { formatDateTime } from '@/components/common/admin/format';
-import { AuctionVM, PolicyItemRQ } from '@repo/api';
+import { AuctionVM, PolicyItemRQ, PolicyEvaluationMap } from '@repo/api';
+import { PolicyItemCard } from '../PolicyEvaluationDisplay';
 
 interface PolicyStage {
   id: string;
@@ -20,9 +21,18 @@ interface PolicyStage {
 interface PoliciesTimelineProps {
   stages: PolicyStage[];
   auction: AuctionVM;
+  /** Live per-policy evaluation results, keyed by policy id (same shape the
+   *  workflow builder and Step 3 edit wizard use) — policies with a result
+   *  here render the same reusable evaluate card those surfaces use, instead
+   *  of a plain static chip. */
+  evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
 }
 
-export function PoliciesTimeline({ stages, auction }: PoliciesTimelineProps) {
+export function PoliciesTimeline({
+  stages,
+  auction,
+  evaluationsByPolicyId,
+}: PoliciesTimelineProps) {
   if (stages.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center text-center py-10 gap-3">
@@ -119,32 +129,49 @@ export function PoliciesTimeline({ stages, auction }: PoliciesTimelineProps) {
               });
           }
 
-          // Chips for other policies
-          const chips: string[] = [];
-          if (stage.id !== 'auction-running') {
-            stage.groups.forEach(([, items]) => {
-              items.forEach((item) => {
-                let text = item.name || fmtLabel(item.type);
-                if (item.count != null) text += ` (≥ ${item.count})`;
-                if (item.kth != null)
-                  text += ` (${item.kth === 1 ? '1st' : item.kth + 'th'} price)`;
-                chips.push(text);
-              });
-            });
-          } else {
-            stage.groups
-              .filter(([key]) => key.toUpperCase() !== 'PRICE_PROGRESSION')
-              .forEach(([, items]) => {
-                items.forEach((item) => {
-                  let text = item.name || fmtLabel(item.type);
-                  if (item.duration) {
-                    text += ` (${humanizeIsoDuration(parseIsoDurationMs(item.duration))})`;
-                  }
-                  if (item.limit === 0) text += ' • unlimited';
-                  chips.push(text);
-                });
-              });
-          }
+          // Policies in this stage (excluding the price-progression wrapper, which
+          // renders as the nested window sequence above instead).
+          const stageItems = (
+            stage.id === 'auction-running'
+              ? stage.groups.filter(([key]) => key.toUpperCase() !== 'PRICE_PROGRESSION')
+              : stage.groups
+          ).flatMap(([, items]) => items);
+
+          // Each policy shows in exactly one place: a policy with a live evaluation
+          // result renders the same reusable evaluate card the edit wizard and
+          // workflow builder use; one without (not evaluated yet, e.g. a draft
+          // auction) falls back to a compact static-config chip so nothing goes
+          // blank while still avoiding showing both for the same policy.
+          const hasEvaluation = (item: PolicyItemRQ) =>
+            !!item.id && Object.keys(evaluationsByPolicyId?.[item.id] ?? {}).length > 0;
+          const evaluatedItems = stageItems.filter(hasEvaluation);
+          const chipItems = stageItems.filter((item) => !hasEvaluation(item));
+
+          const chips = chipItems.map((item) => {
+            let text = item.name || fmtLabel(item.type);
+            if (item.count != null) text += ` (≥ ${item.count})`;
+            if (item.kth != null) text += ` (${item.kth === 1 ? '1st' : item.kth + 'th'} price)`;
+            if (item.duration)
+              text += ` (${humanizeIsoDuration(parseIsoDurationMs(item.duration))})`;
+            if (item.limit === 0) text += ' • unlimited';
+            return text;
+          });
+
+          const details =
+            evaluatedItems.length > 0 ? (
+              <div className="space-y-2">
+                {evaluatedItems.map((item, i) => (
+                  <PolicyItemCard
+                    key={item.id ?? i}
+                    auctionId={auction.id}
+                    policyId={item.id}
+                    name={item.name}
+                    type={item.type}
+                    evaluations={item.id ? evaluationsByPolicyId?.[item.id] : undefined}
+                  />
+                ))}
+              </div>
+            ) : undefined;
 
           const iconMap: Record<string, React.ReactNode> = {
             'before-start': <Users className="h-5 w-5 text-amber-600" />,
@@ -171,6 +198,7 @@ export function PoliciesTimeline({ stages, auction }: PoliciesTimelineProps) {
               badge={stage.label}
               badgeClass={stage.textClassName}
               subs={chips}
+              details={details}
               isLast={isLast}
               durationToNext={durationToNext}
             >
