@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, RotateCcw, Trash2, CheckCircle2, XCircle, Star } from 'lucide-react';
+import { Plus, RotateCcw, Trash2, CheckCircle2, XCircle, Star, Upload } from 'lucide-react';
 import { Button, Label, DatePicker, TimePicker, DateTimePicker, YearPicker } from '@repo/ui';
 import type { PropertyDef } from '@repo/api';
 import { resolveAttrs } from './attribute-protocol';
@@ -11,6 +11,7 @@ import { AddressField } from '@/components/common/admin/AddressField';
 interface PropertyFormPreviewProps {
   properties: PropertyDef[];
   initialValues?: Record<string, unknown>;
+  disabled?: boolean;
 }
 
 // ── Dummy value generation ────────────────────────────────────────────────────
@@ -107,7 +108,11 @@ export function generateDummyValues(properties: PropertyDef[]): Record<string, u
   return out;
 }
 
-export function PropertyFormPreview({ properties, initialValues }: PropertyFormPreviewProps) {
+export function PropertyFormPreview({
+  properties,
+  initialValues,
+  disabled,
+}: PropertyFormPreviewProps) {
   const [values, setValues] = useState<Record<string, unknown>>(initialValues ?? {});
 
   if (properties.length === 0) {
@@ -123,21 +128,23 @@ export function PropertyFormPreview({ properties, initialValues }: PropertyFormP
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">
-          Interactive preview — fill in fields to test rendering
-        </p>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => setValues({})}
-          className="h-7 gap-1.5 text-xs"
-        >
-          <RotateCcw className="h-3 w-3" />
-          Reset
-        </Button>
-      </div>
+      {!disabled && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            Interactive preview — fill in fields to test rendering
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setValues({})}
+            className="h-7 gap-1.5 text-xs"
+          >
+            <RotateCcw className="h-3 w-3" />
+            Reset
+          </Button>
+        </div>
+      )}
 
       <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-5">
         {properties.map((prop) => (
@@ -146,6 +153,7 @@ export function PropertyFormPreview({ properties, initialValues }: PropertyFormP
             prop={prop}
             value={values[prop.name]}
             onChange={(v) => setField(prop.name, v)}
+            disabled={disabled}
           />
         ))}
       </div>
@@ -202,9 +210,10 @@ interface FieldGroupProps {
   value: unknown;
   onChange: (value: unknown) => void;
   depth?: number;
+  disabled?: boolean;
 }
 
-function PreviewFieldGroup({ prop, value, onChange, depth = 0 }: FieldGroupProps) {
+function PreviewFieldGroup({ prop, value, onChange, depth = 0, disabled }: FieldGroupProps) {
   const indent = depth > 0 ? 'ml-4 pl-3 border-l border-border' : '';
   const required = isRequired(prop);
 
@@ -231,6 +240,7 @@ function PreviewFieldGroup({ prop, value, onChange, depth = 0 }: FieldGroupProps
                 value={obj[child.name]}
                 onChange={(v) => onChange({ ...obj, [child.name]: v })}
                 depth={depth + 1}
+                disabled={disabled}
               />
             ))}
           </div>
@@ -248,6 +258,7 @@ function PreviewFieldGroup({ prop, value, onChange, depth = 0 }: FieldGroupProps
         indent={indent}
         required={required}
         depth={depth}
+        disabled={disabled}
       />
     );
   }
@@ -268,7 +279,13 @@ function PreviewFieldGroup({ prop, value, onChange, depth = 0 }: FieldGroupProps
 
   const inputEl = (
     <>
-      <PreviewScalarField prop={prop} value={value} onChange={onChange} formAttrs={formAttrs} />
+      <PreviewScalarField
+        prop={prop}
+        value={value}
+        onChange={onChange}
+        formAttrs={formAttrs}
+        disabled={disabled}
+      />
       {helperText && <p className="text-xs text-muted-foreground/70 mt-0.5">{helperText}</p>}
     </>
   );
@@ -310,6 +327,7 @@ function PreviewListField({
   indent,
   required,
   depth,
+  disabled,
 }: {
   prop: PropertyDef;
   value: unknown;
@@ -317,6 +335,7 @@ function PreviewListField({
   indent: string;
   required: boolean;
   depth: number;
+  disabled?: boolean;
 }) {
   const children = prop.value ?? [];
   const items = Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
@@ -341,27 +360,31 @@ function PreviewListField({
           {prop.label}
           {required && <span className="text-destructive ml-0.5">*</span>}
         </Label>
-        <button
-          type="button"
-          onClick={addItem}
-          className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium"
-        >
-          <Plus className="h-3 w-3" />
-          Add item
-        </button>
+        {!disabled && (
+          <button
+            type="button"
+            onClick={addItem}
+            className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium"
+          >
+            <Plus className="h-3 w-3" />
+            Add item
+          </button>
+        )}
       </div>
 
       {items.length === 0 && (
         <div className="rounded-md border border-dashed border-border bg-muted/10 py-4 text-center">
           <p className="text-xs text-muted-foreground">
             No items yet —{' '}
-            <button
-              type="button"
-              onClick={addItem}
-              className="text-primary hover:underline font-medium"
-            >
-              add the first one
-            </button>
+            {!disabled && (
+              <button
+                type="button"
+                onClick={addItem}
+                className="text-primary hover:underline font-medium"
+              >
+                add the first one
+              </button>
+            )}
           </p>
         </div>
       )}
@@ -373,13 +396,15 @@ function PreviewListField({
               <span className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">
                 {prop.label} #{idx + 1}
               </span>
-              <button
-                type="button"
-                onClick={() => removeItem(idx)}
-                className="text-muted-foreground hover:text-destructive transition-colors"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              {!disabled && (
+                <button
+                  type="button"
+                  onClick={() => removeItem(idx)}
+                  className="text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
             {children.map((child: PropertyDef) => (
               <PreviewFieldGroup
@@ -388,6 +413,7 @@ function PreviewListField({
                 value={item[child.name]}
                 onChange={(v) => updateItem(idx, child.name, v)}
                 depth={depth + 1}
+                disabled={disabled}
               />
             ))}
           </div>
@@ -404,23 +430,27 @@ function PreviewScalarField({
   value: rawValue,
   onChange,
   formAttrs,
+  disabled,
 }: {
   prop: PropertyDef;
   value: unknown;
   onChange: (value: unknown) => void;
   formAttrs?: Record<string, string>;
+  disabled?: boolean;
 }) {
   const [tagInputVal, setTagInputVal] = useState('');
-  const base = baseClass(formAttrs);
+  const base = disabled
+    ? `${baseClass(formAttrs)} disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-muted/50`
+    : baseClass(formAttrs);
   const numBase = `${base} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`;
   const dataType = resolveDataType(prop.dataType as unknown);
 
   // Spatial types are stored as structured objects — handle before string coercion
   if (dataType === 'COORDINATES') {
-    return <CoordinatesMapField value={rawValue} onChange={onChange} />;
+    return <CoordinatesMapField value={rawValue} onChange={onChange} disabled={disabled} />;
   }
   if (dataType === 'ADDRESS') {
-    return <AddressField value={rawValue} onChange={onChange} />;
+    return <AddressField value={rawValue} onChange={onChange} disabled={disabled} />;
   }
 
   const value = typeof rawValue === 'string' ? rawValue : rawValue != null ? String(rawValue) : '';
@@ -467,7 +497,8 @@ function PreviewScalarField({
               step={stepN}
               value={numVal}
               onChange={(e) => onChange(e.target.value)}
-              className="flex-1 accent-primary cursor-pointer"
+              disabled={disabled}
+              className={`flex-1 accent-primary ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
             />
             <span className="text-sm font-mono w-10 text-right tabular-nums shrink-0">
               {numVal}
@@ -484,11 +515,14 @@ function PreviewScalarField({
       const stepN = step ? Number(step) : 1;
       const numV = value !== '' ? Number(value) : 0;
       return (
-        <div className="flex items-center w-fit rounded-md border border-input overflow-hidden">
+        <div
+          className={`flex items-center w-fit rounded-md border border-input overflow-hidden ${disabled ? 'opacity-50' : ''}`}
+        >
           <button
             type="button"
             onClick={() => onChange(String(numV - stepN))}
-            className="h-9 w-9 flex items-center justify-center bg-muted hover:bg-muted/80 text-lg font-medium border-r border-input"
+            disabled={disabled}
+            className="h-9 w-9 flex items-center justify-center bg-muted hover:bg-muted/80 text-lg font-medium border-r border-input disabled:cursor-not-allowed disabled:hover:bg-muted"
           >
             −
           </button>
@@ -496,12 +530,14 @@ function PreviewScalarField({
             type="number"
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            className="h-9 w-16 text-center text-sm bg-background focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            disabled={disabled}
+            className="h-9 w-16 text-center text-sm bg-background focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none disabled:cursor-not-allowed disabled:bg-muted/50"
           />
           <button
             type="button"
             onClick={() => onChange(String(numV + stepN))}
-            className="h-9 w-9 flex items-center justify-center bg-muted hover:bg-muted/80 text-lg font-medium border-l border-input"
+            disabled={disabled}
+            className="h-9 w-9 flex items-center justify-center bg-muted hover:bg-muted/80 text-lg font-medium border-l border-input disabled:cursor-not-allowed disabled:hover:bg-muted"
           >
             +
           </button>
@@ -510,13 +546,14 @@ function PreviewScalarField({
     }
     if (uiComponent === 'rating') {
       return (
-        <div className="flex gap-0.5 pt-0.5">
+        <div className={`flex gap-0.5 pt-0.5 ${disabled ? 'opacity-50' : ''}`}>
           {[1, 2, 3, 4, 5].map((star) => (
             <button
               key={star}
               type="button"
               onClick={() => onChange(String(value === String(star) ? 0 : star))}
-              className={`text-2xl leading-none transition-colors ${Number(value) >= star ? 'text-yellow-400' : 'text-muted-foreground/25 hover:text-yellow-300'}`}
+              disabled={disabled}
+              className={`text-2xl leading-none transition-colors disabled:cursor-not-allowed ${Number(value) >= star ? 'text-yellow-400' : 'text-muted-foreground/25 hover:text-yellow-300'}`}
             >
               ★
             </button>
@@ -536,6 +573,7 @@ function PreviewScalarField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        disabled={disabled}
         className={numBase}
       />
     );
@@ -557,7 +595,8 @@ function PreviewScalarField({
               step={stepN}
               value={numVal}
               onChange={(e) => onChange(e.target.value)}
-              className="flex-1 accent-primary cursor-pointer"
+              disabled={disabled}
+              className={`flex-1 accent-primary ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
             />
             <span className="text-sm font-mono w-12 text-right tabular-nums shrink-0">
               {numVal}
@@ -579,6 +618,7 @@ function PreviewScalarField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        disabled={disabled}
         className={numBase}
       />
     );
@@ -594,7 +634,8 @@ function PreviewScalarField({
           role="switch"
           aria-checked={on}
           onClick={() => onChange(on ? 'false' : 'true')}
-          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${on ? 'bg-primary' : 'bg-muted'}`}
+          disabled={disabled}
+          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${on ? 'bg-primary' : 'bg-muted'}`}
         >
           <span
             className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition-transform ${on ? 'translate-x-5' : 'translate-x-0'}`}
@@ -604,11 +645,14 @@ function PreviewScalarField({
     }
     if (uiComponent === 'checkbox') {
       return (
-        <label className="flex items-center gap-2 text-sm cursor-pointer select-none w-fit">
+        <label
+          className={`flex items-center gap-2 text-sm select-none w-fit ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+        >
           <input
             type="checkbox"
             checked={value === 'true'}
             onChange={(e) => onChange(e.target.checked ? 'true' : 'false')}
+            disabled={disabled}
             className="h-4 w-4 accent-primary"
           />
           <span className="text-muted-foreground">{value === 'true' ? 'Yes' : 'No'}</span>
@@ -616,18 +660,22 @@ function PreviewScalarField({
       );
     }
     return (
-      <div className="flex gap-4 pt-0.5">
+      <div className={`flex gap-4 pt-0.5 ${disabled ? 'opacity-50' : ''}`}>
         {[
           { label: 'Yes', val: 'true' },
           { label: 'No', val: 'false' },
         ].map(({ label, val }) => (
-          <label key={val} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+          <label
+            key={val}
+            className={`flex items-center gap-2 text-sm select-none ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+          >
             <input
               type="radio"
               name={`preview-${prop.name}`}
               value={val}
               checked={value === val}
               onChange={() => onChange(val)}
+              disabled={disabled}
               className="accent-primary"
             />
             {label}
@@ -639,12 +687,31 @@ function PreviewScalarField({
 
   // ── Date / Time ───────────────────────────────────────────────────────────────
   if (dataType === 'LOCAL_DATE')
-    return <DatePicker value={value || undefined} onChange={onChange} placeholder={placeholder} />;
+    return (
+      <DatePicker
+        value={value || undefined}
+        onChange={onChange}
+        placeholder={placeholder}
+        disabled={disabled}
+      />
+    );
   if (dataType === 'LOCAL_TIME')
-    return <TimePicker value={value || undefined} onChange={onChange} placeholder={placeholder} />;
+    return (
+      <TimePicker
+        value={value || undefined}
+        onChange={onChange}
+        placeholder={placeholder}
+        disabled={disabled}
+      />
+    );
   if (['LOCAL_DATE_TIME', 'ZONED_DATE_TIME', 'INSTANT'].includes(dataType))
     return (
-      <DateTimePicker value={value || undefined} onChange={onChange} placeholder={placeholder} />
+      <DateTimePicker
+        value={value || undefined}
+        onChange={onChange}
+        placeholder={placeholder}
+        disabled={disabled}
+      />
     );
   if (dataType === 'YEAR')
     return (
@@ -654,6 +721,7 @@ function PreviewScalarField({
         placeholder={placeholder}
         minYear={attrMin ? Number(attrMin) : undefined}
         maxYear={attrMax ? Number(attrMax) : undefined}
+        disabled={disabled}
       />
     );
   if (dataType === 'YEAR_MONTH')
@@ -664,6 +732,7 @@ function PreviewScalarField({
         min={attrMin}
         max={attrMax}
         onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
         className={base}
       />
     );
@@ -684,7 +753,12 @@ function PreviewScalarField({
       'DECEMBER',
     ];
     return (
-      <select value={value} onChange={(e) => onChange(e.target.value)} className={base}>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className={base}
+      >
         <option value="">Select month…</option>
         {MONTHS.map((m) => (
           <option key={m} value={m}>
@@ -698,7 +772,12 @@ function PreviewScalarField({
   if (dataType === 'DAY_OF_WEEK') {
     const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
     return (
-      <select value={value} onChange={(e) => onChange(e.target.value)} className={base}>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className={base}
+      >
         <option value="">Select day…</option>
         {DAYS.map((d) => (
           <option key={d} value={d}>
@@ -712,14 +791,15 @@ function PreviewScalarField({
   // ── String & default ──────────────────────────────────────────────────────────
   if (colorOptions) {
     return (
-      <div className="flex flex-wrap gap-2 pt-0.5">
+      <div className={`flex flex-wrap gap-2 pt-0.5 ${disabled ? 'opacity-50' : ''}`}>
         {colorOptions.map((color) => (
           <button
             key={color}
             type="button"
             title={color}
             onClick={() => onChange(value === color ? '' : color)}
-            className={`flex flex-col items-center gap-1 p-1.5 rounded-lg border-2 transition-all ${value === color ? 'border-primary scale-105' : 'border-transparent hover:border-border'}`}
+            disabled={disabled}
+            className={`flex flex-col items-center gap-1 p-1.5 rounded-lg border-2 transition-all disabled:cursor-not-allowed ${value === color ? 'border-primary scale-105' : 'border-transparent hover:border-border'}`}
           >
             <span
               className="w-6 h-6 rounded-full border border-border/40 block"
@@ -752,8 +832,10 @@ function PreviewScalarField({
     };
     return (
       <div
-        className="min-h-[2.25rem] w-full rounded-md border border-input bg-background px-2 py-1.5 flex flex-wrap gap-1.5 focus-within:ring-2 focus-within:ring-ring cursor-text"
-        onClick={(e) => (e.currentTarget.querySelector('input') as HTMLInputElement)?.focus()}
+        className={`min-h-[2.25rem] w-full rounded-md border border-input bg-background px-2 py-1.5 flex flex-wrap gap-1.5 focus-within:ring-2 focus-within:ring-ring ${disabled ? 'opacity-50 cursor-not-allowed bg-muted/50' : 'cursor-text'}`}
+        onClick={(e) =>
+          !disabled && (e.currentTarget.querySelector('input') as HTMLInputElement)?.focus()
+        }
       >
         {tags.map((tag, i) => (
           <span
@@ -761,16 +843,18 @@ function PreviewScalarField({
             className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-sm font-medium"
           >
             {tag}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onChange(tags.filter((_, j) => j !== i).join(','));
-              }}
-              className="leading-none hover:text-primary/60"
-            >
-              ×
-            </button>
+            {!disabled && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChange(tags.filter((_, j) => j !== i).join(','));
+                }}
+                className="leading-none hover:text-primary/60"
+              >
+                ×
+              </button>
+            )}
           </span>
         ))}
         <input
@@ -789,7 +873,8 @@ function PreviewScalarField({
             if (tagInputVal.trim()) addTag(tagInputVal);
           }}
           placeholder={tags.length === 0 ? placeholder : 'Add more…'}
-          className="flex-1 min-w-[8rem] bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+          disabled={disabled}
+          className="flex-1 min-w-[8rem] bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 disabled:cursor-not-allowed"
         />
       </div>
     );
@@ -797,13 +882,14 @@ function PreviewScalarField({
 
   if (uiComponent === 'option-pills' && options) {
     return (
-      <div className="flex flex-wrap gap-2 pt-0.5">
+      <div className={`flex flex-wrap gap-2 pt-0.5 ${disabled ? 'opacity-50' : ''}`}>
         {options.map((o) => (
           <button
             key={o.value}
             type="button"
             onClick={() => onChange(value === o.value ? '' : o.value)}
-            className={`px-3.5 py-1.5 rounded-full text-sm font-medium border transition-all ${value === o.value ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background text-foreground hover:border-primary/50 hover:bg-muted/40'}`}
+            disabled={disabled}
+            className={`px-3.5 py-1.5 rounded-full text-sm font-medium border transition-all disabled:cursor-not-allowed ${value === o.value ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background text-foreground hover:border-primary/50 hover:bg-muted/40'}`}
           >
             {o.label}
           </button>
@@ -814,7 +900,12 @@ function PreviewScalarField({
 
   if (options) {
     return (
-      <select value={value} onChange={(e) => onChange(e.target.value)} className={base}>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className={base}
+      >
         <option value="">{placeholder}</option>
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -825,6 +916,89 @@ function PreviewScalarField({
     );
   }
 
+  // ── File upload ───────────────────────────────────────────────────────────────
+  if (dataType === 'FILE') {
+    const accept = attrs['html:accept'];
+    const isImage = !!accept?.includes('image');
+    return (
+      <label
+        className={`flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border transition-colors py-6 px-4 text-center ${disabled ? 'opacity-50 cursor-not-allowed bg-muted/50' : 'cursor-pointer hover:border-primary/40 hover:bg-muted/20'}`}
+      >
+        <Upload className="h-6 w-6 text-muted-foreground/40" />
+        <span className="text-sm font-medium text-foreground">
+          {value ? String(value) : 'Drag & drop or click to browse'}
+        </span>
+        {accept && <span className="text-[10px] text-muted-foreground/50">{accept}</span>}
+        {!isImage && <span className="text-[10px] text-muted-foreground/50">File upload</span>}
+        <input
+          type="file"
+          accept={accept}
+          className="sr-only"
+          onChange={(e) => onChange(e.target.files?.[0]?.name ?? '')}
+          disabled={disabled}
+        />
+      </label>
+    );
+  }
+
+  // ── Duration (PT…) ────────────────────────────────────────────────────────────
+  if (dataType === 'DURATION') {
+    const parts = /^PT?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(String(value ?? ''));
+    const [h, m, s] = [parts?.[1] ?? '0', parts?.[2] ?? '0', parts?.[3] ?? '0'];
+    const emit = (hv: string, mv: string, sv: string) =>
+      onChange(`PT${hv || 0}H${mv || 0}M${sv || 0}S`);
+    return (
+      <div className={`flex items-center gap-2 flex-wrap ${disabled ? 'opacity-50' : ''}`}>
+        {[
+          { label: 'h', val: h, set: (v: string) => emit(v, m, s) },
+          { label: 'min', val: m, set: (v: string) => emit(h, v, s) },
+          { label: 'sec', val: s, set: (v: string) => emit(h, m, v) },
+        ].map(({ label, val, set }) => (
+          <div key={label} className="flex items-center gap-1">
+            <input
+              type="number"
+              min="0"
+              value={val}
+              onChange={(e) => set(e.target.value)}
+              disabled={disabled}
+              className={`w-16 ${numBase}`}
+            />
+            <span className="text-xs text-muted-foreground">{label}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // ── Period (P…) ───────────────────────────────────────────────────────────────
+  if (dataType === 'PERIOD') {
+    const parts = /^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)D)?$/.exec(String(value ?? ''));
+    const [yr, mo, d] = [parts?.[1] ?? '0', parts?.[2] ?? '0', parts?.[3] ?? '0'];
+    const emit = (yv: string, mv: string, dv: string) =>
+      onChange(`P${yv || 0}Y${mv || 0}M${dv || 0}D`);
+    return (
+      <div className={`flex items-center gap-2 flex-wrap ${disabled ? 'opacity-50' : ''}`}>
+        {[
+          { label: 'yr', val: yr, set: (v: string) => emit(v, mo, d) },
+          { label: 'mo', val: mo, set: (v: string) => emit(yr, v, d) },
+          { label: 'd', val: d, set: (v: string) => emit(yr, mo, v) },
+        ].map(({ label, val, set }) => (
+          <div key={label} className="flex items-center gap-1">
+            <input
+              type="number"
+              min="0"
+              value={val}
+              onChange={(e) => set(e.target.value)}
+              disabled={disabled}
+              className={`w-16 ${numBase}`}
+            />
+            <span className="text-xs text-muted-foreground">{label}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   if (multiline) {
     return (
       <textarea
@@ -832,6 +1006,7 @@ function PreviewScalarField({
         rows={rows}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        disabled={disabled}
         className={`${base} resize-none`}
       />
     );
@@ -846,6 +1021,7 @@ function PreviewScalarField({
       pattern={pattern}
       minLength={attrMin ? Number(attrMin) : undefined}
       maxLength={attrMax ? Number(attrMax) : undefined}
+      disabled={disabled}
       className={base}
     />
   );

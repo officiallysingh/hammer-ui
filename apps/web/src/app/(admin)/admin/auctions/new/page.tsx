@@ -18,6 +18,7 @@ import {
 } from '../_components/AuctionStep3Policies';
 import { buildPolicies, validatePolicies } from '../_components/AuctionStep3PolicyMapping';
 import { AuctionStep5Workflow } from '../_components/AuctionStep5Workflow';
+import { AuctionStep6Invitations } from '../_components/AuctionStep6Invitations';
 function deriveAuctionType(priceProgression: string, unitType: string): string {
   const isAtomic = unitType === 'SINGLE_UNIT' || unitType === 'BUNDLE';
   if (priceProgression === 'STEP_BASED' && isAtomic) {
@@ -405,8 +406,16 @@ export default function NewAuctionPage() {
         <AuctionStep5Workflow
           auctionId={createdAuctionId}
           onBack={() => setStep(4)}
-          onFinish={() => router.push('/admin/auctions')}
+          onFinish={() => setStep(6)}
           showScheduleOnly
+        />
+      )}
+
+      {step === 6 && createdAuctionId && (
+        <AuctionStep6Invitations
+          auctionId={createdAuctionId}
+          onBack={() => setStep(5)}
+          onFinish={() => router.push('/admin/auctions')}
         />
       )}
     </div>

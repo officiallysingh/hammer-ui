@@ -10,14 +10,8 @@ import {
   ChevronDown,
   ChevronUp,
   Plus,
-  CreditCard,
   CheckCircle2,
   Clock,
-  Landmark,
-  FileText,
-  ShieldCheck,
-  UserCheck,
-  Upload,
   Pencil,
   Trash2,
 } from 'lucide-react';
@@ -39,16 +33,24 @@ import {
   PropertyDef,
 } from '@repo/api';
 import { DismissibleError, FieldError } from './AuctionShared';
+import { PropertyFormPreview } from '@/app/(admin)/admin/metadata/_components/PropertyFormPreview';
 import {
   SELECT_CLS,
   resolveStr,
   fmtLabel,
   categoryForPolicyType,
-  parseOffsetDuration,
   buildEvaluationsByPolicy,
-  paymentStepData,
   isRefundablePrePayment,
 } from './PolicyShared';
+import {
+  StepTypeIcon,
+  WorkflowStepPhaseBadge,
+  PaymentStepDetails,
+  BankDetailStepDetails,
+  ParticipationFormStepDetails,
+  TnCStepDetails,
+  FormStepDetails,
+} from './WorkflowStepDetails';
 import { PolicyItemCard, EvaluationList } from './PolicyEvaluationDisplay';
 import { AddStepDialog } from './AddStepDialog';
 import { EditStepDialog } from './EditStepDialog';
@@ -99,21 +101,6 @@ function fmtDateTime(iso?: string | null): string {
   }
 }
 
-/** Wraps the flat `/workflow/evaluate` response (`Record<stepId, PolicyEvaluation>`)
- *  keyed by step name so `EvaluationList` renders one card per workflow step. */
-function buildStepEvaluations(
-  evaluations: PolicyEvaluationMap | null | undefined,
-  steps: AuctionWorkflowStep[],
-): Record<string, PolicyEvaluationMap> {
-  const result: Record<string, PolicyEvaluationMap> = {};
-  for (const [stepId, evaluation] of Object.entries(evaluations ?? {})) {
-    if (!evaluation) continue;
-    const name = steps.find((s) => s.id === stepId)?.name ?? stepId;
-    result[stepId] = { [name]: evaluation };
-  }
-  return result;
-}
-
 function NumberSelect({
   id,
   label,
@@ -161,42 +148,14 @@ function validateSchedule(finalStart: string, finalEnd: string): Record<string, 
   return errs;
 }
 
-function StepTypeIcon({ type, className }: { type?: unknown; className?: string }) {
-  switch (resolveStr(type)) {
-    case 'PAYMENT_STEP':
-      return <CreditCard className={className} />;
-    case 'BANK_DETAIL_FORM_STEP':
-      return <Landmark className={className} />;
-    case 'TNC_FORM_STEP':
-      return <ShieldCheck className={className} />;
-    case 'PARTICIPATION_FORM_STEP':
-      return <UserCheck className={className} />;
-    default:
-      return <FileText className={className} />;
-  }
-}
-
 /** PAYMENT_STEP has no distinct type label of its own — "Pre Payment"/"Post Payment"
  *  come from its `phase` field instead. */
 function stepDisplayName(step: AuctionWorkflowStep, index: number): string {
   if (step.name) return step.name;
   if (resolveStr(step.type) === 'PAYMENT_STEP') {
-    return resolveStr(step.phase) === 'PRE_PAYMENT' ? 'Pre Payment' : 'Post Payment';
+    return resolveStr(step.phase) === 'PRE_AUCTION' ? 'Pre Payment' : 'Post Payment';
   }
   return fmtLabel(step.type) || `Step ${index + 1}`;
-}
-
-function formatOffsetLabel(iso?: string): string {
-  const raw = parseOffsetDuration(iso);
-  // Normalise — backend may return PT72H instead of P3DT0H0M
-  const totalMinutes = Number(raw.days) * 24 * 60 + Number(raw.hours) * 60 + Number(raw.minutes);
-  const d = Math.floor(totalMinutes / (24 * 60));
-  const h = Math.floor((totalMinutes % (24 * 60)) / 60);
-  const m = totalMinutes % 60;
-  const parts = [d > 0 ? `${d}d` : null, h > 0 ? `${h}h` : null, m > 0 ? `${m}m` : null].filter(
-    Boolean,
-  );
-  return parts.length ? parts.join(' ') : '0m';
 }
 
 /** Turns an unsaved step request into a displayable step projection so drafts
@@ -220,174 +179,19 @@ function projectDraft(id: string, rq: AddWorkflowStepRQ): AuctionWorkflowStep {
         ...shared,
         type: 'PARTICIPATION_FORM_STEP',
         manualApproval: rq.manualApproval,
-        preStartValidationDuration: rq.preStartValidationDuration,
+        preStartDeadlineDuration: rq.preStartDeadlineDuration,
         embedded: { typeId: rq.typeId },
       };
     case 'FORM_STEP':
-      return { ...shared, type: 'FORM_STEP', embedded: { typeId: rq.typeId } };
+      return { ...shared, type: 'FORM_STEP', phase: rq.phase, embedded: { typeId: rq.typeId } };
     default:
-      return { ...shared, type: 'BANK_DETAIL_FORM_STEP' };
+      return { ...shared, type: 'BANK_DETAIL_FORM_STEP', implicit: rq.implicit };
   }
 }
 
 /** Keeps `order` contiguous (1..n) after any local mutation of the combined list. */
 function resequence(steps: AuctionWorkflowStep[]): AuctionWorkflowStep[] {
   return steps.map((s, i) => (s.order === i + 1 ? s : { ...s, order: i + 1 }));
-}
-
-// ── Payment step (view-only) — mode/offset/heads collected by PAYMENT_STEP ────
-
-function PaymentStepPreview({ step }: { step: AuctionWorkflowStep }) {
-  const { phase, mode, offset, heads } = paymentStepData(step);
-  return (
-    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3 text-xs">
-      <div className="flex flex-wrap gap-x-4 gap-y-1">
-        <span className="text-muted-foreground">
-          Phase:{' '}
-          <span className="text-foreground font-medium">
-            {phase === 'PRE_PAYMENT' ? 'Pre Payment' : 'Post Payment'}
-          </span>
-        </span>
-        {mode && (
-          <span className="text-muted-foreground">
-            Mode: <span className="text-foreground font-medium">{fmtLabel(mode)}</span>
-          </span>
-        )}
-        <span className="text-muted-foreground">
-          {phase === 'PRE_PAYMENT' ? 'Offset from auction start:' : 'Offset from auction end:'}{' '}
-          <span className="text-foreground font-medium">{formatOffsetLabel(offset)}</span>
-        </span>
-      </div>
-      {heads.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {heads.map((h, i) => (
-            <div key={i} className="rounded-md border border-border/50 bg-muted/20 px-2.5 py-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium text-foreground">{h.name}</span>
-                <span className="text-muted-foreground">
-                  {h.value}
-                  {h.basis === 'PERCENTAGE_BASED' ? '%' : ''}
-                </span>
-              </div>
-              {h.description && <p className="text-muted-foreground mt-0.5">{h.description}</p>}
-              {h.refundable && (
-                <span className="inline-block mt-1 rounded-full bg-emerald-500/10 text-emerald-600 px-1.5 py-0.5 text-[10px]">
-                  Refundable
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Bank details (view-only) — fixed schema collected by BANK_DETAIL_FORM_STEP ─
-
-const BANK_DETAIL_FIELDS = [
-  { label: 'Bank Name', placeholder: 'e.g. State Bank of India' },
-  { label: 'Bank IFSC Code', placeholder: 'ICIC0000733' },
-  { label: 'Bank Account Number', placeholder: '003210513654' },
-];
-
-function BankDetailsPreview() {
-  return (
-    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3 text-xs">
-      <p className="text-muted-foreground">
-        Participant provides these bank details to receive winning-amount refunds/payouts.
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {BANK_DETAIL_FIELDS.map((f) => (
-          <div key={f.label} className="space-y-1">
-            <span className="text-[11px] font-medium text-muted-foreground">{f.label}</span>
-            <div className="rounded-md border border-dashed border-border bg-muted/30 px-2.5 py-1.5 text-muted-foreground/70">
-              {f.placeholder}
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="space-y-1">
-        <span className="text-[11px] font-medium text-muted-foreground">Cancel Check</span>
-        <div className="flex items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 px-2.5 py-2 text-muted-foreground/70">
-          <Upload className="h-3.5 w-3.5" />
-          Cancelled cheque image upload
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Custom form step (view-only) — properties collected by FORM_STEP ──────────
-
-function propertyPlaceholder(prop: PropertyDef): string {
-  switch (resolveStr(prop.dataType)) {
-    case 'ADDRESS':
-      return 'Postal address';
-    case 'COORDINATES':
-      return 'Latitude, longitude';
-    case 'BOOLEAN':
-      return 'Yes / No';
-    case 'LOCAL_DATE':
-    case 'LOCAL_DATE_TIME':
-    case 'ZONED_DATE_TIME':
-    case 'INSTANT':
-      return 'Date';
-    case 'FILE':
-      return 'File upload';
-    default:
-      return `Enter ${prop.label.toLowerCase()}`;
-  }
-}
-
-function FormStepPropertiesPreview({ properties }: { properties: PropertyDef[] }) {
-  return (
-    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3 text-xs">
-      <p className="text-muted-foreground">
-        Participant fills in the following details for this step.
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {properties.map((prop) => (
-          <div key={prop.name} className="space-y-1">
-            <span className="text-[11px] font-medium text-muted-foreground">
-              {prop.label}
-              {prop.required && <span className="text-destructive ml-0.5">*</span>}
-            </span>
-            <div className="rounded-md border border-dashed border-border bg-muted/30 px-2.5 py-1.5 text-muted-foreground/70">
-              {propertyPlaceholder(prop)}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Participation form step (view-only) — collected by PARTICIPATION_FORM_STEP ─
-
-function ParticipationFormPreview({ step }: { step: AuctionWorkflowStep }) {
-  return (
-    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3 text-xs">
-      <p className="text-muted-foreground">
-        Participant submits this registration form to join the auction.
-      </p>
-      <div className="flex flex-wrap gap-x-4 gap-y-1">
-        <span className="text-muted-foreground">
-          Manual approval:{' '}
-          <span className="text-foreground font-medium">
-            {step.manualApproval ? 'Required' : 'Not required'}
-          </span>
-        </span>
-        <span className="text-muted-foreground">
-          Submissions validated within:{' '}
-          <span className="text-foreground font-medium">
-            {formatOffsetLabel(step.preStartValidationDuration)}
-          </span>{' '}
-          before auction start
-        </span>
-      </div>
-    </div>
-  );
 }
 
 // ── Workflow step accordion card ──────────────────────────────────────────────
@@ -402,7 +206,6 @@ function WorkflowStepCard({
   isDragTarget,
   participationPolicies,
   evaluationsByPolicyId,
-  evaluationsByStepId,
   onEdit,
   onDelete,
 }: {
@@ -415,7 +218,6 @@ function WorkflowStepCard({
   isDragTarget?: boolean;
   participationPolicies?: PolicyItemRQ[];
   evaluationsByPolicyId?: Record<string, PolicyEvaluationMap>;
-  evaluationsByStepId?: Record<string, PolicyEvaluationMap>;
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
@@ -475,6 +277,12 @@ function WorkflowStepCard({
           )}
         </div>
 
+        {/* Pre/Post Auction phase — hidden for TNC/Participation, which are always Pre Auction */}
+        {resolveStr(step.type) !== 'TNC_FORM_STEP' &&
+          resolveStr(step.type) !== 'PARTICIPATION_FORM_STEP' && (
+            <WorkflowStepPhaseBadge phase={step.phase} />
+          )}
+
         {/* Draft chip */}
         {isDraft && (
           <span className="rounded-full bg-amber-500/15 text-amber-600 px-2 py-0.5 text-[10px] font-medium shrink-0">
@@ -497,8 +305,10 @@ function WorkflowStepCard({
           </Tip>
         )}
 
-        {/* Delete step — implicit steps are auto-generated by the backend and can't be removed */}
-        {onDelete && !step.implicit && (
+        {/* Delete step — implicit steps can't be removed once saved (auto-generated by the
+            backend, or a Bank Detail step required by a refundable payment); drafts stay
+            removable regardless, since nothing has been persisted yet. */}
+        {onDelete && (isDraft || !step.implicit) && (
           <Tip label={isDraft ? 'Remove draft step' : 'Delete step'}>
             <Button
               type="button"
@@ -528,11 +338,6 @@ function WorkflowStepCard({
         <div className="border-t border-border/50 px-4 py-3 space-y-2 bg-muted/10 rounded-b-xl">
           {step.description && <p className="text-xs text-muted-foreground">{step.description}</p>}
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-            {step.order != null && (
-              <span className="text-muted-foreground">
-                Order: <span className="text-foreground font-medium">{step.order}</span>
-              </span>
-            )}
             {step.implicit && (
               <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground text-[10px]">
                 Implicit
@@ -545,16 +350,6 @@ function WorkflowStepCard({
               </span>
             )}
           </div>
-
-          {/* Step-level evaluation from the bulk /workflow/evaluate result */}
-          {step.id && evaluationsByStepId?.[step.id] && (
-            <div className="mt-1.5 space-y-1">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-                Evaluation
-              </p>
-              <EvaluationList evaluations={evaluationsByStepId[step.id]} />
-            </div>
-          )}
 
           {/* Step status details — e.g. transaction ref, bank verification status */}
           {step.status?.details && Object.keys(step.status.details).length > 0 && (
@@ -582,7 +377,7 @@ function WorkflowStepCard({
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
                 Payment
               </p>
-              <PaymentStepPreview step={step} />
+              <PaymentStepDetails step={step} />
             </div>
           )}
 
@@ -592,7 +387,7 @@ function WorkflowStepCard({
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
                 Bank Details
               </p>
-              <BankDetailsPreview />
+              <BankDetailStepDetails />
             </div>
           )}
 
@@ -602,7 +397,14 @@ function WorkflowStepCard({
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
                 Participation
               </p>
-              <ParticipationFormPreview step={step} />
+              <ParticipationFormStepDetails step={step} />
+            </div>
+          )}
+
+          {/* Custom form step — before/after-auction phase, view-only */}
+          {resolveStr(step.type) === 'FORM_STEP' && (
+            <div className="mt-1.5 space-y-1">
+              <FormStepDetails step={step} />
             </div>
           )}
 
@@ -614,7 +416,7 @@ function WorkflowStepCard({
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
                   Form Fields
                 </p>
-                <FormStepPropertiesPreview properties={step.embedded!.properties!} />
+                <PropertyFormPreview properties={step.embedded!.properties!} disabled={true} />
               </div>
             )}
 
@@ -657,25 +459,14 @@ function WorkflowStepCard({
             );
           })()}
 
-          {(() => {
-            const isTnCStep = resolveStr(step.type) === 'TNC_FORM_STEP';
-            if (!isTnCStep) return null;
-            const tncText = step.tncText;
-
-            return (
-              <div className="mt-2 space-y-2">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-                  Terms & Conditions
-                </p>
-
-                <div
-                  className="prose prose-sm dark:prose-invert max-w-none rounded-lg border border-border bg-background p-4
-                          [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
-                  dangerouslySetInnerHTML={{ __html: tncText ?? '' }}
-                />
-              </div>
-            );
-          })()}
+          {resolveStr(step.type) === 'TNC_FORM_STEP' && (
+            <div className="mt-2 space-y-2">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                Terms & Conditions
+              </p>
+              <TnCStepDetails step={step} />
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -695,12 +486,12 @@ function violatesBankBeforeRefundablePayment(list: AuctionWorkflowStep[]): boole
   });
 }
 
-// Post Payment steps always form the final segment of the workflow — no non-post
-// step may appear after a Post Payment.
-function violatesPostPaymentLast(list: AuctionWorkflowStep[]): boolean {
+// Post Auction steps (payment or form) always form the final segment of the
+// workflow — no non-Post-Auction step may appear after one.
+function violatesPostAuctionLast(list: AuctionWorkflowStep[]): boolean {
   let seenPost = false;
   for (const s of list) {
-    const isPost = resolveStr(s.type) === 'PAYMENT_STEP' && resolveStr(s.phase) === 'POST_PAYMENT';
+    const isPost = resolveStr(s.phase) === 'POST_AUCTION';
     if (isPost) {
       seenPost = true;
       continue;
@@ -730,9 +521,6 @@ export function AuctionStep5Workflow({
 
   const [participationPolicies, setParticipationPolicies] = useState<PolicyItemRQ[]>([]);
   const [evaluationsByPolicyId, setEvaluationsByPolicyId] = useState<
-    Record<string, PolicyEvaluationMap>
-  >({});
-  const [evaluationsByStepId, setEvaluationsByStepId] = useState<
     Record<string, PolicyEvaluationMap>
   >({});
   const [reordering, setReordering] = useState(false);
@@ -808,17 +596,6 @@ export function AuctionStep5Workflow({
             .evaluateAuctionPolicies(auctionId, policyIds)
             .then((evals) => {
               if (mounted) setEvaluationsByPolicyId(buildEvaluationsByPolicy(evals, allItems));
-            })
-            .catch(() => {});
-        }
-
-        // Evaluate all workflow steps in a single bulk request (POST /workflow/evaluate).
-        const stepIds = wf.map((s) => s.id).filter((id): id is string => Boolean(id));
-        if (stepIds.length > 0) {
-          auctionsApi
-            .evaluateWorkflowSteps(auctionId, stepIds)
-            .then((evals) => {
-              if (mounted) setEvaluationsByStepId(buildStepEvaluations(evals, wf));
             })
             .catch(() => {});
         }
@@ -936,8 +713,8 @@ export function AuctionStep5Workflow({
       );
       return;
     }
-    if (violatesPostPaymentLast(next)) {
-      setReorderError('Post Payment steps must always be the last steps in the workflow.');
+    if (violatesPostAuctionLast(next)) {
+      setReorderError('Post Auction steps must always be the last steps in the workflow.');
       return;
     }
     handleReorder(next);
@@ -1173,7 +950,6 @@ export function AuctionStep5Workflow({
                           dragDisabled={hasDrafts}
                           participationPolicies={participationPolicies}
                           evaluationsByPolicyId={evaluationsByPolicyId}
-                          evaluationsByStepId={evaluationsByStepId}
                           onEdit={!isDraft && !hasDrafts ? () => setEditingStep(step) : undefined}
                           onDelete={
                             isDraft

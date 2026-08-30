@@ -149,10 +149,14 @@ function ReviewSection({
   title: string;
   evaluations: PolicyEvaluationMap;
 }) {
+  const entries = Object.entries(evaluations).filter(([, e]) => e != null);
   return (
     <div className="rounded-lg border border-border/60 bg-muted/10 p-3 space-y-2">
       <h4 className="text-xs font-semibold text-foreground">{title}</h4>
-      <EvaluationList evaluations={evaluations} />
+      <EvaluationList
+        evaluations={evaluations}
+        policyName={entries.length === 1 ? entries[0][0] : title}
+      />
     </div>
   );
 }

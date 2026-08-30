@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { metadataApi, ComponentVM } from '@repo/api';
-import { Loader2, Trash2, RefreshCw, Plus, Pencil, Puzzle } from 'lucide-react';
+import { Eye, Loader2, Trash2, RefreshCw, Plus, Pencil, Puzzle } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@repo/ui';
 import { DataTable } from '@/components/common/data-table';
@@ -13,6 +13,7 @@ import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
 import { TagList } from '@/components/common/admin/TagList';
 import { PhraseSearchBar } from '@/components/common/admin/PhraseSearchBar';
+import { ComponentViewDialog } from '../_components/ComponentViewDialog';
 
 export default function ComponentsPage() {
   const router = useRouter();
@@ -23,6 +24,7 @@ export default function ComponentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const PAGE_SIZE = 16;
   const [pageIndex, setPageIndex] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -149,6 +151,16 @@ export default function ComponentsPage() {
       header: 'Actions',
       cell: ({ row }) => (
         <div className="flex items-center gap-0.5">
+          <Tip label="Preview component">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+              onClick={() => setPreviewId(row.original.id)}
+            >
+              <Eye className="h-3.5 w-3.5" />
+            </Button>
+          </Tip>
           <Tip label="Edit component">
             <Button
               variant="ghost"
@@ -237,6 +249,8 @@ export default function ComponentsPage() {
         }}
         onCancel={() => setConfirmId(null)}
       />
+
+      <ComponentViewDialog componentId={previewId} onClose={() => setPreviewId(null)} />
     </div>
   );
 }

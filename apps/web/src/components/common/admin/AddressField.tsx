@@ -23,6 +23,7 @@ export interface AddressValue {
 interface AddressFieldProps {
   value: unknown;
   onChange: (value: AddressValue) => void;
+  disabled?: boolean;
 }
 
 // ── Shared input class ────────────────────────────────────────────────────────
@@ -56,7 +57,7 @@ function Field({
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function AddressField({ value, onChange }: AddressFieldProps) {
+export function AddressField({ value, onChange, disabled }: AddressFieldProps) {
   const addr: AddressValue =
     typeof value === 'object' && value !== null && !Array.isArray(value)
       ? (value as AddressValue)
@@ -147,13 +148,16 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
   const autoFilled = !pincodeError && !pincodeLoading && addr.pincode?.length === 6 && !!addr.city;
 
   return (
-    <div className="rounded-lg border border-border bg-muted/10 p-4 space-y-4">
+    <div
+      className={`rounded-lg border border-border bg-muted/10 p-4 space-y-4 ${disabled ? 'opacity-50' : ''}`}
+    >
       {/* Country */}
       <Field id="addr-country" label="Country">
         <select
           id="addr-country"
           value={addr.country ?? 'India'}
           onChange={(e) => set('country', e.target.value)}
+          disabled={disabled}
           className={base}
         >
           <option value="India">India</option>
@@ -171,6 +175,7 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
             value={addr.pincode ?? ''}
             onChange={(e) => handlePincodeChange(e.target.value.replace(/\D/g, ''))}
             placeholder="125076"
+            disabled={disabled}
             className={`${base} pr-8`}
           />
           {pincodeLoading && (
@@ -190,6 +195,7 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
             id="addr-area"
             value={addr.area ?? ''}
             onChange={(e) => handleAreaChange(e.target.value)}
+            disabled={disabled}
             className={base}
           >
             <option value="">Select area…</option>
@@ -206,6 +212,7 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
             value={addr.area ?? ''}
             onChange={(e) => set('area', e.target.value)}
             placeholder="Andheri West"
+            disabled={disabled}
             className={base}
           />
         )}
@@ -219,6 +226,7 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
           value={addr.city ?? ''}
           onChange={(e) => set('city', e.target.value)}
           placeholder="Sirsa"
+          disabled={disabled}
           className={base}
         />
       </Field>
@@ -231,6 +239,7 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
           value={addr.state ?? ''}
           onChange={(e) => set('state', e.target.value)}
           placeholder="Haryana"
+          disabled={disabled}
           className={base}
         />
       </Field>
@@ -243,6 +252,7 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
           value={addr.addressLine1 ?? ''}
           onChange={(e) => set('addressLine1', e.target.value)}
           placeholder="Flat 4B, Sunrise Apartments"
+          disabled={disabled}
           className={base}
         />
       </Field>
@@ -255,6 +265,7 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
           value={addr.addressLine2 ?? ''}
           onChange={(e) => set('addressLine2', e.target.value)}
           placeholder="Sector 12, Link Road"
+          disabled={disabled}
           className={base}
         />
       </Field>
@@ -267,6 +278,7 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
           value={addr.landmark ?? ''}
           onChange={(e) => set('landmark', e.target.value)}
           placeholder="Near City Mall"
+          disabled={disabled}
           className={base}
         />
       </Field>
@@ -277,7 +289,7 @@ export function AddressField({ value, onChange }: AddressFieldProps) {
           <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
           <Label className="text-xs font-medium text-muted-foreground">Location (Lat, Long)</Label>
         </div>
-        <CoordinatesMapField value={coordObj} onChange={setCoordinates} />
+        <CoordinatesMapField value={coordObj} onChange={setCoordinates} disabled={disabled} />
       </div>
     </div>
   );

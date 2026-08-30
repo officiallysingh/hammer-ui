@@ -20,7 +20,10 @@ export interface AuctionSchedule {
   endTime?: string;
 }
 
-export type PaymentPhase = 'PRE_PAYMENT' | 'POST_PAYMENT';
+/** Generic before/after-auction phase, now carried by every workflow step type
+ *  except TNC_FORM_STEP and PARTICIPATION_FORM_STEP (those are hardcoded to
+ *  PRE_AUCTION server-side and never send `phase` in the request body). */
+export type WorkflowStepPhase = 'PRE_AUCTION' | 'POST_AUCTION';
 
 export interface AuctionWorkflowStep {
   id: string;
@@ -36,16 +39,18 @@ export interface AuctionWorkflowStep {
     typeId?: string;
     properties?: PropertyDef[];
   };
+  /** Before/after-auction phase — carried by every step except TNC_FORM_STEP and
+   *  PARTICIPATION_FORM_STEP, which are hardcoded to PRE_AUCTION server-side. */
+  phase?: WorkflowStepPhase | Record<string, string>;
   /** PAYMENT_STEP fields — a workflow can carry multiple, one per phase or more. */
   mode?: string | Record<string, string>;
-  phase?: PaymentPhase | Record<string, string>;
   offset?: string;
   heads?: PolicyHeadRQ[];
   prePayment?: boolean;
   postPayment?: boolean;
   /** PARTICIPATION_FORM_STEP fields. */
   manualApproval?: boolean;
-  preStartValidationDuration?: string;
+  preStartDeadlineDuration?: string;
   tncText?: string;
   implicit?: boolean;
   status?: {
@@ -182,6 +187,12 @@ export interface AuctionScheduleRQ {
   publish?: boolean;
 }
 
+/** Invites participants to a restricted-access auction by email or phone number. */
+export interface AuctionInvitationRQ {
+  emails?: string[];
+  phoneNumbers?: string[];
+}
+
 export interface AuctionUnitCreationRQ {
   tags?: string[];
   subCategories?: string[];
@@ -269,8 +280,11 @@ export interface AddFormStepRQ {
   order?: number;
   /** Top-level typeId referencing the ManagedType — backend resolves properties from this. */
   typeId: string;
+  /** Whether this custom form is collected before or after the auction. */
+  phase: WorkflowStepPhase;
 }
 
+/** Hardcoded to PRE_AUCTION server-side — `phase` is never sent in the request body. */
 export interface AddTnCFormStepRQ {
   type: 'TNC_FORM_STEP';
   name?: string;
@@ -285,6 +299,9 @@ export interface AddBankDetailFormStepRQ {
   name?: string;
   description?: string;
   order?: number;
+  /** True when this step exists because a refundable Pre Auction payment head
+   *  requires it (bank details are needed to issue that refund); false otherwise. */
+  implicit?: boolean;
 }
 
 export interface AddPaymentStepRQ {
@@ -293,20 +310,21 @@ export interface AddPaymentStepRQ {
   description?: string;
   order?: number;
   mode: string;
-  phase: PaymentPhase;
+  phase: WorkflowStepPhase;
   offset: string;
   heads: PolicyHeadRQ[];
 }
 
 /** Mirrors the backend `ParticipationFormStep.of(...)` factory — collects a
- *  managed custom form from participants before they can join the auction. */
+ *  managed custom form from participants before they can join the auction.
+ *  Hardcoded to PRE_AUCTION server-side — `phase` is never sent in the request body. */
 export interface AddParticipationFormStepRQ {
   type: 'PARTICIPATION_FORM_STEP';
   name?: string;
   description?: string;
   order?: number;
   manualApproval?: boolean;
-  preStartValidationDuration?: string;
+  preStartDeadlineDuration?: string;
   typeId: string;
 }
 
@@ -391,6 +409,12 @@ export const auctionsApi = {
 
   deleteAuction: async (id: string): Promise<void> => {
     await apiClient.delete(`/api/v1/auctions/${id}`);
+  },
+
+  /** Invites participants to a restricted-access auction by email or phone number.
+   *  Optional step in the wizard — safe to skip if nobody needs a direct invite. */
+  inviteParticipants: async (id: string, data: AuctionInvitationRQ): Promise<void> => {
+    await apiClient.post(`/api/v1/auctions/${id}/invitations`, data);
   },
 
   scheduleAuction: async (id: string, data: AuctionScheduleRQ): Promise<void> => {

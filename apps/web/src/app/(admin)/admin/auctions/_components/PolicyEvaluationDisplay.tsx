@@ -88,7 +88,33 @@ type DetailRender =
   | { kind: 'pending-message'; text: string }
   | { kind: 'window-range'; from: string; to: string; note?: string }
   | { kind: 'deadline'; date: string; note?: string }
-  | { kind: 'html-block'; html: string };
+  | { kind: 'html-block'; html: string }
+  | { kind: 'fields'; items: { label: string; value: string }[]; label?: string };
+
+/** Normalises a `properties` evaluation detail — either `[{ name/label, value }, ...]`
+ *  (Form/Participation step submissions) or a plain `{ label: value }` map — into
+ *  label/value pairs. Returns null when every value is empty, since that means the
+ *  detail is just echoing the form's schema, already shown by the step's own Form
+ *  Fields preview — rendering it again here would just repeat the same thing. */
+function normalizePropertiesDetail(value: unknown): { label: string; value: string }[] | null {
+  let items: { label: string; value: string }[];
+  if (Array.isArray(value)) {
+    items = value.map((entry) => {
+      const obj = (entry ?? {}) as Record<string, unknown>;
+      const label = (obj.label as string) || fmtLabel(obj.name) || '';
+      return { label, value: formatValue(obj.value) };
+    });
+  } else if (value && typeof value === 'object') {
+    items = Object.entries(value as Record<string, unknown>).map(([key, v]) => ({
+      label: fmtLabel(key),
+      value: formatValue(v),
+    }));
+  } else {
+    return null;
+  }
+  if (items.length === 0 || items.every((i) => !i.value)) return null;
+  return items;
+}
 
 function formatAmount(value: unknown): string {
   if (value == null || value === '') return '';
@@ -276,6 +302,16 @@ function buildDetailItems(
         };
       }
 
+      // Form/Participation step submitted values — render as disabled fields
+      // (matching the rest of the app's read-only field style) instead of a
+      // generic key/value block.
+      if (key === 'properties') {
+        const items = normalizePropertiesDetail(value);
+        return items
+          ? { key, label: labelFor(key), rendered: { kind: 'fields', items } as DetailRender }
+          : null;
+      }
+
       const descValue = details[`${key}Description`];
       if (typeof descValue === 'string' && descValue.trim()) {
         const text = descValue.trim();
@@ -324,11 +360,14 @@ export function EvaluationCard({
   evaluation,
   showStatus = true,
   resultLabel = 'Result',
+  hideName = false,
 }: {
   name: string;
   evaluation: PolicyEvaluation;
   showStatus?: boolean;
   resultLabel?: string;
+  /** Hide the name header — used when the parent card already shows it. */
+  hideName?: boolean;
 }) {
   const statusType = showStatus ? resolveStr(evaluation.status?.type) : '';
   const { className, Icon } = statusStyle(statusType);
@@ -357,22 +396,42 @@ export function EvaluationCard({
   return (
     <div className="rounded-lg border border-border/60 bg-card/50 p-3 space-y-2 text-xs">
       {/* Header row */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="font-semibold text-foreground text-sm">{name}</span>
-        {statusType && (
-          <span
-            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${className}`}
-          >
-            <Icon className="h-3 w-3" />
-            {fmtLabel(statusType)}
-          </span>
-        )}
-        {showStatus && evaluation.condition === false && (
-          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400 px-2 py-0.5 text-[10px] font-medium">
-            Not yet active
-          </span>
-        )}
-      </div>
+      {!hideName && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-semibold text-foreground text-sm">{name}</span>
+          {statusType && (
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${className}`}
+            >
+              <Icon className="h-3 w-3" />
+              {fmtLabel(statusType)}
+            </span>
+          )}
+          {showStatus && evaluation.condition === false && (
+            <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400 px-2 py-0.5 text-[10px] font-medium">
+              Not yet active
+            </span>
+          )}
+        </div>
+      )}
+      {/* Status badges only (when name is hidden) */}
+      {hideName && (statusType || evaluation.condition === false) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {statusType && (
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${className}`}
+            >
+              <Icon className="h-3 w-3" />
+              {fmtLabel(statusType)}
+            </span>
+          )}
+          {showStatus && evaluation.condition === false && (
+            <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400 px-2 py-0.5 text-[10px] font-medium">
+              Not yet active
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Description */}
       {evaluation.description && (
@@ -522,6 +581,17 @@ export function EvaluationCard({
                       border-border bg-background p-3 [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4"
               dangerouslySetInnerHTML={{ __html: d.rendered.html }}
             />
+          ) : d.rendered.kind === 'fields' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {d.rendered.items.map((f, i) => (
+                <div key={i} className="space-y-1">
+                  <span className="text-[11px] font-medium text-muted-foreground">{f.label}</span>
+                  <div className="rounded-md border border-dashed border-border bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground/70">
+                    {f.value || '—'}
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : d.rendered.kind === 'block' ? (
             <div className="rounded-lg border border-border/50 bg-background/60 divide-y divide-border/30 overflow-hidden">
               {d.rendered.rows.map(([k, v, desc]) => (
@@ -554,11 +624,15 @@ export function EvaluationList({
   loading,
   showStatus = true,
   resultLabel = 'Result',
+  policyName,
 }: {
   evaluations?: PolicyEvaluationMap | null;
   loading?: boolean;
   showStatus?: boolean;
   resultLabel?: string;
+  /** When provided, single-entry evaluations whose key matches this name will
+   *  suppress the redundant name header in EvaluationCard. */
+  policyName?: string;
 }) {
   const entries = Object.entries(evaluations ?? {}).filter(
     (entry): entry is [string, PolicyEvaluation] => entry[1] != null,
@@ -574,15 +648,22 @@ export function EvaluationList({
   }
   return (
     <div className="space-y-2">
-      {entries.map(([name, evaluation]) => (
-        <EvaluationCard
-          key={name}
-          name={name}
-          evaluation={evaluation}
-          showStatus={showStatus}
-          resultLabel={resultLabel}
-        />
-      ))}
+      {entries.map(([name, evaluation]) => {
+        const hideName =
+          entries.length === 1 &&
+          !!policyName &&
+          name.trim().toLowerCase() === policyName.trim().toLowerCase();
+        return (
+          <EvaluationCard
+            key={name}
+            name={name}
+            evaluation={evaluation}
+            showStatus={showStatus}
+            resultLabel={resultLabel}
+            hideName={hideName}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -592,6 +673,7 @@ export function PolicyItemCard({
   policyId,
   name,
   type,
+  description,
   evaluations,
   loadingEvaluation,
   showStatus = true,
@@ -606,6 +688,7 @@ export function PolicyItemCard({
   policyId?: string;
   name?: string;
   type?: unknown;
+  description?: string;
   evaluations?: PolicyEvaluationMap | null;
   loadingEvaluation?: boolean;
   showStatus?: boolean;
@@ -680,6 +763,10 @@ export function PolicyItemCard({
         )}
       </div>
 
+      {description && (
+        <p className="text-xs text-muted-foreground leading-relaxed px-0.5">{description}</p>
+      )}
+
       {deleteError && <p className="text-xs text-destructive">{deleteError}</p>}
 
       <EvaluationList
@@ -687,6 +774,7 @@ export function PolicyItemCard({
         loading={loadingEvaluation}
         showStatus={showStatus}
         resultLabel={resultLabel}
+        policyName={name || undefined}
       />
 
       <ConfirmDialog

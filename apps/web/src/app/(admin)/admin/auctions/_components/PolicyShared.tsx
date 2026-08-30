@@ -190,18 +190,20 @@ export function paymentStepData(step: AuctionWorkflowStep): {
   };
 }
 
-/** True when a workflow step is a Pre Payment with at least one refundable head —
- *  such steps require a Bank Detail step positioned before them. */
+/** True when a workflow step is a Pre Auction payment with at least one refundable
+ *  head — such steps require a Bank Detail step positioned before them. */
 export function isRefundablePrePayment(s: AuctionWorkflowStep): boolean {
   return (
     resolveStr(s.type) === 'PAYMENT_STEP' &&
-    resolveStr(s.phase) === 'PRE_PAYMENT' &&
+    resolveStr(s.phase) === 'PRE_AUCTION' &&
     paymentStepData(s).heads.some((h) => h.refundable)
   );
 }
 
 export interface WorkflowStepTypesAllowed {
-  form: boolean;
+  /** Whether an Additional Details (Custom Form) Step may be added as Pre Auction / Post Auction at this position. */
+  formPreAuction: boolean;
+  formPostAuction: boolean;
   tnc: boolean;
   bank: boolean;
   prePayment: boolean;
@@ -211,9 +213,9 @@ export interface WorkflowStepTypesAllowed {
 
 /** Which step types may be inserted at a given 1-based insertion order.
  *  Enforces the workflow's structural rules:
- *  - Bank Details only before refundable Pre Payments (and only once per workflow).
- *  - Only Pre Payments may be inserted between a Pre Payment and its Bank Details.
- *  - Post Payments always form the final segment of the workflow. */
+ *  - Bank Details only before refundable Pre Auction payments (and only once per workflow).
+ *  - Only Pre Auction payments may be inserted between a Pre Auction payment and its Bank Details.
+ *  - Post Auction steps always form the final segment of the workflow. */
 export function allowedStepTypesAt(
   workflow: AuctionWorkflowStep[],
   insertionOrder: number,
@@ -226,15 +228,17 @@ export function allowedStepTypesAt(
     !!s && resolveStr(s.type) === 'PAYMENT_STEP' && resolveStr(s.phase) === phase;
   const isBank = (s: AuctionWorkflowStep | undefined) =>
     !!s && resolveStr(s.type) === 'BANK_DETAIL_FORM_STEP';
+  const isPostAuction = (s: AuctionWorkflowStep | undefined) =>
+    !!s && resolveStr(s.phase) === 'POST_AUCTION';
 
   const prevStep = idx > 0 ? workflow[idx - 1] : undefined;
   const nextStep = idx < workflow.length ? workflow[idx] : undefined;
 
-  const firstPostIdx = workflow.findIndex((s) => isPayment(s, 'POST_PAYMENT'));
-  // Insertion lands inside the post-payment tail when it sits at/after the first
-  // Post Payment — only more Post Payments are allowed there.
+  // Any Post Auction step (payment or form) starts the post-auction tail — only
+  // more Post Auction steps are allowed once the insertion point is in it.
+  const firstPostIdx = workflow.findIndex((s) => isPostAuction(s));
   const inTail = firstPostIdx >= 0 && idx > firstPostIdx;
-  const inPreBankGap = isPayment(prevStep, 'PRE_PAYMENT') && isBank(nextStep);
+  const inPreBankGap = isPayment(prevStep, 'PRE_AUCTION') && isBank(nextStep);
 
   const earliestRefundablePreOrder = workflow
     .filter((s) => isRefundablePrePayment(s))
@@ -244,15 +248,17 @@ export function allowedStepTypesAt(
     }, null);
 
   const nonPostAllowed = !inTail && !inPreBankGap;
+  const postAllowed = (firstPostIdx < 0 || idx >= firstPostIdx) && !inPreBankGap;
   return {
-    form: nonPostAllowed,
+    formPreAuction: nonPostAllowed || inPreBankGap,
+    formPostAuction: postAllowed,
     tnc: nonPostAllowed && !hasTnCStep,
     bank:
       nonPostAllowed &&
       !hasBankDetailStep &&
       (earliestRefundablePreOrder === null || insertionOrder <= earliestRefundablePreOrder),
     prePayment: nonPostAllowed || inPreBankGap,
-    postPayment: (firstPostIdx < 0 || idx >= firstPostIdx) && !inPreBankGap,
+    postPayment: postAllowed,
     participationForm: nonPostAllowed && !hasParticipationFormStep,
   };
 }
@@ -436,6 +442,20 @@ export function parseOffsetDuration(iso?: string): {
     hours: match?.[2] ?? '0',
     minutes: match?.[3] ?? '0',
   };
+}
+
+/** Normalises an ISO-8601 duration into a compact label (e.g. "3d 2h 5m") —
+ *  tolerant of pure-hour durations like PT72H by folding hours into days first. */
+export function formatOffsetLabel(iso?: string): string {
+  const raw = parseOffsetDuration(iso);
+  const totalMinutes = Number(raw.days) * 24 * 60 + Number(raw.hours) * 60 + Number(raw.minutes);
+  const d = Math.floor(totalMinutes / (24 * 60));
+  const h = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const m = totalMinutes % 60;
+  const parts = [d > 0 ? `${d}d` : null, h > 0 ? `${h}h` : null, m > 0 ? `${m}m` : null].filter(
+    Boolean,
+  );
+  return parts.length ? parts.join(' ') : '0m';
 }
 
 /** Parses an ISO-8601 duration (`PnDTnHnMnS`, also weeks) into milliseconds.

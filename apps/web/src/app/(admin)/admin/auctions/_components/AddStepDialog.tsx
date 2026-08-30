@@ -9,6 +9,8 @@ import {
   Landmark,
   CreditCard,
   UserCheck,
+  FileText,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   Button,
@@ -27,7 +29,7 @@ import {
   AuctionWorkflowStep,
   ManagedTypeListItemFull,
   ManagedTypeVM,
-  PaymentPhase,
+  WorkflowStepPhase,
   PolicyHeadRQ,
   AddWorkflowStepRQ,
 } from '@repo/api';
@@ -59,6 +61,40 @@ function emptyHead(): PolicyHeadRQ {
 /** Tiptap emits "<p></p>" for an empty doc — strip tags to check for real content. */
 function isRichTextEmpty(html: string): boolean {
   return !html.replace(/<[^>]*>/g, '').trim();
+}
+
+/** One selectable step-type tile in the "choose a step" grid. */
+function StepChoiceTile({
+  icon,
+  title,
+  description,
+  disabled,
+  onClick,
+}: {
+  icon?: React.ReactNode;
+  title: string;
+  description: string;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => !disabled && onClick()}
+      className={`w-full text-left rounded-lg border p-3.5 transition-colors space-y-1 bg-background/70 ${
+        disabled
+          ? 'border-border/50 opacity-50 cursor-not-allowed'
+          : 'border-border hover:border-primary/50 hover:bg-background'
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        {icon}
+        <p className="text-sm font-semibold text-foreground">{title}</p>
+      </div>
+      <p className="text-xs text-muted-foreground">{description}</p>
+    </button>
+  );
 }
 
 /**
@@ -99,7 +135,7 @@ export function AddStepDialog({
   // Set while walking the "add Bank Detail step first" detour from the Payment step
   // form — remembers which phase to return to (with its already-filled fields intact)
   // once the admin explicitly submits the Bank Detail step form.
-  const [pendingPaymentPhase, setPendingPaymentPhase] = useState<PaymentPhase | null>(null);
+  const [pendingPaymentPhase, setPendingPaymentPhase] = useState<WorkflowStepPhase | null>(null);
 
   // Shared order field (used by every concrete step form)
   const [selectedOrder, setSelectedOrder] = useState(insertionOrder);
@@ -135,6 +171,9 @@ export function AddStepDialog({
   const [partValDays, setPartValDays] = useState('0');
   const [partValHours, setPartValHours] = useState('0');
   const [partValMinutes, setPartValMinutes] = useState('0');
+
+  // FORM_STEP state — whether the custom form is collected before or after the auction.
+  const [formPhase, setFormPhase] = useState<WorkflowStepPhase>('PRE_AUCTION');
 
   // Keep the internal order in sync when the dialog opens or insertion slot changes.
   useEffect(() => {
@@ -184,6 +223,7 @@ export function AddStepDialog({
     setPartValDays('0');
     setPartValHours('0');
     setPartValMinutes('0');
+    setFormPhase('PRE_AUCTION');
   };
 
   const close = () => {
@@ -271,6 +311,18 @@ export function AddStepDialog({
     hasParticipationFormStep,
   );
 
+  // Keep the selected Custom Form Step phase valid as the insertion point changes —
+  // fall back to whichever of Pre/Post Auction is actually allowed here.
+  useEffect(() => {
+    if (mode !== 'FORM_STEP') return;
+    if (formPhase === 'PRE_AUCTION' && !allowed.formPreAuction && allowed.formPostAuction) {
+      setFormPhase('POST_AUCTION');
+    } else if (formPhase === 'POST_AUCTION' && !allowed.formPostAuction && allowed.formPreAuction) {
+      setFormPhase('PRE_AUCTION');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, allowed.formPreAuction, allowed.formPostAuction]);
+
   const submitFormStep = () => {
     if (!selectedType) {
       setError('Please select a form template.');
@@ -282,6 +334,7 @@ export function AddStepDialog({
       description: selectedType.description || selectedType.name,
       order: selectedOrder,
       typeId: selectedType.id,
+      phase: formPhase,
     }));
   };
 
@@ -296,7 +349,7 @@ export function AddStepDialog({
       description: selectedType.description || selectedType.name,
       order: selectedOrder,
       manualApproval: partManualApproval,
-      preStartValidationDuration: formatOffsetDuration(partValDays, partValHours, partValMinutes),
+      preStartDeadlineDuration: formatOffsetDuration(partValDays, partValHours, partValMinutes),
       typeId: selectedType.id,
     }));
   };
@@ -342,12 +395,18 @@ export function AddStepDialog({
       );
       return;
     }
+    // Refundable when it's backing an already-added refundable Pre Payment step, or
+    // when walking the "add Bank Detail first" detour from a refundable Payment form
+    // that hasn't been submitted yet (so it isn't in `workflow` to detect above).
+    const refundable = earliestRefundablePrePaymentOrder !== null || pendingPaymentPhase !== null;
     void runSubmit(
       () => ({
         type: 'BANK_DETAIL_FORM_STEP',
         name: 'Bank Details',
         description: 'Participant provides bank details for payouts',
         order: selectedOrder,
+        implicit: refundable,
+        phase: pendingPaymentPhase ?? 'PRE_AUCTION',
       }),
       pendingPaymentPhase
         ? () => {
@@ -357,7 +416,7 @@ export function AddStepDialog({
             const phase = pendingPaymentPhase;
             setPendingPaymentPhase(null);
             setSelectedOrder((o) => o + 1);
-            setMode(phase === 'PRE_PAYMENT' ? 'PRE_PAYMENT_STEP' : 'POST_PAYMENT_STEP');
+            setMode(phase === 'PRE_AUCTION' ? 'PRE_PAYMENT_STEP' : 'POST_PAYMENT_STEP');
           }
         : undefined,
     );
@@ -368,7 +427,7 @@ export function AddStepDialog({
   const updateHead = (i: number, patch: Partial<PolicyHeadRQ>) =>
     setHeads((prev) => prev.map((h, idx) => (idx === i ? { ...h, ...patch } : h)));
 
-  const submitPaymentStep = async (phase: PaymentPhase) => {
+  const submitPaymentStep = async (phase: WorkflowStepPhase) => {
     setNeedsBankDetailStep(false);
     if (!paymentModeValue) {
       setError('Please select a payment mode.');
@@ -379,7 +438,7 @@ export function AddStepDialog({
       return;
     }
     if (
-      phase === 'PRE_PAYMENT' &&
+      phase === 'PRE_AUCTION' &&
       heads.some((h) => h.refundable) &&
       !workflow.some(
         (s) => resolveStr(s.type) === 'BANK_DETAIL_FORM_STEP' && (s.order ?? 0) < selectedOrder,
@@ -412,7 +471,7 @@ export function AddStepDialog({
     ? () => {
         const phase = pendingPaymentPhase;
         setPendingPaymentPhase(null);
-        setMode(phase === 'PRE_PAYMENT' ? 'PRE_PAYMENT_STEP' : 'POST_PAYMENT_STEP');
+        setMode(phase === 'PRE_AUCTION' ? 'PRE_PAYMENT_STEP' : 'POST_PAYMENT_STEP');
       }
     : () => setMode('choose');
 
@@ -424,7 +483,7 @@ export function AddStepDialog({
             {mode === 'choose'
               ? 'Add Step'
               : mode === 'FORM_STEP'
-                ? 'Add Custom Form Step'
+                ? 'Add Additional Details Step'
                 : mode === 'BANK_DETAIL_FORM_STEP'
                   ? 'Add Bank Detail Form Step'
                   : mode === 'PRE_PAYMENT_STEP'
@@ -447,7 +506,7 @@ export function AddStepDialog({
               variant="outline"
               onClick={() => {
                 setPendingPaymentPhase(
-                  mode === 'PRE_PAYMENT_STEP' ? 'PRE_PAYMENT' : 'POST_PAYMENT',
+                  mode === 'PRE_PAYMENT_STEP' ? 'PRE_AUCTION' : 'POST_AUCTION',
                 );
                 setNeedsBankDetailStep(false);
                 setError(null);
@@ -460,129 +519,113 @@ export function AddStepDialog({
         )}
 
         {mode === 'choose' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2">
-            <button
-              type="button"
-              disabled={!allowed.form}
-              onClick={() => allowed.form && setMode('FORM_STEP')}
-              className={`text-left rounded-lg border p-4 transition-colors space-y-1 ${
-                allowed.form
-                  ? 'border-border hover:border-primary/50 hover:bg-muted/30'
-                  : 'border-border/50 opacity-50 cursor-not-allowed'
-              }`}
-            >
-              <p className="text-sm font-semibold text-foreground">Custom Form Step</p>
-              <p className="text-xs text-muted-foreground">
-                {allowed.form
-                  ? 'Pick a managed form template. Can be added multiple times.'
-                  : 'Not allowed at this position — only Pre Payments go between a Pre Payment and its Bank Details.'}
-              </p>
-            </button>
-            <button
-              type="button"
-              disabled={!allowed.participationForm}
-              onClick={() => allowed.participationForm && setMode('PARTICIPATION_FORM_STEP')}
-              className={`text-left rounded-lg border p-4 transition-colors space-y-1 ${
-                allowed.participationForm
-                  ? 'border-border hover:border-primary/50 hover:bg-muted/30'
-                  : 'border-border/50 opacity-50 cursor-not-allowed'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <UserCheck className="h-4 w-4 text-muted-foreground shrink-0" />
-                <p className="text-sm font-semibold text-foreground">Participation Form Step</p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 py-2 items-start">
+            {/* Pre Auction block */}
+            <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 dark:bg-blue-500/10 p-3 space-y-2">
+              <h3 className="px-1 text-xs font-bold uppercase tracking-wide text-blue-700 dark:text-blue-400">
+                Pre Auction
+              </h3>
+              <div className="space-y-2">
+                <StepChoiceTile
+                  icon={<CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />}
+                  title="Pre Payment Step"
+                  disabled={!allowed.prePayment}
+                  onClick={() => setMode('PRE_PAYMENT_STEP')}
+                  description={
+                    allowed.prePayment
+                      ? 'Collect payment before the auction outcome is finalized. Can be added multiple times.'
+                      : 'Not allowed at this position — Post Payments must stay last.'
+                  }
+                />
+                <StepChoiceTile
+                  icon={<ShieldCheck className="h-4 w-4 text-muted-foreground shrink-0" />}
+                  title="Terms and Conditions Form Step"
+                  disabled={!allowed.tnc}
+                  onClick={() => setMode('TNC_FORM_STEP')}
+                  description={
+                    !allowed.tnc
+                      ? hasTnCStep
+                        ? 'Already added — only one is allowed per workflow.'
+                        : 'Not allowed at this position — Post Payments must stay last.'
+                      : 'Terms and Conditions step. Only one allowed.'
+                  }
+                />
+                <StepChoiceTile
+                  icon={<FileText className="h-4 w-4 text-muted-foreground shrink-0" />}
+                  title="Additional Details Step"
+                  disabled={!allowed.formPreAuction}
+                  onClick={() => {
+                    setFormPhase('PRE_AUCTION');
+                    setMode('FORM_STEP');
+                  }}
+                  description={
+                    allowed.formPreAuction
+                      ? 'Pick a managed form template. Can be added multiple times.'
+                      : 'Not allowed at this position — only Pre Payments go between a Pre Payment and its Bank Details.'
+                  }
+                />
+                <StepChoiceTile
+                  icon={<UserCheck className="h-4 w-4 text-muted-foreground shrink-0" />}
+                  title="Participation Form Step"
+                  disabled={!allowed.participationForm}
+                  onClick={() => setMode('PARTICIPATION_FORM_STEP')}
+                  description={
+                    allowed.participationForm
+                      ? 'Collect registration/KYC details before participants can join. Only one allowed.'
+                      : hasParticipationFormStep
+                        ? 'Already added — only one is allowed per workflow.'
+                        : 'Not allowed at this position — Post Payments must stay last.'
+                  }
+                />
+                <StepChoiceTile
+                  icon={<Landmark className="h-4 w-4 text-muted-foreground shrink-0" />}
+                  title="Bank Detail Form Step"
+                  disabled={!allowed.bank}
+                  onClick={() => setMode('BANK_DETAIL_FORM_STEP')}
+                  description={
+                    !allowed.bank
+                      ? hasBankDetailStep
+                        ? 'Already added — only one is allowed per workflow.'
+                        : 'Not allowed here — the Bank Detail step must be before any refundable Pre Payment.'
+                      : 'Collect participant bank details for payouts. Only one allowed.'
+                  }
+                />
               </div>
-              <p className="text-xs text-muted-foreground">
-                {allowed.participationForm
-                  ? 'Collect registration/KYC details before participants can join. Only one allowed.'
-                  : hasParticipationFormStep
-                    ? 'Already added — only one is allowed per workflow.'
-                    : 'Not allowed at this position — Post Payments must stay last.'}
-              </p>
-            </button>
-            <button
-              type="button"
-              disabled={!allowed.tnc}
-              onClick={() => allowed.tnc && setMode('TNC_FORM_STEP')}
-              className={`text-left rounded-lg border p-4 transition-colors space-y-1 ${
-                allowed.tnc
-                  ? 'border-border hover:border-primary/50 hover:bg-muted/30'
-                  : 'border-border/50 opacity-50 cursor-not-allowed'
-              }`}
-            >
-              <p className="text-sm font-semibold text-foreground">
-                Terms and Conditions Form Step
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {!allowed.tnc
-                  ? hasTnCStep
-                    ? 'Already added — only one is allowed per workflow.'
-                    : 'Not allowed at this position — Post Payments must stay last.'
-                  : 'Terms and Conditions step. Only one allowed.'}
-              </p>
-            </button>
-            <button
-              type="button"
-              disabled={!allowed.bank}
-              onClick={() => allowed.bank && setMode('BANK_DETAIL_FORM_STEP')}
-              className={`text-left rounded-lg border p-4 transition-colors space-y-1 ${
-                allowed.bank
-                  ? 'border-border hover:border-primary/50 hover:bg-muted/30'
-                  : 'border-border/50 opacity-50 cursor-not-allowed'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Landmark className="h-4 w-4 text-muted-foreground shrink-0" />
-                <p className="text-sm font-semibold text-foreground">Bank Detail Form Step</p>
+            </div>
+
+            {/* Post Auction block */}
+            <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 dark:bg-orange-500/10 p-3 space-y-2">
+              <h3 className="px-1 text-xs font-bold uppercase tracking-wide text-orange-700 dark:text-orange-400">
+                Post Auction
+              </h3>
+              <div className="space-y-2">
+                <StepChoiceTile
+                  icon={<FileText className="h-4 w-4 text-muted-foreground shrink-0" />}
+                  title="Additional Details Step"
+                  disabled={!allowed.formPostAuction}
+                  onClick={() => {
+                    setFormPhase('POST_AUCTION');
+                    setMode('FORM_STEP');
+                  }}
+                  description={
+                    allowed.formPostAuction
+                      ? 'Pick a managed form template. Can be added multiple times.'
+                      : 'Not allowed here — Post Auction steps must be added after all Pre Auction steps.'
+                  }
+                />
+                <StepChoiceTile
+                  icon={<CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />}
+                  title="Post Payment Step"
+                  disabled={!allowed.postPayment}
+                  onClick={() => setMode('POST_PAYMENT_STEP')}
+                  description={
+                    allowed.postPayment
+                      ? 'Collect payment after the participant wins. Can be added multiple times.'
+                      : 'Not allowed here — Post Auction steps must be added after all Pre Auction steps.'
+                  }
+                />
               </div>
-              <p className="text-xs text-muted-foreground">
-                {!allowed.bank
-                  ? hasBankDetailStep
-                    ? 'Already added — only one is allowed per workflow.'
-                    : 'Not allowed here — the Bank Detail step must be before any refundable Pre Payment.'
-                  : 'Collect participant bank details for payouts. Only one allowed.'}
-              </p>
-            </button>
-            <button
-              type="button"
-              disabled={!allowed.prePayment}
-              onClick={() => allowed.prePayment && setMode('PRE_PAYMENT_STEP')}
-              className={`text-left rounded-lg border p-4 transition-colors space-y-1 ${
-                allowed.prePayment
-                  ? 'border-border hover:border-primary/50 hover:bg-muted/30'
-                  : 'border-border/50 opacity-50 cursor-not-allowed'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />
-                <p className="text-sm font-semibold text-foreground">Pre Payment Step</p>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {allowed.prePayment
-                  ? 'Collect payment before the auction outcome is finalized. Can be added multiple times.'
-                  : 'Not allowed at this position — Post Payments must stay last.'}
-              </p>
-            </button>
-            <button
-              type="button"
-              disabled={!allowed.postPayment}
-              onClick={() => allowed.postPayment && setMode('POST_PAYMENT_STEP')}
-              className={`text-left rounded-lg border p-4 transition-colors space-y-1 ${
-                allowed.postPayment
-                  ? 'border-border hover:border-primary/50 hover:bg-muted/30'
-                  : 'border-border/50 opacity-50 cursor-not-allowed'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />
-                <p className="text-sm font-semibold text-foreground">Post Payment Step</p>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {allowed.postPayment
-                  ? 'Collect payment after the participant wins. Can be added multiple times.'
-                  : 'Not allowed here — Post Payments always form the last segment of the workflow.'}
-              </p>
-            </button>
+            </div>
           </div>
         )}
 
@@ -661,6 +704,16 @@ export function AddStepDialog({
                   <PropertyFormPreview properties={selectedTypeDetail?.properties ?? []} />
                 )}
               </div>
+            )}
+
+            {mode === 'FORM_STEP' && (
+              <p className="text-xs text-muted-foreground">
+                This form will be collected{' '}
+                <span className="font-medium text-foreground">
+                  {formPhase === 'PRE_AUCTION' ? 'before' : 'after'} the auction
+                </span>
+                .
+              </p>
             )}
 
             {mode === 'PARTICIPATION_FORM_STEP' && (
@@ -809,7 +862,7 @@ export function AddStepDialog({
 
             {pendingPaymentPhase && (
               <p className="text-xs text-muted-foreground">
-                Your {pendingPaymentPhase === 'PRE_PAYMENT' ? 'Pre' : 'Post'} Payment step details
+                Your {pendingPaymentPhase === 'PRE_AUCTION' ? 'Pre' : 'Post'} Payment step details
                 are kept — add this Bank Detail step first, then you&apos;ll return to finish it.
               </p>
             )}
@@ -971,7 +1024,7 @@ export function AddStepDialog({
                 type="button"
                 size="sm"
                 onClick={() =>
-                  submitPaymentStep(mode === 'PRE_PAYMENT_STEP' ? 'PRE_PAYMENT' : 'POST_PAYMENT')
+                  submitPaymentStep(mode === 'PRE_PAYMENT_STEP' ? 'PRE_AUCTION' : 'POST_AUCTION')
                 }
                 disabled={savingStep}
                 className="gap-2"
