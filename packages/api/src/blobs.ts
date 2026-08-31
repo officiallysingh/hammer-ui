@@ -93,6 +93,13 @@ export const blobsApi = {
     return response.data;
   },
 
+  /** GET /api/v1/blobs/listing/{id}/thumbnail — returns the thumbnail blob's metadata
+   *  for a listing (not the raw bytes); pair with {@link getDownloadUrl} for the image src. */
+  getListingThumbnail: async (listingId: string): Promise<BlobVM> => {
+    const response = await apiClient.get<BlobVM>(`/api/v1/blobs/listing/${listingId}/thumbnail`);
+    return response.data;
+  },
+
   /** Returns the absolute URL to stream/download the raw file */
   getDownloadUrl: (id: string): string =>
     `${apiClient.defaults.baseURL}/api/v1/blobs/${id}/download`,
