@@ -18,13 +18,14 @@ import {
   TooltipTrigger,
 } from '@repo/ui';
 import { authApi } from '@repo/api';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, useAuthHydrated } from '@/store/authStore';
 import { AuthIllustration } from '@/components/auth/AuthIllustration';
 import { PASSWORD_PATTERN, PASSWORD_ERROR, PASSWORD_RULES } from '@/lib/validation';
 
 export default function ChangePasswordPage() {
   const router = useRouter();
   const { user, userInfo, setUserInfo, clearUser, needsChangePassword } = useAuthStore();
+  const hydrated = useAuthHydrated();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -35,6 +36,7 @@ export default function ChangePasswordPage() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!hydrated) return;
     if (!user?.authenticated) {
       router.replace('/login');
       return;
@@ -42,7 +44,7 @@ export default function ChangePasswordPage() {
     if (userInfo && !needsChangePassword()) {
       router.replace('/');
     }
-  }, [user, userInfo, needsChangePassword, router]);
+  }, [hydrated, user, userInfo, needsChangePassword, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,7 +83,7 @@ export default function ChangePasswordPage() {
     }
   };
 
-  if (!user?.authenticated) return null;
+  if (!hydrated || !user?.authenticated) return null;
 
   return (
     <div className="min-h-screen flex">

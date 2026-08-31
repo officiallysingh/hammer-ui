@@ -1,4 +1,4 @@
-import axios, { type InternalAxiosRequestConfig } from 'axios';
+import axios from 'axios';
 
 // Get base URL from environment or use a default
 const getBaseUrl = () => {
@@ -19,14 +19,14 @@ export const apiClient = axios.create({
   xsrfHeaderName: 'X-XSRF-TOKEN',
 });
 
-// Example: Add request interceptor for auth tokens
-apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  // Try to get token from localStorage if we're in a browser environment
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('auth_token');
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        window.location.href = '/login';
+      }
     }
-  }
-  return config;
-});
+    return Promise.reject(error);
+  },
+);

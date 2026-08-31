@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { usersApi, authApi, bankDetailsApi, masterApi } from '@repo/api';
 import type { BankDetailVM, BankVM } from '@repo/api';
 import { IFSC_REGEX, ACCOUNT_NO_REGEX } from '@repo/api';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, useAuthHydrated } from '@/store/authStore';
 import {
   Loader2,
   User,
@@ -730,6 +730,7 @@ function BankDetailsSection() {
 export default function ProfilePage() {
   const router = useRouter();
   const { user, userInfo, setUserInfo } = useAuthStore();
+  const hydrated = useAuthHydrated();
   const [pwdOpen, setPwdOpen] = useState(false);
   const [savingPic, setSavingPic] = useState(false);
   const [picError, setPicError] = useState<string | null>(null);
@@ -754,8 +755,13 @@ export default function ProfilePage() {
     }
   }, [userInfo]);
 
-  if (!user?.authenticated) {
-    router.replace('/login');
+  useEffect(() => {
+    if (hydrated && !user?.authenticated) {
+      router.replace('/login');
+    }
+  }, [hydrated, user, router]);
+
+  if (!hydrated || !user?.authenticated) {
     return null;
   }
 

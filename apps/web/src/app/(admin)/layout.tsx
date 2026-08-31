@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, useAuthHydrated } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { authApi } from '@repo/api';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
@@ -11,14 +11,15 @@ import { AdminTopbar } from '@/components/admin/AdminTopbar';
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, clearUser, isAdmin, userInfo } = useAuthStore();
+  const hydrated = useAuthHydrated();
   const { sidebarOpen, sidebarCollapsed, toggleSidebar, toggleSidebarCollapsed, closeSidebar } =
     useUIStore();
 
   React.useEffect(() => {
-    if (!user || !isAdmin()) router.replace('/login');
-  }, [user, isAdmin, router]);
+    if (hydrated && (!user || !isAdmin())) router.replace('/login');
+  }, [hydrated, user, isAdmin, router]);
 
-  if (!user || !isAdmin()) return null;
+  if (!hydrated || !user || !isAdmin()) return null;
 
   const handleSignOut = async () => {
     try {
