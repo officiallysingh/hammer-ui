@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import type { UserInfo } from '@repo/api';
+import { useSyncExternalStore } from 'react';
 
 export interface UserRole {
   authority: string;
@@ -51,3 +52,17 @@ export const useAuthStore = create<AuthState>()(
     { name: 'auth-store' },
   ),
 );
+
+export function useAuthHydrated() {
+  return useSyncExternalStore(
+    (callback) => {
+      if (useAuthStore.persist?.hasHydrated()) {
+        callback();
+        return () => {};
+      }
+      return useAuthStore.persist?.onFinishHydration(callback) ?? (() => {});
+    },
+    () => useAuthStore.persist?.hasHydrated() ?? false,
+    () => false,
+  );
+}

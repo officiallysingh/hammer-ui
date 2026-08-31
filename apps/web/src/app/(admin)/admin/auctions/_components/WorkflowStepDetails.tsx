@@ -1,8 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { CreditCard, Landmark, ShieldCheck, UserCheck, FileText, Upload } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { AuctionWorkflowStep } from '@repo/api';
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@repo/ui';
 import { resolveStr, fmtLabel, paymentStepData, formatOffsetLabel } from './PolicyShared';
 import { PropertyFormPreview } from '@/app/(admin)/admin/metadata/_components/PropertyFormPreview';
 
@@ -199,12 +201,47 @@ export function ParticipationFormStepDetails({ step }: { step: AuctionWorkflowSt
 // ── Terms & Conditions step ─────────────────────────────────────────────────
 
 export function TnCStepDetails({ step }: { step: AuctionWorkflowStep }) {
+  const [open, setOpen] = useState(false);
+  const html = step.tncText ?? '';
+
+  if (!html) return null;
+
   return (
-    <div
-      className="prose prose-sm dark:prose-invert max-w-none rounded-lg border border-border bg-background p-4
-              [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
-      dangerouslySetInnerHTML={{ __html: step.tncText ?? '' }}
-    />
+    <>
+      <div className="rounded-lg border border-border bg-background">
+        <div className="relative max-h-32 overflow-hidden">
+          <div
+            className="prose prose-sm dark:prose-invert max-w-none p-4
+                    [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+          <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-background to-transparent" />
+        </div>
+        <div className="flex justify-center border-t border-border/40">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs text-primary"
+            onClick={() => setOpen(true)}
+          >
+            View full Terms &amp; Conditions
+          </Button>
+        </div>
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Terms &amp; Conditions</DialogTitle>
+          </DialogHeader>
+          <div
+            className="prose prose-sm dark:prose-invert max-w-none overflow-y-auto flex-1
+                    [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

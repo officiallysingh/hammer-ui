@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import AuctionCard, { type AuctionItem } from './AuctionCard';
-import { Button } from '@repo/ui';
+import { AuctionSearchForm, type AuctionSearchValues } from './AuctionSearchForm';
 
 const categories = ['All', 'Art', 'Watches', 'Jewelry', 'Antiques', 'Wine'];
 
@@ -68,9 +68,25 @@ const MOCK_ITEMS: AuctionItem[] = [
   },
 ];
 
+const EMPTY_SEARCH: AuctionSearchValues = {
+  phrase: '',
+  category: 'All',
+  fromDate: '',
+  tillDate: '',
+};
+
 const AuctionGrid = () => {
-  const [active, setActive] = useState('All');
-  const filtered = active === 'All' ? MOCK_ITEMS : MOCK_ITEMS.filter((i) => i.category === active);
+  const [search, setSearch] = useState<AuctionSearchValues>(EMPTY_SEARCH);
+
+  const filtered = MOCK_ITEMS.filter((item) => {
+    if (search.category !== 'All' && item.category !== search.category) return false;
+    if (search.phrase && !item.title.toLowerCase().includes(search.phrase.toLowerCase())) {
+      return false;
+    }
+    if (search.fromDate && item.endsAt < new Date(search.fromDate)) return false;
+    if (search.tillDate && item.endsAt > new Date(`${search.tillDate}T23:59:59`)) return false;
+    return true;
+  });
 
   return (
     <section className="py-20">
@@ -89,27 +105,20 @@ const AuctionGrid = () => {
           </p>
         </motion.div>
 
-        {/* Category filter */}
-        <div className="mt-10 flex flex-wrap justify-center gap-2">
-          {categories.map((cat) => (
-            <Button
-              key={cat}
-              variant={active === cat ? 'gold' : 'ghost'}
-              size="sm"
-              onClick={() => setActive(cat)}
-              className="font-body text-xs tracking-wider uppercase"
-            >
-              {cat}
-            </Button>
-          ))}
-        </div>
+        <AuctionSearchForm categories={categories} onSearch={setSearch} />
 
         {/* Grid */}
-        <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((item, i) => (
-            <AuctionCard key={item.id} item={item} index={i} />
-          ))}
-        </div>
+        {filtered.length > 0 ? (
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {filtered.map((item, i) => (
+              <AuctionCard key={item.id} item={item} index={i} />
+            ))}
+          </div>
+        ) : (
+          <p className="mt-10 text-center font-body text-muted-foreground">
+            No auctions match your search.
+          </p>
+        )}
       </div>
     </section>
   );

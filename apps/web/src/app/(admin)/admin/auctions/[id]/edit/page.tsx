@@ -125,7 +125,7 @@ export default function EditAuctionPage() {
       .finally(() => setLoadingUnitTypes(false));
 
     Promise.all([
-      auctionsApi.getAuctionById(id),
+      auctionsApi.getAuctionById(id, ['*']),
       auctionsApi.getAuctionPolicies(id).catch(() => null),
     ])
       .then(([auction, savedPolicies]) => {

@@ -39,6 +39,7 @@ import ErrorAlert from '@/components/common/admin/ErrorAlert';
 import ConfirmDialog from '@/components/common/admin/ConfirmDialog';
 import Tip from '@/components/common/admin/Tip';
 import { PhrasesInput } from '@/components/common/admin/PhrasesInput';
+import { ListingThumbnail } from '@/components/common/admin/ListingThumbnail';
 import { ICON_REGISTRY } from '@/components/common/iconRegistry';
 
 type MediaType = 'image' | 'video' | 'doc';
@@ -583,25 +584,7 @@ export default function ListingsPage() {
     {
       id: 'thumbnail',
       header: '',
-      cell: ({ row }) => {
-        const thumb = (row.original.blobs ?? []).find(
-          (b) => b.metadata?.['thumbnail'] === 'true' || b.mediaType?.startsWith('image/'),
-        );
-        return (
-          <div className="w-10 h-10 rounded-lg overflow-hidden border border-border bg-muted shrink-0 flex items-center justify-center">
-            {thumb ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={blobsApi.getDownloadUrl(thumb.id)}
-                alt=""
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <Package className="h-4 w-4 text-muted-foreground/40" />
-            )}
-          </div>
-        );
-      },
+      cell: ({ row }) => <ListingThumbnail listingId={row.original.id} />,
     },
     {
       accessorKey: 'name',

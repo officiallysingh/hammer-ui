@@ -15,7 +15,7 @@ import {
   InputOTPSlot,
 } from '@repo/ui';
 import { authApi } from '@repo/api';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, useAuthHydrated } from '@/store/authStore';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const OTP_RESEND_COOLDOWN = 30;
@@ -25,6 +25,7 @@ type VerifyStep = 'email_send' | 'email_otp' | 'mobile_send' | 'mobile_otp' | 'd
 export default function VerifyPage() {
   const router = useRouter();
   const { user, userInfo, setUserInfo, needsVerification } = useAuthStore();
+  const hydrated = useAuthHydrated();
 
   const needsEmail = !!(userInfo && !userInfo.emailIdVerified);
   const needsMobile = !!(userInfo && !userInfo.mobileNoVerified);
@@ -45,6 +46,7 @@ export default function VerifyPage() {
 
   // Redirect if not logged in or already verified
   useEffect(() => {
+    if (!hydrated) return;
     if (!user?.authenticated) {
       router.replace('/login');
       return;
@@ -52,7 +54,7 @@ export default function VerifyPage() {
     if (userInfo && !needsVerification()) {
       router.replace('/');
     }
-  }, [user, userInfo, needsVerification, router]);
+  }, [hydrated, user, userInfo, needsVerification, router]);
 
   // Cooldown timer
   useEffect(() => {
@@ -61,7 +63,7 @@ export default function VerifyPage() {
     return () => clearInterval(t);
   }, [resendCooldown]);
 
-  if (!user?.authenticated) return null;
+  if (!hydrated || !user?.authenticated) return null;
 
   const emailAddress = userInfo?.emailId ?? '';
   const mobileNumber = userInfo?.mobileNo ?? user.username ?? '';

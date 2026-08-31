@@ -129,7 +129,26 @@ export interface UsersFilter {
   expand?: ('permissions' | 'roles' | 'role-permissions' | '*')[];
 }
 
+// GET /api/v1/users/summary
+export interface UserSummary {
+  username: string;
+  emailId: string;
+  mobileNo?: string;
+  firstName: string;
+  lastName: string;
+  profilePicture?: string;
+  enabled: boolean;
+}
+
 export const usersApi = {
+  /** GET /api/v1/users/summary — lightweight user search by phrase, for pickers.
+   *  Up to 5 phrases, each at most 15 chars. */
+  getUserSummaries: async (phrases: string[]): Promise<UserSummary[]> => {
+    const response = await apiClient.get<UserSummary[]>('/api/v1/users/summary', {
+      params: phrases.length ? { phrases } : undefined,
+    });
+    return response.data;
+  },
   /** Fetches info for the currently logged-in user (session-derived, no id needed). */
   getSelfInfo: async (): Promise<UserInfo> => {
     const response = await apiClient.get<UserInfo>('/api/v1/users/me/info');

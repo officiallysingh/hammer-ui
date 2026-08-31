@@ -421,6 +421,14 @@ export const auctionsApi = {
     await apiClient.put(`/api/v1/auctions/${id}/schedule`, data);
   },
 
+  publishAuction: async (id: string): Promise<void> => {
+    await apiClient.put(`/api/v1/auctions/${id}/publish`);
+  },
+
+  cancelAuction: async (id: string): Promise<void> => {
+    await apiClient.put(`/api/v1/auctions/${id}/cancel`);
+  },
+
   getAuctionWorkflow: async (id: string): Promise<AuctionWorkflowStep[]> => {
     const response = await apiClient.get<AuctionWorkflowStep[]>(`/api/v1/auctions/${id}/workflow`);
     return response.data;

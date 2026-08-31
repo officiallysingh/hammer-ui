@@ -22,6 +22,7 @@ import {
   X,
   CalendarClock,
   Send,
+  Ban,
 } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button, Label, DateTimePicker, Tooltip, TooltipContent, TooltipTrigger } from '@repo/ui';
@@ -180,6 +181,8 @@ export default function AuctionsPage() {
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [confirmPublishId, setConfirmPublishId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
   const PAGE_SIZE = 20;
   const [pageIndex, setPageIndex] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -319,21 +322,11 @@ export default function AuctionsPage() {
     }
   };
 
-  // Publishing a SCHEDULED auction keeps its existing start/end times — only the
-  // `publish` flag flips, so this can happen inline from the table without
-  // sending the admin back through the schedule form.
   const handlePublish = async (auction: AuctionVM) => {
-    const startTime = auction.schedule?.startTime ?? auction.startTime;
-    const endTime = auction.schedule?.endTime ?? auction.endTime;
-    if (!startTime || !endTime) {
-      setError('This auction has no schedule to publish yet.');
-      setConfirmPublishId(null);
-      return;
-    }
     setPublishingId(auction.id);
     setConfirmPublishId(null);
     try {
-      await auctionsApi.scheduleAuction(auction.id, { startTime, endTime, publish: true });
+      await auctionsApi.publishAuction(auction.id);
       setAuctions((prev) =>
         prev.map((a) => (a.id === auction.id ? { ...a, status: 'PUBLISHED' } : a)),
       );
@@ -341,6 +334,19 @@ export default function AuctionsPage() {
       setError('Failed to publish auction.');
     } finally {
       setPublishingId(null);
+    }
+  };
+
+  const handleCancel = async (id: string) => {
+    setCancellingId(id);
+    setConfirmCancelId(null);
+    try {
+      await auctionsApi.cancelAuction(id);
+      setAuctions((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'CANCELLED' } : a)));
+    } catch {
+      setError('Failed to cancel auction.');
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -452,6 +458,9 @@ export default function AuctionsPage() {
         // Delete stops being offered once the auction goes public — DRAFT and
         // SCHEDULED are the only pre-publish states.
         const canDelete = status === 'DRAFT' || status === 'SCHEDULED';
+        // Cancellation only makes sense once an auction has a schedule/is public,
+        // and before it reaches a terminal state.
+        const canCancel = status === 'SCHEDULED' || status === 'PUBLISHED' || status === 'LIVE';
         return (
           <div className="flex items-center gap-0.5 justify-end">
             <Tip label="View">
@@ -499,6 +508,23 @@ export default function AuctionsPage() {
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <Send className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </Tip>
+            )}
+            {canCancel && (
+              <Tip label="Cancel">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => setConfirmCancelId(row.original.id)}
+                  disabled={cancellingId === row.original.id}
+                >
+                  {cancellingId === row.original.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Ban className="h-3.5 w-3.5" />
                   )}
                 </Button>
               </Tip>
@@ -693,6 +719,17 @@ export default function AuctionsPage() {
           if (auction) handlePublish(auction);
         }}
         onCancel={() => setConfirmPublishId(null)}
+      />
+
+      <ConfirmDialog
+        open={confirmCancelId !== null}
+        title="Cancel auction?"
+        description="This will cancel the auction. Participants will no longer be able to place offers."
+        confirmLabel="Cancel auction"
+        onConfirm={() => {
+          if (confirmCancelId) handleCancel(confirmCancelId);
+        }}
+        onCancel={() => setConfirmCancelId(null)}
       />
     </div>
   );
