@@ -114,7 +114,7 @@ export function AuctionStep6Invitations({ auctionId, onBack, onFinish }: Props) 
     debounceRef.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const data = await usersApi.getUserSummaries([phrase.slice(0, 15)]);
+        const data = await usersApi.getUserSummaries([phrase]);
         setResults(data);
       } catch {
         setResults([]);
@@ -228,7 +228,6 @@ export function AuctionStep6Invitations({ auctionId, onBack, onFinish }: Props) 
               onChange={(e) => handleQueryChange(e.target.value)}
               onFocus={() => query.trim() && setOpen(true)}
               placeholder="Search by name, username, email or mobile..."
-              maxLength={15}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
             />
             {open && (query.trim() || searching) && (

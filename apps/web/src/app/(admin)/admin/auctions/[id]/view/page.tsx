@@ -1317,6 +1317,7 @@ import {
   TnCStepDetails,
   FormStepDetails,
 } from './../../_components/WorkflowStepDetails';
+import { AuctionParticipantsTab } from './../../_components/AuctionParticipantsTab';
 
 // ── Timeline model ────────────────────────────────────────────────────────────
 
@@ -2010,7 +2011,7 @@ export default function AuctionViewPage() {
 
       {/* Main Tabbed Interface */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 rounded-xl p-1 bg-muted/60">
+        <TabsList className="grid w-full grid-cols-5 rounded-xl p-1 bg-muted/60">
           <TabsTrigger value="overview" className="rounded-lg text-xs font-semibold gap-2 py-2">
             <Info className="h-3.5 w-3.5" />
             <span>Overview</span>
@@ -2026,6 +2027,10 @@ export default function AuctionViewPage() {
           <TabsTrigger value="timeline" className="rounded-lg text-xs font-semibold gap-2 py-2">
             <GitFork className="h-3.5 w-3.5" />
             <span>Workflow</span>
+          </TabsTrigger>
+          <TabsTrigger value="invitations" className="rounded-lg text-xs font-semibold gap-2 py-2">
+            <Users className="h-3.5 w-3.5" />
+            <span>Invitations</span>
           </TabsTrigger>
         </TabsList>
 
@@ -2211,6 +2216,11 @@ export default function AuctionViewPage() {
               />
             </div>
           </div>
+        </TabsContent>
+
+        {/* TAB 5: INVITATIONS */}
+        <TabsContent value="invitations" className="space-y-4 outline-none">
+          <AuctionParticipantsTab auctionId={id} />
         </TabsContent>
       </Tabs>
     </div>

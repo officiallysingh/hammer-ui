@@ -123,7 +123,8 @@ export function WorkflowStagesTimeline({
           // For stages with nodes, render them in a nested structure
           const stageDetails =
             stage.nodes.length > 0 ? (
-              <div className="space-y-2">
+              <div className="relative space-y-2">
+                <div className="absolute left-[197px] top-6 bottom-6 w-0.5 bg-border z-0" />
                 {stage.nodes.map((node, i) => {
                   const nodeIsLast = i === stage.nodes.length - 1;
                   const nextNode = !nodeIsLast ? stage.nodes[i + 1] : null;
