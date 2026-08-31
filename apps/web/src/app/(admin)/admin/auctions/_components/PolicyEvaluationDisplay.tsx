@@ -678,6 +678,7 @@ export function PolicyItemCard({
   loadingEvaluation,
   showStatus = true,
   resultLabel = 'Result',
+  showTypeBadge = true,
   editable,
   onEdit,
   deletable,
@@ -693,6 +694,7 @@ export function PolicyItemCard({
   loadingEvaluation?: boolean;
   showStatus?: boolean;
   resultLabel?: string;
+  showTypeBadge?: boolean;
   editable?: boolean;
   onEdit?: () => void;
   deletable?: boolean;
@@ -725,7 +727,7 @@ export function PolicyItemCard({
           <span className="text-sm font-semibold text-foreground truncate">
             {name || fmtLabel(type) || 'Policy'}
           </span>
-          {type != null && (
+          {showTypeBadge && type != null && (
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
               {fmtLabel(type)}
             </Badge>
