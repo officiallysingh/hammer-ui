@@ -132,12 +132,24 @@ export interface AuctionsFilter {
   phrases?: string[];
   categories?: string[];
   subCategories?: string[];
+  accessibility?: string;
+  direction?: string;
   fromTime?: string;
   tillTime?: string;
   page?: number;
   size?: number;
   sort?: string[];
   expand?: string[];
+}
+
+export interface PublicAuctionsFilter {
+  phrases?: string[];
+  categories?: string[];
+  subCategories?: string[];
+  direction?: string;
+  fromTime?: string;
+  tillTime?: string;
+  page?: number;
 }
 
 export interface PaginatedAuctions {
@@ -347,6 +359,26 @@ function parseModelOptions(entries: AuctionModelEntry[]): { value: string; label
 }
 
 export const auctionsApi = {
+  getPublicAuctions: async (filter: PublicAuctionsFilter = {}): Promise<PaginatedAuctions> => {
+    const { phrases, categories, subCategories, direction, fromTime, tillTime, page = 0 } = filter;
+    const response = await apiClient.get<PaginatedAuctions>('/api/v1/auctions/public', {
+      params: {
+        ...(phrases?.length ? { phrases } : {}),
+        ...(categories?.length ? { categories } : {}),
+        ...(subCategories?.length ? { subCategories } : {}),
+        ...(direction ? { direction } : {}),
+        ...(fromTime ? { fromTime } : {}),
+        ...(tillTime ? { tillTime } : {}),
+        page,
+      },
+    });
+    const paginated = response.data;
+    if (paginated.content?.length) {
+      return { ...paginated, content: paginated.content.map((a) => auctionsApi.withSchedule(a)) };
+    }
+    return paginated;
+  },
+
   createAuction: async (data: AuctionCreationRQ): Promise<string> => {
     const response = await apiClient.post<{ id: string }>('/api/v1/auctions', data);
     return response.data.id;
@@ -373,6 +405,8 @@ export const auctionsApi = {
       phrases,
       categories,
       subCategories,
+      accessibility,
+      direction,
       fromTime,
       tillTime,
       page = 0,
@@ -385,6 +419,8 @@ export const auctionsApi = {
         ...(phrases?.length ? { phrases } : {}),
         ...(categories?.length ? { categories } : {}),
         ...(subCategories?.length ? { subCategories } : {}),
+        ...(accessibility ? { accessibility } : {}),
+        ...(direction ? { direction } : {}),
         ...(fromTime ? { fromTime } : {}),
         ...(tillTime ? { tillTime } : {}),
         ...(sort?.length ? { sort } : {}),
@@ -602,6 +638,11 @@ export const auctionsApi = {
   /** Deletes a single saved policy (and its related workflow steps). */
   deleteAuctionPolicy: async (id: string, policyId: string): Promise<void> => {
     await apiClient.delete(`/api/v1/auctions/${id}/policies/${policyId}`);
+  },
+
+  /** Deletes ALL saved policies for the auction. */
+  deleteAuctionPolicies: async (id: string): Promise<void> => {
+    await apiClient.delete(`/api/v1/auctions/${id}/policies`);
   },
 
   /** Adds a sub-policy to a composite policy (e.g. a price-progression window). */
