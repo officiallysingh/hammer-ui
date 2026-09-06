@@ -132,6 +132,7 @@ export interface AuctionsFilter {
   phrases?: string[];
   categories?: string[];
   subCategories?: string[];
+  statuses?: string[];
   accessibility?: string;
   direction?: string;
   fromTime?: string;
@@ -405,6 +406,7 @@ export const auctionsApi = {
       phrases,
       categories,
       subCategories,
+      statuses,
       accessibility,
       direction,
       fromTime,
@@ -419,6 +421,7 @@ export const auctionsApi = {
         ...(phrases?.length ? { phrases } : {}),
         ...(categories?.length ? { categories } : {}),
         ...(subCategories?.length ? { subCategories } : {}),
+        ...(statuses?.length ? { statuses } : {}),
         ...(accessibility ? { accessibility } : {}),
         ...(direction ? { direction } : {}),
         ...(fromTime ? { fromTime } : {}),
@@ -440,6 +443,11 @@ export const auctionsApi = {
     const response = await apiClient.get<AuctionVM>(`/api/v1/auctions/${id}`, {
       headers: expand?.length ? { 'x-expand': expand } : undefined,
     });
+    return auctionsApi.withSchedule(response.data);
+  },
+
+  getPublicAuctionById: async (id: string): Promise<AuctionVM> => {
+    const response = await apiClient.get<AuctionVM>(`/api/v1/auctions/${id}/public`);
     return auctionsApi.withSchedule(response.data);
   },
 

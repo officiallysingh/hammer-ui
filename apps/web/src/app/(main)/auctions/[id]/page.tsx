@@ -73,7 +73,7 @@ export default function PublicAuctionViewPage({ params }: { params: Promise<{ id
   const loadData = useCallback(async () => {
     try {
       const [auctionData, selfParticipant] = await Promise.all([
-        auctionsApi.getAuctionById(id),
+        auctionsApi.getPublicAuctionById(id),
         isLoggedIn
           ? participantsApi.getSelfParticipant(id).catch(() => null)
           : Promise.resolve(null),
