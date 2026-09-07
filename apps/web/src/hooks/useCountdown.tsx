@@ -12,9 +12,8 @@ interface CountdownResult {
 }
 
 export function useCountdown(targetDate: Date | string | undefined): CountdownResult {
-  const target = targetDate ? new Date(targetDate) : undefined;
-
   const calculate = useCallback((): CountdownResult => {
+    const target = targetDate ? new Date(targetDate) : undefined;
     if (!target || isNaN(target.getTime())) {
       return { timeLeft: '—', isEnded: false, isStarting: false, hours: 0, minutes: 0, seconds: 0 };
     }
@@ -40,7 +39,7 @@ export function useCountdown(targetDate: Date | string | undefined): CountdownRe
       minutes: m,
       seconds: s,
     };
-  }, [target]);
+  }, [targetDate]);
 
   const [result, setResult] = useState<CountdownResult>(calculate);
 

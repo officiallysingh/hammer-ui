@@ -156,7 +156,7 @@ function ReviewSection({
       <h4 className="text-xs font-semibold text-foreground">{title}</h4>
       <EvaluationList
         evaluations={evaluations}
-        policyName={entries.length === 1 ? entries[0][0] : title}
+        policyName={entries.length === 1 ? (entries[0]?.[0] ?? title) : title}
       />
     </div>
   );

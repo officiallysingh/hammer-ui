@@ -47,11 +47,6 @@ export function InvitationActionCard({ auction, action, identifier }: Invitation
           code,
         });
       } else {
-        if (!comments.trim()) {
-          setFieldErrors({ comments: 'Please provide a reason for declining.' });
-          setLoading(false);
-          return;
-        }
         await participantsApi.declineInvitation(auction.id);
       }
       setSuccess(true);
