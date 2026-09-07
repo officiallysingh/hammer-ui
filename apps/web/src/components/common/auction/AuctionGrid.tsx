@@ -101,8 +101,17 @@ function PublicAuctionCard({ auction, index }: { auction: AuctionVM; index: numb
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.4, delay: index * 0.07 }}
-      className="group relative overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-all duration-300 hover:border-primary/40 hover:shadow-md cursor-pointer"
+      role="link"
+      tabIndex={0}
+      aria-label={`View details for ${auction.title}`}
+      className="group relative overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-all duration-300 hover:border-primary/40 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
       onClick={() => router.push(`/auctions/${auction.id}`)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          router.push(`/auctions/${auction.id}`);
+        }
+      }}
     >
       {/* Status bar */}
       <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between gap-2">
@@ -175,11 +184,12 @@ function PublicAuctionCard({ auction, index }: { auction: AuctionVM; index: numb
         </div>
       </div>
 
-      {/* Join button overlay on hover */}
+      {/* Keep the primary action visible on touch devices as well as hover. */}
       <div className="px-4 pb-4">
         <Button
           size="sm"
-          className="w-full gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+          variant="outline"
+          className="w-full gap-1.5 border-primary/40 text-primary hover:border-primary hover:bg-primary hover:text-primary-foreground"
           onClick={(e) => {
             e.stopPropagation();
             router.push(`/auctions/${auction.id}`);
@@ -295,7 +305,7 @@ const AuctionGrid = () => {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="mx-auto mt-10 max-w-4xl rounded-2xl border border-border bg-card/60 p-4 shadow-sm backdrop-blur"
+          className="mx-auto mt-10  rounded-2xl border border-border bg-card/60 p-4 shadow-sm backdrop-blur"
         >
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[200px] flex-1 space-y-1.5">

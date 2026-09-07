@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Loader2,
   RefreshCw,
+  RotateCcw,
   Search,
   Trash2,
   X,
@@ -67,6 +68,7 @@ export function ParticipantsTable({ auctionId, onParticipantRemoved }: Props) {
   const [participants, setParticipants] = useState<ParticipantVM[]>([]);
   const [loading, setLoading] = useState(true);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [reinvitingId, setReinvitingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Pagination
@@ -156,6 +158,31 @@ export function ParticipantsTable({ auctionId, onParticipantRemoved }: Props) {
       setError(parseApiError(err).general ?? 'Failed to remove participant.');
     } finally {
       setRemovingId(null);
+    }
+  };
+
+  const handleReinvite = async (participant: ParticipantVM) => {
+    if (!participant.emailId && !participant.mobileNo) {
+      setError('This participant has no email or phone number to reinvite.');
+      return;
+    }
+    setReinvitingId(participant.id);
+    setError(null);
+    try {
+      await participantsApi.inviteParticipant(auctionId, {
+        emailId: participant.emailId,
+        mobileNo: participant.mobileNo,
+        forceReInvite: true,
+      });
+      await fetchParticipants({
+        phrases: appliedPhrase ? [appliedPhrase] : undefined,
+        invitationStatuses: selectedStatuses,
+        page,
+      });
+    } catch (err) {
+      setError(parseApiError(err).general ?? 'Failed to send the invitation again.');
+    } finally {
+      setReinvitingId(null);
     }
   };
 
@@ -336,19 +363,34 @@ export function ParticipantsTable({ auctionId, onParticipantRemoved }: Props) {
                       {respondedAt}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleRemove(p.id)}
-                        disabled={removingId === p.id}
-                        title="Remove participant"
-                        className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
-                      >
-                        {removingId === p.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleReinvite(p)}
+                          disabled={reinvitingId === p.id || removingId === p.id}
+                          title="Re-invite participant"
+                          className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+                        >
+                          {reinvitingId === p.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemove(p.id)}
+                          disabled={removingId === p.id}
+                          title="Remove participant"
+                          className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                        >
+                          {removingId === p.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

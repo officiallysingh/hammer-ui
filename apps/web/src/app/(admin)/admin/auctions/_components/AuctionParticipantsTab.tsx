@@ -4,7 +4,6 @@ import { useCallback, useRef, useState } from 'react';
 import { Loader2, Mail, Phone, Search, Send, UserPlus } from 'lucide-react';
 import { Button, Label } from '@repo/ui';
 import { participantsApi, usersApi, type UserSummary } from '@repo/api';
-import { PhrasesInput } from '@/components/common/admin/PhrasesInput';
 import { UserAvatar } from '@/components/common/admin/UserAvatar';
 import { parseApiError } from '@/lib/api-errors';
 import { DismissibleError, FieldError } from './AuctionShared';
@@ -30,8 +29,8 @@ export function AuctionParticipantsTab({ auctionId }: Props) {
   const [invitingUser, setInvitingUser] = useState<string | null>(null);
 
   // ── Invite by email/phone ────────────────────────────────────────────────
-  const [emails, setEmails] = useState<string[]>([]);
-  const [phones, setPhones] = useState<string[]>([]);
+  const [emailId, setEmailId] = useState('');
+  const [mobileNo, setMobileNo] = useState('');
   const [emailError, setEmailError] = useState<string | undefined>();
   const [phoneError, setPhoneError] = useState<string | undefined>();
   const [sending, setSending] = useState(false);
@@ -85,31 +84,40 @@ export function AuctionParticipantsTab({ auctionId }: Props) {
     }
   };
 
-  const handleEmailsChange = (values: string[]) => {
-    const valid = values.filter((v) => EMAIL_RE.test(v.trim()));
-    const invalid = values.filter((v) => !EMAIL_RE.test(v.trim()));
-    setEmailError(invalid.length ? `Not a valid email: ${invalid.join(', ')}` : undefined);
-    setEmails(valid);
+  const handleEmailChange = (value: string) => {
+    setEmailId(value);
+    setEmailError(
+      value && !EMAIL_RE.test(value.trim()) ? 'Enter a valid email address.' : undefined,
+    );
   };
 
-  const handlePhonesChange = (values: string[]) => {
-    const valid = values.filter((v) => PHONE_RE.test(v.trim()));
-    const invalid = values.filter((v) => !PHONE_RE.test(v.trim()));
-    setPhoneError(invalid.length ? `Not a valid phone: ${invalid.join(', ')}` : undefined);
-    setPhones(valid);
+  const handlePhoneChange = (value: string) => {
+    setMobileNo(value);
+    setPhoneError(
+      value && !PHONE_RE.test(value.trim()) ? 'Enter a valid phone number.' : undefined,
+    );
   };
 
   const handleSendInvites = async () => {
-    if (emails.length === 0 && phones.length === 0) return;
+    const trimmedEmail = emailId.trim();
+    const trimmedPhone = mobileNo.trim();
+    if (!EMAIL_RE.test(trimmedEmail)) {
+      setEmailError('Enter a valid email address.');
+      return;
+    }
+    if (trimmedPhone && !PHONE_RE.test(trimmedPhone)) {
+      setPhoneError('Enter a valid phone number.');
+      return;
+    }
     setSending(true);
     setGeneralError(null);
     try {
-      await Promise.all([
-        ...emails.map((emailId) => participantsApi.inviteParticipant(auctionId, { emailId })),
-        ...phones.map((mobileNo) => participantsApi.inviteParticipant(auctionId, { mobileNo })),
-      ]);
-      setEmails([]);
-      setPhones([]);
+      await participantsApi.inviteParticipant(auctionId, {
+        emailId: trimmedEmail,
+        ...(trimmedPhone ? { mobileNo: trimmedPhone } : {}),
+      });
+      setEmailId('');
+      setMobileNo('');
       setEmailError(undefined);
       setPhoneError(undefined);
       refreshTable();
@@ -200,53 +208,64 @@ export function AuctionParticipantsTab({ auctionId }: Props) {
           </div>
         </div>
 
-        {/* Invite by email */}
-        <div className="space-y-1.5">
-          <Label className="flex items-center gap-1.5 text-sm font-medium">
-            <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-            Invite by email
-          </Label>
-          <PhrasesInput
-            value={emails}
-            onChange={handleEmailsChange}
-            placeholder="Type an email and press Enter..."
-          />
-          <FieldError message={emailError} />
+        <div className="flex items-center gap-3 py-1 text-xs text-muted-foreground">
+          <div className="h-px flex-1 bg-border" />
+          <span className="font-medium uppercase tracking-wider">or</span>
+          <div className="h-px flex-1 bg-border" />
         </div>
 
-        {/* Invite by phone */}
-        <div className="space-y-1.5">
-          <Label className="flex items-center gap-1.5 text-sm font-medium">
-            <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-            Invite by phone
-          </Label>
-          <PhrasesInput
-            value={phones}
-            onChange={handlePhonesChange}
-            placeholder="Type a phone number and press Enter..."
-          />
-          <FieldError message={phoneError} />
-        </div>
-
-        {(emails.length > 0 || phones.length > 0) && (
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleSendInvites}
-              disabled={sending}
-              className="gap-1.5"
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="admin-invite-email"
+              className="flex items-center gap-1.5 text-sm font-medium"
             >
-              {sending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Send className="h-3.5 w-3.5" />
-              )}
-              Send {emails.length + phones.length} invitation
-              {emails.length + phones.length !== 1 ? 's' : ''}
-            </Button>
+              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+              Invite by email
+            </Label>
+            <input
+              id="admin-invite-email"
+              type="email"
+              value={emailId}
+              onChange={(e) => handleEmailChange(e.target.value)}
+              placeholder="abc@xyz.com"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+            <FieldError message={emailError} />
           </div>
-        )}
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="admin-invite-phone"
+              className="flex items-center gap-1.5 text-sm font-medium"
+            >
+              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+              Invite by phone <span className="text-xs text-muted-foreground">(optional)</span>
+            </Label>
+            <input
+              id="admin-invite-phone"
+              type="tel"
+              value={mobileNo}
+              onChange={(e) => handlePhoneChange(e.target.value)}
+              placeholder="7082690057"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+            <FieldError message={phoneError} />
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleSendInvites}
+            disabled={sending || !emailId.trim() || !!emailError || !!phoneError}
+            className="gap-1.5 md:mb-0.5"
+          >
+            {sending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Send className="h-3.5 w-3.5" />
+            )}
+            Invite
+          </Button>
+        </div>
       </div>
 
       {/* ── Participants table ───────────────────────────────────────────── */}

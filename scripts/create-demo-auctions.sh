@@ -10,17 +10,84 @@ NUM_AUCTIONS="${NUM_AUCTIONS:-10}"
 CATEGORY_ID="${CATEGORY_ID:-}"
 SUBCATEGORY_ID="${SUBCATEGORY_ID:-}"
 MANAGED_TYPE_ID="${MANAGED_TYPE_ID:-}"
+LISTING_ID="${LISTING_ID:-}"
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 info()  { printf "\033[1;34m[INFO]\033[0m  %s\n" "$*"; }
 ok()    { printf "\033[1;32m[OK]\033[0m    %s\n" "$*"; }
+warn()  { printf "\033[1;33m[WARN]\033[0m  %s\n" "$*"; }
 fail()  { printf "\033[1;31m[FAIL]\033[0m  %s\n" "$*"; exit 1; }
 
+# Works without jq - extracts "id":"value" or "id": "value" from JSON
 extract_id() {
   local body="$1"
   local id
-  id=$(echo "$body" | jq -r '.id // empty')
+  id=$(echo "$body" | grep -o '"id"\s*:\s*"[^"]*"' | head -1 | sed 's/"id"\s*:\s*"//;s/"//')
   [ -n "$id" ] && echo "$id" || fail "Could not extract id from: $body"
+}
+
+# Extract first ID from JSON array like [{"id":"xxx"},...] or {"content":[{"id":"xxx"},...]}
+extract_first_id() {
+  local json="$1"
+  local id
+  id=$(echo "$json" | grep -o '"id"\s*:\s*"[^"]*"' | head -1 | sed 's/"id"\s*:\s*"//;s/"//')
+  [ -n "$id" ] && echo "$id" || echo ""
+}
+
+# Convert comma-separated string to JSON array: "a,b,c" -> ["a","b","c"]
+csv_to_json_array() {
+  local csv="$1"
+  if [ -z "$csv" ]; then
+    echo "[]"
+    return
+  fi
+  echo "$csv" | awk -F',' '{
+    printf "["
+    for(i=1; i<=NF; i++) {
+      gsub(/^[ \t]+|[ \t]+$/, "", $i)
+      if(i>1) printf ","
+      printf "\"%s\"", $i
+    }
+    printf "]"
+  }'
+}
+
+# HTTP helper: sends request and returns "http_code\nbody"
+http_post() {
+  local url="$1" data="$2"
+  curl -s -w "\n%{http_code}" -X POST "$url" \
+    -H 'Content-Type: application/json' \
+    -d "$data"
+}
+
+# HTTP helper for PUT
+http_put() {
+  local url="$1" data="$2"
+  curl -s -w "\n%{http_code}" -X PUT "$url" \
+    -H 'Content-Type: application/json' \
+    -d "$data"
+}
+
+# Parse response, set LAST_HTTP_CODE and LAST_BODY
+parse_response() {
+  local resp="$1"
+  LAST_HTTP_CODE=$(echo "$resp" | tail -1)
+  LAST_BODY=$(echo "$resp" | sed '$d')
+}
+
+# Check listing has enough available quantity
+check_listing_availability() {
+  local listing_id="$1"
+  local needed="$2"
+  local resp
+  resp=$(curl -s "$API/listings/$listing_id" 2>/dev/null)
+  local available
+  available=$(echo "$resp" | grep -o '"available"\s*:\s*[0-9]*' | head -1 | sed 's/"available"\s*:\s*//')
+  if [ -z "$available" ]; then
+    echo "0"
+  else
+    echo "$available"
+  fi
 }
 
 check_health() {
@@ -43,7 +110,7 @@ ensure_category() {
   info "Fetching existing categories …"
   local cats
   cats=$(curl -sf "$API/master/categories" 2>/dev/null || echo "[]")
-  CATEGORY_ID=$(echo "$cats" | jq -r '.[0].id // empty')
+  CATEGORY_ID=$(extract_first_id "$cats")
   if [ -n "$CATEGORY_ID" ]; then
     ok "Using existing category $CATEGORY_ID"
   else
@@ -62,10 +129,24 @@ ensure_subcategory() {
     ok "Using existing sub-category $SUBCATEGORY_ID"
     return
   fi
+
+  # If listing is provided, extract subcategory from it
+  if [ -n "${LISTING_ID:-}" ]; then
+    info "Detecting sub-category from listing $LISTING_ID …"
+    local listing_resp
+    listing_resp=$(curl -sf "$API/listings/$LISTING_ID" 2>/dev/null || echo "{}")
+    SUBCATEGORY_ID=$(echo "$listing_resp" | tr '\n' ' ' | grep -o '"subCategory"\s*:\s*{\s*"id"\s*:\s*"[^"]*"' | grep -o '"id"\s*:\s*"[^"]*"' | head -1 | sed 's/"id"\s*:\s*"//;s/"//')
+    if [ -n "$SUBCATEGORY_ID" ]; then
+      ok "Using sub-category $SUBCATEGORY_ID (from listing)"
+      return
+    fi
+    warn "Could not detect sub-category from listing, falling back …"
+  fi
+
   info "Fetching sub-categories for category $CATEGORY_ID …"
   local subs
   subs=$(curl -sf "$API/master/categories/$CATEGORY_ID/sub-categories" 2>/dev/null || echo "[]")
-  SUBCATEGORY_ID=$(echo "$subs" | jq -r '.[0].id // empty')
+  SUBCATEGORY_ID=$(extract_first_id "$subs")
   if [ -n "$SUBCATEGORY_ID" ]; then
     ok "Using existing sub-category $SUBCATEGORY_ID"
   else
@@ -80,24 +161,59 @@ ensure_subcategory() {
 }
 
 ensure_listing() {
-  if [ -n "${LISTING_ID:-}" ]; then
-    ok "Using existing listing $LISTING_ID"
+  if [ -n "$LISTING_ID" ]; then
+    local avail
+    avail=$(check_listing_availability "$LISTING_ID" "$NUM_AUCTIONS")
+    if [ "$avail" -ge "$NUM_AUCTIONS" ] 2>/dev/null; then
+      ok "Using provided listing $LISTING_ID (available: $avail)"
+    else
+      warn "Using provided listing $LISTING_ID but only $avail available (need $NUM_AUCTIONS)"
+    fi
     return
   fi
-  info "Fetching existing listings …"
-  local lists
-  lists=$(curl -sf "$API/listings" 2>/dev/null || echo '{"content":[]}')
-  LISTING_ID=$(echo "$lists" | jq -r '.content[0].id // empty')
-  if [ -n "$LISTING_ID" ]; then
-    ok "Using existing listing $LISTING_ID"
-  else
-    info "Creating listing 'Demo Product' …"
-    local resp
-    resp=$(curl -sf -X POST "$API/listings" \
-      -H 'Content-Type: application/json' \
-      -d '{"name":"Demo Product","description":"Generic product for demo auctions","tags":["demo"],"subCategory":"'"$SUBCATEGORY_ID"'","quantity":1}')
-    LISTING_ID=$(extract_id "$resp")
+
+  info "Looking for existing listings with available quantity ≥ $NUM_AUCTIONS …"
+  local listings_resp
+  listings_resp=$(curl -sf "$API/listings?x-expand=true" 2>/dev/null || echo '{"content":[]}')
+
+  # Parse listings to find one with enough available quantity
+  local found_id=""
+  local listing_ids
+  listing_ids=$(echo "$listings_resp" | grep -o '"id"\s*:\s*"[^"]*"' | sed 's/"id"\s*:\s*"//;s/"//' | head -5)
+  for lid in $listing_ids; do
+    local avail
+    avail=$(check_listing_availability "$lid" "$NUM_AUCTIONS")
+    if [ "$avail" -ge "$NUM_AUCTIONS" ] 2>/dev/null; then
+      found_id="$lid"
+      break
+    fi
+  done
+
+  if [ -n "$found_id" ]; then
+    LISTING_ID="$found_id"
+    ok "Using existing listing $LISTING_ID with enough available quantity"
+    return
+  fi
+
+  info "No listing with sufficient quantity found. Attempting to create new listing …"
+  local resp http_code body
+  resp=$(http_post "$API/listings" \
+    '{"name":"Demo Product","description":"Generic product for demo auctions - enough quantity for all demo auctions","tags":["demo"],"subCategory":"'"$SUBCATEGORY_ID"'","quantity":'"$NUM_AUCTIONS"'}')
+  parse_response "$resp"
+
+  if [ "$LAST_HTTP_CODE" -ge 200 ] 2>/dev/null && [ "$LAST_HTTP_CODE" -lt 300 ] 2>/dev/null; then
+    LISTING_ID=$(extract_id "$LAST_BODY")
     ok "Created listing $LISTING_ID"
+  else
+    warn "Listing creation failed (HTTP $LAST_HTTP_CODE)"
+    warn "This may be due to a backend validation issue with the 'embedded' field."
+    warn ""
+    warn "To work around this, create a listing manually via the admin UI at:"
+    warn "  $BASE_URL → Admin → Listings → New"
+    warn "Then re-run this script with:"
+    warn "  LISTING_ID=<your-listing-id> bash $0"
+    warn ""
+    fail "Cannot proceed without a listing with available quantity ≥ $NUM_AUCTIONS"
   fi
 }
 
@@ -109,7 +225,7 @@ ensure_managed_type() {
   info "Fetching existing managed types …"
   local mts
   mts=$(curl -sf "$API/meta-data/managed-types" 2>/dev/null || echo '{"content":[]}')
-  MANAGED_TYPE_ID=$(echo "$mts" | jq -r '.content[0].id // empty')
+  MANAGED_TYPE_ID=$(extract_first_id "$mts")
   if [ -n "$MANAGED_TYPE_ID" ]; then
     ok "Using existing managed type $MANAGED_TYPE_ID"
   else
@@ -203,7 +319,7 @@ create_auction() {
 
   # ── 3a. Create auction ──────────────────────────────────────────────────
   local tags_json
-  tags_json=$(echo "$tags_str" | jq -R 'split(",")')
+  tags_json=$(csv_to_json_array "$tags_str")
 
   local auction_payload
   auction_payload=$(cat <<EOF
@@ -235,18 +351,23 @@ create_auction() {
       "description": "$description",
       "quantity": 1
     },
-    "openingPrice": $opening_price
+    "openingPrice": $opening_price,
+    "standingPrice": $opening_price
   }
 }
 EOF
   )
 
-  local resp
-  resp=$(curl -sf -X POST "$API/auctions" \
-    -H 'Content-Type: application/json' \
-    -d "$auction_payload")
+  local resp http_code body
+  resp=$(http_post "$API/auctions" "$auction_payload")
+  parse_response "$resp"
+  if [ "$LAST_HTTP_CODE" -lt 200 ] 2>/dev/null || [ "$LAST_HTTP_CODE" -ge 300 ] 2>/dev/null; then
+    warn "  Failed to create auction (HTTP $LAST_HTTP_CODE)"
+    echo ""
+    return 1
+  fi
   local auction_id
-  auction_id=$(extract_id "$resp")
+  auction_id=$(extract_id "$LAST_BODY")
   ok "  Created auction $auction_id"
 
   # ── 3b. Set policies ────────────────────────────────────────────────────
@@ -296,10 +417,13 @@ EOF
 ]
 EOF
   )
-  curl -sf -X POST "$API/auctions/$auction_id/policies" \
-    -H 'Content-Type: application/json' \
-    -d "$policies_payload" > /dev/null
-  ok "  Policies set"
+  resp=$(http_post "$API/auctions/$auction_id/policies" "$policies_payload")
+  parse_response "$resp"
+  if [ "$LAST_HTTP_CODE" -ge 200 ] 2>/dev/null && [ "$LAST_HTTP_CODE" -lt 300 ] 2>/dev/null; then
+    ok "  Policies set"
+  else
+    warn "  Failed to set policies (HTTP $LAST_HTTP_CODE)"
+  fi
 
   # ── 3c. Set workflow ────────────────────────────────────────────────────
   local workflow_payload
@@ -354,10 +478,13 @@ EOF
 ]
 EOF
   )
-  curl -sf -X POST "$API/auctions/$auction_id/workflow" \
-    -H 'Content-Type: application/json' \
-    -d "$workflow_payload" > /dev/null
-  ok "  Workflow set"
+  resp=$(http_post "$API/auctions/$auction_id/workflow" "$workflow_payload")
+  parse_response "$resp"
+  if [ "$LAST_HTTP_CODE" -ge 200 ] 2>/dev/null && [ "$LAST_HTTP_CODE" -lt 300 ] 2>/dev/null; then
+    ok "  Workflow set"
+  else
+    warn "  Failed to set workflow (HTTP $LAST_HTTP_CODE)"
+  fi
 
   # ── 3d. Schedule and publish ────────────────────────────────────────────
   local start_time end_time
@@ -375,10 +502,13 @@ EOF
 }
 EOF
   )
-  curl -sf -X PUT "$API/auctions/$auction_id/schedule" \
-    -H 'Content-Type: application/json' \
-    -d "$schedule_payload" > /dev/null
-  ok "  Scheduled: $start_time → $end_time (published)"
+  resp=$(http_put "$API/auctions/$auction_id/schedule" "$schedule_payload")
+  parse_response "$resp"
+  if [ "$LAST_HTTP_CODE" -ge 200 ] 2>/dev/null && [ "$LAST_HTTP_CODE" -lt 300 ] 2>/dev/null; then
+    ok "  Scheduled: $start_time → $end_time (published)"
+  else
+    warn "  Failed to schedule (HTTP $LAST_HTTP_CODE)"
+  fi
 
   echo "$auction_id"
 }
@@ -406,7 +536,9 @@ main() {
   created_ids=()
   for i in $(seq 1 "$NUM_AUCTIONS"); do
     id=$(create_auction "$i")
-    created_ids+=("$id")
+    if [ -n "$id" ]; then
+      created_ids+=("$id")
+    fi
     echo ""
   done
 
@@ -420,9 +552,13 @@ main() {
   printf "║  ManagedType: %-46s ║\n" "$MANAGED_TYPE_ID"
   echo "╠══════════════════════════════════════════════════════════════╣"
   echo "║  Auction IDs:                                              ║"
-  for j in "${!created_ids[@]}"; do
-    printf "║    %2d. %-51s ║\n" "$((j+1))" "${created_ids[$j]}"
-  done
+  if [ ${#created_ids[@]} -eq 0 ]; then
+    printf "║    (none created) %-40s ║\n" ""
+  else
+    for j in "${!created_ids[@]}"; do
+      printf "║    %2d. %-51s ║\n" "$((j+1))" "${created_ids[$j]}"
+    done
+  fi
   echo "╠══════════════════════════════════════════════════════════════╣"
   printf "║  Public listing: %-45s ║\n" "$BASE_URL/api/v1/auctions/public"
   printf "║  Admin listing:  %-45s ║\n" "$BASE_URL/api/v1/auctions"

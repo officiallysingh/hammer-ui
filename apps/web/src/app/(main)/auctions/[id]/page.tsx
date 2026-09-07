@@ -1,9 +1,15 @@
 'use client';
 
-import { use, useCallback, useEffect, useState } from 'react';
+import { use, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { auctionsApi, participantsApi, type AuctionVM, type ParticipantVM } from '@repo/api';
-import { useAuthStore, useAuthHydrated } from '@/store/authStore';
+import {
+  auctionsApi,
+  participantsApi,
+  type AuctionVM,
+  type AuctionWorkflowStep,
+  type ParticipantVM,
+} from '@repo/api';
+import { useAuthStore } from '@/store/authStore';
 import { resolveStr, formatLabel, formatDateTime } from '@/components/common/admin/format';
 import {
   Loader2,
@@ -21,9 +27,22 @@ import {
   Tag,
   CheckCircle2,
   ClipboardList,
+  Settings2,
+  DollarSign,
+  GitFork,
 } from 'lucide-react';
 import { Button, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, toast } from '@repo/ui';
 import { WorkflowWizard } from '../_components/WorkflowWizard';
+import { WorkflowStagesTimeline } from '../../../(admin)/admin/auctions/_components/timeline/WorkflowStagesTimeline';
+import type { TimelineNode } from '../../../(admin)/admin/auctions/_components/timeline/types';
+import {
+  stepTypeMeta,
+  PaymentStepDetails,
+  BankDetailStepDetails,
+  ParticipationFormStepDetails,
+  TnCStepDetails,
+  FormStepDetails,
+} from '../../../(admin)/admin/auctions/_components/WorkflowStepDetails';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -53,10 +72,10 @@ export default function PublicAuctionViewPage({ params }: { params: Promise<{ id
   const { id } = use(params);
   const router = useRouter();
   const { user } = useAuthStore();
-  const hydrated = useAuthHydrated();
   const isLoggedIn = !!user?.authenticated;
 
   const [auction, setAuction] = useState<AuctionVM | null>(null);
+  const [workflow, setWorkflow] = useState<AuctionWorkflowStep[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,14 +91,16 @@ export default function PublicAuctionViewPage({ params }: { params: Promise<{ id
   // ── Load auction + participant status ───────────────────────────────────────
   const loadData = useCallback(async () => {
     try {
-      const [auctionData, selfParticipant] = await Promise.all([
+      const [auctionData, selfParticipant, workflowData] = await Promise.all([
         auctionsApi.getPublicAuctionById(id),
         isLoggedIn
           ? participantsApi.getSelfParticipant(id).catch(() => null)
           : Promise.resolve(null),
+        auctionsApi.getAuctionWorkflow(id).catch(() => [] as AuctionWorkflowStep[]),
       ]);
       setAuction(auctionData);
       setParticipant(selfParticipant);
+      setWorkflow(workflowData);
     } catch (err) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 404) {
@@ -95,13 +116,6 @@ export default function PublicAuctionViewPage({ params }: { params: Promise<{ id
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  // Redirect unauthenticated users to login
-  useEffect(() => {
-    if (hydrated && !isLoggedIn && !loading) {
-      router.push(`/login?callbackUrl=/auctions/${id}`);
-    }
-  }, [hydrated, isLoggedIn, loading, id, router]);
 
   // ── Join auction ────────────────────────────────────────────────────────────
   const handleJoin = async () => {
@@ -156,7 +170,7 @@ export default function PublicAuctionViewPage({ params }: { params: Promise<{ id
   };
 
   // ── Guards ──────────────────────────────────────────────────────────────────
-  if (!hydrated || loading) {
+  if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
@@ -166,8 +180,6 @@ export default function PublicAuctionViewPage({ params }: { params: Promise<{ id
       </div>
     );
   }
-
-  if (!isLoggedIn) return null;
 
   if (error || !auction) {
     return (
@@ -208,7 +220,7 @@ export default function PublicAuctionViewPage({ params }: { params: Promise<{ id
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <>
-      <div className="max-w-4xl mx-auto px-4 py-10 space-y-8">
+      <div className="container  mx-auto px-4 py-10 space-y-8">
         {/* Back */}
         <button
           type="button"
@@ -416,7 +428,7 @@ export default function PublicAuctionViewPage({ params }: { params: Promise<{ id
                 ) : (
                   <>
                     <Gavel className="h-4 w-4" />
-                    Join Auction
+                    {isLoggedIn ? 'Join Auction' : 'Sign in to join'}
                   </>
                 )}
               </Button>
@@ -443,42 +455,39 @@ export default function PublicAuctionViewPage({ params }: { params: Promise<{ id
             />
           )}
 
-        {/* ── Unit / item details ──────────────────────────────────────────── */}
-        {auction.unit && (
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
-            <h2 className="text-base font-semibold text-foreground">Auction Item</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1">
-                  Unit Type
-                </p>
-                <p className="font-medium text-foreground">
-                  {formatLabel(auction.unit.type) || '—'}
-                </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+          {/* ── Unit / item details ────────────────────────────────────────── */}
+          {auction.unit && (
+            <div className="h-full rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+                  <Tag className="h-5 w-5 text-primary" />
+                </div>
+                <h2 className="text-base font-semibold text-foreground">Auction Item</h2>
               </div>
-              {auction.unit.openingPrice != null && (
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1">
-                    Opening Price
-                  </p>
-                  <p className="font-medium text-foreground">
+              <div className="space-y-3 text-sm">
+                <PublicDetailRow label="Unit type">
+                  {formatLabel(auction.unit.type) || '—'}
+                </PublicDetailRow>
+                {auction.unit.openingPrice != null && (
+                  <PublicDetailRow label="Opening price">
                     {currency} {auction.unit.openingPrice.toLocaleString()}
-                  </p>
-                </div>
-              )}
-              {auction.unit.standingPrice != null && (
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1">
-                    Current Price
-                  </p>
-                  <p className="font-bold text-primary text-lg">
-                    {currency} {auction.unit.standingPrice.toLocaleString()}
-                  </p>
-                </div>
-              )}
+                  </PublicDetailRow>
+                )}
+                {auction.unit.standingPrice != null && (
+                  <PublicDetailRow label="Current price">
+                    <span className="text-primary">
+                      {currency} {auction.unit.standingPrice.toLocaleString()}
+                    </span>
+                  </PublicDetailRow>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+
+          <PublicAuctionOverview auction={auction} />
+        </div>
+        {workflow.length > 0 && <PublicWorkflow workflow={workflow} auction={auction} />}
       </div>
 
       {/* ── Workflow Wizard Dialog ─────────────────────────────────────────── */}
@@ -497,6 +506,148 @@ export default function PublicAuctionViewPage({ params }: { params: Promise<{ id
       </Dialog>
     </>
   );
+}
+
+function PublicAuctionOverview({ auction }: { auction: AuctionVM }) {
+  return (
+    <>
+      <div className="h-full rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+            <DollarSign className="h-5 w-5 text-primary" />
+          </div>
+          <h2 className="text-base font-semibold text-foreground">Monetary options</h2>
+        </div>
+        <div className="space-y-3 text-sm">
+          <PublicDetailRow label="Currency unit">
+            {resolveStr(auction.monetaryOptions?.currencyUnit) || '—'}
+          </PublicDetailRow>
+          <PublicDetailRow label="Precision">
+            {auction.monetaryOptions?.precision != null
+              ? `${auction.monetaryOptions.precision} decimal places`
+              : '—'}
+          </PublicDetailRow>
+          <PublicDetailRow label="Rounding mode">
+            {formatLabel(auction.monetaryOptions?.roundingMode) || '—'}
+          </PublicDetailRow>
+        </div>
+      </div>
+
+      <div className="h-full rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+            <Settings2 className="h-5 w-5 text-primary" />
+          </div>
+          <h2 className="text-base font-semibold text-foreground">Auction settings</h2>
+        </div>
+        <div className="space-y-3 text-sm">
+          <PublicDetailRow label="Accessibility">
+            {formatLabel(auction.protocol?.accessibility) || '—'}
+          </PublicDetailRow>
+          <PublicDetailRow label="Dimension">
+            {formatLabel(auction.protocol?.dimension) || '—'}
+          </PublicDetailRow>
+          <PublicDetailRow label="Participant visibility">
+            {formatLabel(auction.protocol?.participantVisibility) || '—'}
+          </PublicDetailRow>
+          <PublicDetailRow label="Offer visibility">
+            {formatLabel(auction.protocol?.offerVisibility) || '—'}
+          </PublicDetailRow>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function PublicDetailRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4 border-b border-border/50 pb-2 last:border-0 last:pb-0">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium text-foreground text-right">{children}</span>
+    </div>
+  );
+}
+
+function PublicWorkflow({
+  workflow,
+  auction,
+}: {
+  workflow: AuctionWorkflowStep[];
+  auction: AuctionVM;
+}) {
+  const preAuctionNodes = buildPublicWorkflowNodes(
+    workflow.filter((step) => publicWorkflowPhase(step) === 'PRE_AUCTION'),
+  );
+  const postAuctionNodes = buildPublicWorkflowNodes(
+    workflow.filter((step) => publicWorkflowPhase(step) === 'POST_AUCTION'),
+  );
+
+  return (
+    <section className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
+      <div className="flex items-start gap-3">
+        <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+          <GitFork className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Participation workflow</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Follow these steps to complete your registration for the auction.
+          </p>
+        </div>
+      </div>
+
+      <WorkflowStagesTimeline
+        preAuctionNodes={preAuctionNodes}
+        postAuctionNodes={postAuctionNodes}
+        auction={auction}
+      />
+    </section>
+  );
+}
+
+function publicWorkflowPhase(step: AuctionWorkflowStep): 'PRE_AUCTION' | 'POST_AUCTION' {
+  return resolveStr(step.phase) === 'POST_AUCTION' || step.postPayment === true
+    ? 'POST_AUCTION'
+    : 'PRE_AUCTION';
+}
+
+function publicStepDetails(step: AuctionWorkflowStep): ReactNode {
+  switch (resolveStr(step.type)) {
+    case 'PAYMENT_STEP':
+      return <PaymentStepDetails step={step} />;
+    case 'BANK_DETAIL_FORM_STEP':
+      return <BankDetailStepDetails />;
+    case 'PARTICIPATION_FORM_STEP':
+      return <ParticipationFormStepDetails step={step} />;
+    case 'TNC_FORM_STEP':
+      return <TnCStepDetails step={step} />;
+    case 'FORM_STEP':
+      return <FormStepDetails step={step} />;
+    default:
+      return null;
+  }
+}
+
+function buildPublicWorkflowNodes(workflow: AuctionWorkflowStep[]): TimelineNode[] {
+  return [...workflow]
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map((step, index) => {
+      const type = resolveStr(step.type);
+      const meta = stepTypeMeta(type);
+      const details = publicStepDetails(step);
+
+      return {
+        id: step.id ?? `public-workflow-step-${index}`,
+        label: formatLabel(type) || 'Workflow step',
+        Icon: meta.Icon,
+        dotClass: meta.dot,
+        labelClass: meta.text,
+        borderClass: meta.border,
+        title: step.name || formatLabel(type) || `Step ${index + 1}`,
+        subs: step.description ? [step.description] : [],
+        details,
+      };
+    });
 }
 
 // ── Workflow status summary card ──────────────────────────────────────────────

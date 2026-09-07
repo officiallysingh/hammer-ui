@@ -552,6 +552,9 @@ export function AuctionStep5Workflow({
   const [deletingStep, setDeletingStep] = useState<AuctionWorkflowStep | null>(null);
   const [deletingStepBusy, setDeletingStepBusy] = useState(false);
   const [deleteStepError, setDeleteStepError] = useState<string | null>(null);
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
+  const [deleteAllError, setDeleteAllError] = useState<string | null>(null);
 
   // Preview-before-save review state (mirrors the policies step's review dialog)
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -687,6 +690,23 @@ export function AuctionStep5Workflow({
       setDeleteStepError('Failed to delete step. Please try again.');
     } finally {
       setDeletingStepBusy(false);
+    }
+  };
+
+  const handleDeleteAllWorkflow = async () => {
+    if (saveMode !== 'direct') return;
+    setDeletingAll(true);
+    setDeleteAllError(null);
+    try {
+      await auctionsApi.deleteWorkflow(auctionId);
+      setWorkflow([]);
+      setDraftRequests({});
+      setEvaluationsByPolicyId({});
+      setDeleteAllOpen(false);
+    } catch (err) {
+      setDeleteAllError(parseApiError(err).general ?? 'Failed to delete the workflow.');
+    } finally {
+      setDeletingAll(false);
     }
   };
 
@@ -877,6 +897,18 @@ export function AuctionStep5Workflow({
               <span className="text-[10px] text-muted-foreground hidden sm:inline select-none">
                 Drag to reorder
               </span>
+              {saveMode === 'direct' && workflow.length > 0 && !hasDrafts && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDeleteAllOpen(true)}
+                  className="h-8 gap-1.5 text-xs text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete all
+                </Button>
+              )}
             </div>
           </div>
 
@@ -1208,6 +1240,23 @@ export function AuctionStep5Workflow({
           if (deletingStepBusy) return;
           setDeletingStep(null);
           setDeleteStepError(null);
+        }}
+      />
+
+      <ConfirmDialog
+        open={deleteAllOpen}
+        title="Delete entire workflow?"
+        description={
+          deleteAllError ??
+          'This permanently removes every workflow step from this auction. This action cannot be undone.'
+        }
+        confirmLabel={deletingAll ? 'Deleting...' : 'Delete all'}
+        onConfirm={handleDeleteAllWorkflow}
+        onCancel={() => {
+          if (!deletingAll) {
+            setDeleteAllOpen(false);
+            setDeleteAllError(null);
+          }
         }}
       />
 
