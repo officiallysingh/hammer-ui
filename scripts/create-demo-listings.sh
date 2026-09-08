@@ -12,7 +12,7 @@ warn()  { printf "\033[1;33m[WARN]\033[0m  %s\n" "$*"; }
 fail()  { printf "\033[1;31m[FAIL]\033[0m  %s\n" "$*"; exit 1; }
 
 extract_id() {
-  echo "$1" | grep -o '"id"\s*:\s*"[^"]*"' | head -1 | sed 's/"id"\s*:\s*"//;s/"//'
+  echo "$1" | grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | grep -o '[0-9a-f-]\{8,\}'
 }
 
 main() {
@@ -36,7 +36,7 @@ main() {
     info "Finding sub-category …"
     local cats_resp cat_id subs_resp
     cats_resp=$(curl -sf "$API/master/categories" 2>/dev/null || echo "[]")
-    cat_id=$(echo "$cats_resp" | grep -o '"id"\s*:\s*"[^"]*"' | head -1 | sed 's/"id"\s*:\s*"//;s/"//')
+    cat_id=$(echo "$cats_resp" | grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"id"[[:space:]]*:[[:space:]]*"//;s/"//;s/[^0-9a-f-]//g')
     if [ -z "$cat_id" ]; then
       local cat_resp
       cat_resp=$(curl -sf -X POST "$API/master/categories" \
@@ -48,7 +48,7 @@ main() {
       ok "Using category $cat_id"
     fi
     subs_resp=$(curl -sf "$API/master/categories/$cat_id/sub-categories" 2>/dev/null || echo "[]")
-    SUBCATEGORY_ID=$(echo "$subs_resp" | grep -o '"id"\s*:\s*"[^"]*"' | head -1 | sed 's/"id"\s*:\s*"//;s/"//')
+    SUBCATEGORY_ID=$(echo "$subs_resp" | grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"id"[[:space:]]*:[[:space:]]*"//;s/"//;s/[^0-9a-f-]//g')
     if [ -z "$SUBCATEGORY_ID" ]; then
       local sub_resp
       sub_resp=$(curl -sf -X POST "$API/master/categories/$cat_id/sub-categories" \
@@ -90,13 +90,13 @@ main() {
 
   # Check what went wrong
   local error_detail
-  error_detail=$(echo "$body" | grep -o '"detail"\s*:\s*"[^"]*"' | head -1 | sed 's/"detail"\s*:\s*"//;s/"//')
+  error_detail=$(echo "$body" | grep -o '"detail"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"detail"[[:space:]]*:[[:space:]]*"//;s/"$//')
   if [ -n "$error_detail" ]; then
     warn "Error: $error_detail"
   fi
 
   local error_property
-  error_property=$(echo "$body" | grep -o '"propertyPath"\s*:\s*"[^"]*"' | head -1 | sed 's/"propertyPath"\s*:\s*"//;s/"//')
+  error_property=$(echo "$body" | grep -o '"propertyPath"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"propertyPath"[[:space:]]*:[[:space:]]*"//;s/"$//')
   if [ -n "$error_property" ]; then
     warn "Failed field: $error_property"
   fi

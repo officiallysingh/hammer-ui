@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { auctionsApi, type AuctionVM, type PublicAuctionsFilter } from '@repo/api';
+import {
+  auctionsApi,
+  masterApi,
+  type AuctionVM,
+  type PublicAuctionsFilter,
+  type CategoryVM,
+} from '@repo/api';
 import { resolveStr, formatLabel } from '@/components/common/admin/format';
 import { formatDateTime } from '@/components/common/admin/format';
 import {
@@ -21,6 +27,20 @@ import {
   Lock,
 } from 'lucide-react';
 import { Button, Input, Badge } from '@repo/ui';
+import Select from 'react-select';
+import type { MultiValue } from 'react-select';
+import {
+  GroupedSubcategorySelect,
+  makeReactSelectStyles,
+} from '@/components/common/admin/GroupedSubcategorySelect';
+
+interface SelectOption {
+  label: string;
+  value: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const reactSelectStyles = makeReactSelectStyles<true>() as any;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -219,6 +239,22 @@ const AuctionGrid = () => {
   const [pendingPhrase, setPendingPhrase] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [tillDate, setTillDate] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState<SelectOption[]>([]);
+  const [selectedSubCategories, setSelectedSubCategories] = useState<SelectOption[]>([]);
+  const [categories, setCategories] = useState<CategoryVM[]>([]);
+
+  // Fetch categories on mount
+  useEffect(() => {
+    masterApi
+      .getCategories(true)
+      .then((cats) => setCategories(cats))
+      .catch(() => {});
+  }, []);
+
+  const categoryOptions: SelectOption[] = categories.map((c) => ({
+    label: c.name,
+    value: c.id,
+  }));
 
   const fetchAuctions = useCallback(
     async (opts: PublicAuctionsFilter & { pageOverride?: number } = {}) => {
@@ -226,6 +262,8 @@ const AuctionGrid = () => {
       try {
         const result = await auctionsApi.getPublicAuctions({
           phrases: opts.phrases,
+          categories: opts.categories,
+          subCategories: opts.subCategories,
           fromTime: opts.fromTime,
           tillTime: opts.tillTime,
           page: opts.pageOverride ?? page,
@@ -255,6 +293,8 @@ const AuctionGrid = () => {
     setPage(0);
     fetchAuctions({
       phrases: newPhrase ? [newPhrase] : undefined,
+      categories: selectedCategories.map((o) => o.value),
+      subCategories: selectedSubCategories.map((o) => o.value),
       fromTime: fromDate ? new Date(fromDate).toISOString() : undefined,
       tillTime: tillDate ? new Date(`${tillDate}T23:59:59`).toISOString() : undefined,
       pageOverride: 0,
@@ -266,6 +306,8 @@ const AuctionGrid = () => {
     setPhrase('');
     setFromDate('');
     setTillDate('');
+    setSelectedCategories([]);
+    setSelectedSubCategories([]);
     setPage(0);
     fetchAuctions({ pageOverride: 0 });
   };
@@ -276,6 +318,8 @@ const AuctionGrid = () => {
     setPage(next);
     fetchAuctions({
       phrases: phrase ? [phrase] : undefined,
+      categories: selectedCategories.map((o) => o.value),
+      subCategories: selectedSubCategories.map((o) => o.value),
       fromTime: fromDate ? new Date(fromDate).toISOString() : undefined,
       tillTime: tillDate ? new Date(`${tillDate}T23:59:59`).toISOString() : undefined,
       pageOverride: next,
@@ -332,6 +376,57 @@ const AuctionGrid = () => {
                 Till
               </label>
               <Input type="date" value={tillDate} onChange={(e) => setTillDate(e.target.value)} />
+            </div>
+
+            <div className="min-w-[200px] space-y-1.5">
+              <label className="font-body text-xs uppercase tracking-wider text-muted-foreground">
+                Categories
+              </label>
+              <Select<SelectOption, true>
+                isMulti
+                options={categoryOptions}
+                value={selectedCategories}
+                onChange={(vals: MultiValue<SelectOption>) => {
+                  setSelectedCategories([...vals]);
+                  // Clear subcategories that no longer belong to selected cats
+                  const catIds = new Set(vals.map((v) => v.value));
+                  setSelectedSubCategories((prev) =>
+                    prev.filter((s) => {
+                      const ownerCat = categories.find((c) =>
+                        c.subCategories?.some((sc) => sc.id === s.value),
+                      );
+                      return ownerCat && catIds.has(ownerCat.id);
+                    }),
+                  );
+                }}
+                placeholder="All categories"
+                styles={reactSelectStyles}
+              />
+            </div>
+
+            <div className="min-w-[200px] space-y-1.5">
+              <label className="font-body text-xs uppercase tracking-wider text-muted-foreground">
+                Sub-categories
+              </label>
+              <GroupedSubcategorySelect
+                isMulti
+                categories={
+                  selectedCategories.length > 0
+                    ? categories.filter((c) => selectedCategories.some((s) => s.value === c.id))
+                    : categories
+                }
+                value={selectedSubCategories.map((o) => o.value)}
+                onChange={(ids) => {
+                  const allSubs = categories.flatMap((c) => c.subCategories ?? []);
+                  setSelectedSubCategories(
+                    ids
+                      .map((id) => allSubs.find((s) => s.id === id))
+                      .filter(Boolean)
+                      .map((s) => ({ label: s!.name, value: s!.id })),
+                  );
+                }}
+                placeholder="All sub-categories"
+              />
             </div>
 
             <div className="flex gap-2 pb-0.5">

@@ -22,7 +22,7 @@ fail()  { printf "\033[1;31m[FAIL]\033[0m  %s\n" "$*"; exit 1; }
 extract_id() {
   local body="$1"
   local id
-  id=$(echo "$body" | grep -o '"id"\s*:\s*"[^"]*"' | head -1 | sed 's/"id"\s*:\s*"//;s/"//')
+  id=$(echo "$body" | grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"id"[[:space:]]*:[[:space:]]*"//;s/"$//' | grep -o '[0-9a-f-]\{8,\}')
   [ -n "$id" ] && echo "$id" || fail "Could not extract id from: $body"
 }
 
@@ -30,7 +30,7 @@ extract_id() {
 extract_first_id() {
   local json="$1"
   local id
-  id=$(echo "$json" | grep -o '"id"\s*:\s*"[^"]*"' | head -1 | sed 's/"id"\s*:\s*"//;s/"//')
+  id=$(echo "$json" | grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"id"[[:space:]]*:[[:space:]]*"//;s/"$//' | grep -o '[0-9a-f-]\{8,\}')
   [ -n "$id" ] && echo "$id" || echo ""
 }
 
@@ -82,7 +82,7 @@ check_listing_availability() {
   local resp
   resp=$(curl -s "$API/listings/$listing_id" 2>/dev/null)
   local available
-  available=$(echo "$resp" | grep -o '"available"\s*:\s*[0-9]*' | head -1 | sed 's/"available"\s*:\s*//')
+  available=$(echo "$resp" | grep -o '"available"[[:space:]]*:[[:space:]]*[0-9]*' | head -1 | grep -o '[0-9][0-9]*')
   if [ -z "$available" ]; then
     echo "0"
   else
@@ -135,7 +135,7 @@ ensure_subcategory() {
     info "Detecting sub-category from listing $LISTING_ID …"
     local listing_resp
     listing_resp=$(curl -sf "$API/listings/$LISTING_ID" 2>/dev/null || echo "{}")
-    SUBCATEGORY_ID=$(echo "$listing_resp" | tr '\n' ' ' | grep -o '"subCategory"\s*:\s*{\s*"id"\s*:\s*"[^"]*"' | grep -o '"id"\s*:\s*"[^"]*"' | head -1 | sed 's/"id"\s*:\s*"//;s/"//')
+    SUBCATEGORY_ID=$(echo "$listing_resp" | tr '\n' ' ' | grep -o '"subCategory"[[:space:]]*:[[:space:]]*{[^}]*"id"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -o '[0-9a-f-]\{8,\}' | head -1)
     if [ -n "$SUBCATEGORY_ID" ]; then
       ok "Using sub-category $SUBCATEGORY_ID (from listing)"
       return
@@ -179,7 +179,7 @@ ensure_listing() {
   # Parse listings to find one with enough available quantity
   local found_id=""
   local listing_ids
-  listing_ids=$(echo "$listings_resp" | grep -o '"id"\s*:\s*"[^"]*"' | sed 's/"id"\s*:\s*"//;s/"//' | head -5)
+  listing_ids=$(echo "$listings_resp" | grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"id"[[:space:]]*:[[:space:]]*"//;s/"$//' | grep -o '[0-9a-f-]\{8,\}' | head -5)
   for lid in $listing_ids; do
     local avail
     avail=$(check_listing_availability "$lid" "$NUM_AUCTIONS")
@@ -309,7 +309,7 @@ OPENING_PRICES=(
 create_auction() {
   local idx=$1
   local i=$((idx - 1))
-  local title="${AUCTION_TITLES[$i]}"
+  local title="${AUCTION_TITLES[$i]} (DEMO-$(printf '%04d' $idx))"
   local description="${AUCTION_DESCRIPTIONS[$i]}"
   local tags_str="${AUCTION_TAGS[$i]}"
   local opening_price="${OPENING_PRICES[$i]}"
